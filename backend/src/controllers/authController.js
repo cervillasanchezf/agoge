@@ -41,6 +41,8 @@ exports.register = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        profileImage: user.profileImage,
+        profileCompleted: user.profileCompleted,
         token
       }
     });
@@ -97,6 +99,11 @@ exports.login = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        profileImage: user.profileImage,
+        height: user.height,
+        weight: user.weight,
+        goal: user.goal,
+        profileCompleted: user.profileCompleted,
         token
       }
     });

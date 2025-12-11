@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { authService } from '../services/api';
+import { authService, profileService } from '../services/api';
 
 const AuthContext = createContext({});
 
@@ -71,6 +71,27 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const updateUserProfile = async (profileData) => {
+    try {
+      const response = await profileService.updateProfile(user.id, profileData);
+      
+      if (response.success) {
+        const updatedUser = response.data;
+        await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+        setUser(updatedUser);
+        return { success: true };
+      }
+      
+      return { success: false, message: response.message };
+    } catch (error) {
+      console.error('Error al actualizar perfil:', error);
+      return { 
+        success: false, 
+        message: error.response?.data?.message || 'Error al actualizar perfil' 
+      };
+    }
+  };
+
   const logout = async () => {
     try {
       await AsyncStorage.removeItem('user');
@@ -82,7 +103,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, updateUserProfile, logout }}>
       {children}
     </AuthContext.Provider>
   );

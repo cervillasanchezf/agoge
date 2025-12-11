@@ -20,6 +20,28 @@ const userSchema = new mongoose.Schema({
     required: [true, 'La contraseña es requerida'],
     minlength: [6, 'La contraseña debe tener al menos 6 caracteres']
   },
+  profileImage: {
+    type: String,
+    default: 'https://ui-avatars.com/api/?name=User&size=200&background=6366f1&color=fff'
+  },
+  height: {
+    type: Number,
+    min: [100, 'La altura debe ser al menos 100 cm'],
+    max: [250, 'La altura debe ser máximo 250 cm']
+  },
+  weight: {
+    type: Number,
+    min: [30, 'El peso debe ser al menos 30 kg'],
+    max: [300, 'El peso debe ser máximo 300 kg']
+  },
+  goal: {
+    type: String,
+    enum: ['ganar_masa', 'perder_grasa', 'mantener']
+  },
+  profileCompleted: {
+    type: Boolean,
+    default: false
+  },
   createdAt: {
     type: Date,
     default: Date.now

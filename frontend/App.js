@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
+import CompleteProfileScreen from './src/screens/CompleteProfileScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 
@@ -25,11 +26,19 @@ function Navigation() {
         }}
       >
         {user ? (
-          <Stack.Screen 
-            name="Home" 
-            component={HomeScreen}
-            options={{ title: 'Inicio' }}
-          />
+          user.profileCompleted ? (
+            <Stack.Screen 
+              name="Home" 
+              component={HomeScreen}
+              options={{ title: 'Inicio' }}
+            />
+          ) : (
+            <Stack.Screen 
+              name="CompleteProfile" 
+              component={CompleteProfileScreen}
+              options={{ title: 'Completa tu perfil', headerLeft: () => null }}
+            />
+          )
         ) : (
           <>
             <Stack.Screen 
