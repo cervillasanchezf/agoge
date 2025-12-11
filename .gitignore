@@ -1,0 +1,21 @@
+# Node modules
+node_modules/
+backend/node_modules/
+mobile/node_modules/
+
+# Environment
+backend/.env
+*.env.local
+
+# Expo
+mobile/.expo/
+mobile/dist/
+
+# Uploads
+backend/uploads/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
