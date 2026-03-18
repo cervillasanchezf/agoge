@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { authService, profileService } from '../services/api';
+import { authService, profileService, setTokenExpiredCallback } from '../services/api';
 
 const AuthContext = createContext({});
 
@@ -10,6 +10,8 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     loadStorageData();
+    // Registrar callback para cuando el token expire
+    setTokenExpiredCallback(() => setUser(null));
   }, []);
 
   const loadStorageData = async () => {
@@ -35,6 +37,7 @@ export const AuthProvider = ({ children }) => {
         const userData = response.data;
         await AsyncStorage.setItem('user', JSON.stringify(userData));
         await AsyncStorage.setItem('token', userData.token);
+        await AsyncStorage.setItem('refreshToken', userData.refreshToken);
         setUser(userData);
         return { success: true };
       }
@@ -57,6 +60,7 @@ export const AuthProvider = ({ children }) => {
         const userData = response.data;
         await AsyncStorage.setItem('user', JSON.stringify(userData));
         await AsyncStorage.setItem('token', userData.token);
+        await AsyncStorage.setItem('refreshToken', userData.refreshToken);
         setUser(userData);
         return { success: true };
       }
@@ -64,9 +68,9 @@ export const AuthProvider = ({ children }) => {
       return { success: false, message: response.message };
     } catch (error) {
       console.error('Error en registro:', error);
-      return { 
-        success: false, 
-        message: error.response?.data?.message || 'Error al registrar usuario' 
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Error al registrar usuario',
       };
     }
   };
@@ -94,8 +98,14 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
+      const refreshToken = await AsyncStorage.getItem('refreshToken');
+      if (refreshToken) {
+        // Invalidar el refresh token en el servidor (fire & forget)
+        authService.logout(refreshToken).catch(() => {});
+      }
       await AsyncStorage.removeItem('user');
       await AsyncStorage.removeItem('token');
+      await AsyncStorage.removeItem('refreshToken');
       setUser(null);
     } catch (error) {
       console.error('Error al cerrar sesión:', error);

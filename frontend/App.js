@@ -2,12 +2,16 @@ import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Ionicons } from '@expo/vector-icons';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import CompleteProfileScreen from './src/screens/CompleteProfileScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import TrainningScreen from './src/screens/TrainningScreen';
 import NewTrainningScreen from './src/screens/NewTrainningScreen';
+import ProfileScreen from './src/screens/ProfileScreen';
+import ExercisePickerScreen from './src/screens/ExercisePickerScreen';
+import ActiveSessionScreen from './src/screens/ActiveSessionScreen';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 
 
@@ -38,10 +42,47 @@ function TrainningStack() {
         component={NewTrainningScreen}
         options={{ title: 'Nuevo Entrenamiento' }}
       />
+      <Stack.Screen
+        name="ExercisePicker"
+        component={ExercisePickerScreen}
+        options={{ title: 'Añadir Ejercicio' }}
+      />
+      <Stack.Screen
+        name="ActiveSession"
+        component={ActiveSessionScreen}
+        options={{ headerShown: false }}
+      />
     </Stack.Navigator>
   );
 }
 
+
+function ProfileStack() {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: '#6366f1',
+        },
+        headerTintColor: '#fff',
+        headerTitleStyle: {
+          fontWeight: 'bold',
+        },
+      }}
+    >
+      <Stack.Screen
+        name="ProfileMain"
+        component={ProfileScreen}
+        options={{ title: 'Perfil' }}
+      />
+      <Stack.Screen
+        name="EditProfile"
+        component={CompleteProfileScreen}
+        options={{ title: 'Editar Perfil' }}
+      />
+    </Stack.Navigator>
+  );
+}
 
 function MainTabs() {
   return (
@@ -69,6 +110,9 @@ function MainTabs() {
         options={{
           title: 'Inicio',
           tabBarLabel: 'Inicio',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home-outline" size={size} color={color} />
+          ),
         }}
       />
       <Tab.Screen
@@ -77,6 +121,21 @@ function MainTabs() {
         options={{
           headerShown: false,
           tabBarLabel: 'Entrenamiento',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="barbell-outline" size={size} color={color} />
+          ),
+          unmountOnBlur: true,
+        }}
+      />
+      <Tab.Screen
+        name="ProfileTab"
+        component={ProfileStack}
+        options={{
+          headerShown: false,
+          tabBarLabel: 'Perfil',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person-outline" size={size} color={color} />
+          ),
         }}
       />
     </Tab.Navigator>

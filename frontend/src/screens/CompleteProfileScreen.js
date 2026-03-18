@@ -19,12 +19,12 @@ const GOALS = [
   { value: 'mantener', label: 'Mantener peso' },
 ];
 
-export default function CompleteProfileScreen() {
+export default function CompleteProfileScreen({ navigation }) {
   const { user, updateUserProfile } = useAuth();
   const [profileImage, setProfileImage] = useState(user?.profileImage || '');
-  const [height, setHeight] = useState('');
-  const [weight, setWeight] = useState('');
-  const [goal, setGoal] = useState('');
+  const [height, setHeight] = useState(user?.height ? String(user.height) : '');
+  const [weight, setWeight] = useState(user?.weight ? String(user.weight) : '');
+  const [goal, setGoal] = useState(user?.goal || '');
   const [loading, setLoading] = useState(false);
 
   const pickImage = async () => {
@@ -75,7 +75,13 @@ export default function CompleteProfileScreen() {
     });
     setLoading(false);
 
-    if (!result.success) {
+    if (result.success) {
+      if (navigation?.canGoBack()) {
+        Alert.alert('¡Perfil actualizado!', 'Tus datos se han guardado correctamente.', [
+          { text: 'OK', onPress: () => navigation.goBack() },
+        ]);
+      }
+    } else {
       Alert.alert('Error', result.message || 'Error al actualizar perfil');
     }
   };

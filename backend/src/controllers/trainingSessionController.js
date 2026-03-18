@@ -1,0 +1,89 @@
+const TrainingSession = require('../models/TrainingSession');
+const Training = require('../models/Training');
+
+// @desc    Obtener la última sesión de una plantilla (para pre-cargar valores)
+// @route   GET /api/training-sessions/last/:trainingId
+// @access  Private
+exports.getLastSession = async (req, res) => {
+  try {
+    const session = await TrainingSession.findOne({
+      userId: req.userId,
+      trainingId: req.params.trainingId,
+    })
+      .populate('exercises.exerciseId', 'name name_es category primaryMuscles images')
+      .sort({ date: -1 });
+
+    res.json({ success: true, data: session || null });
+  } catch (error) {
+    console.error('Error al obtener última sesión:', error);
+    res.status(500).json({ success: false, message: 'Error al obtener última sesión' });
+  }
+};
+
+// @desc    Obtener historial de sesiones de una plantilla
+// @route   GET /api/training-sessions/history/:trainingId
+// @access  Private
+exports.getSessionHistory = async (req, res) => {
+  try {
+    const { page = 1, limit = 10 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const total = await TrainingSession.countDocuments({
+      userId: req.userId,
+      trainingId: req.params.trainingId,
+    });
+
+    const sessions = await TrainingSession.find({
+      userId: req.userId,
+      trainingId: req.params.trainingId,
+    })
+      .populate('exercises.exerciseId', 'name name_es primaryMuscles')
+      .sort({ date: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    res.json({
+      success: true,
+      data: sessions,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(total / parseInt(limit)),
+      },
+    });
+  } catch (error) {
+    console.error('Error al obtener historial:', error);
+    res.status(500).json({ success: false, message: 'Error al obtener historial' });
+  }
+};
+
+// @desc    Guardar una sesión completada
+// @route   POST /api/training-sessions
+// @access  Private
+exports.createSession = async (req, res) => {
+  try {
+    const { trainingId, exercises, notes, date } = req.body;
+
+    // Verificar que la plantilla pertenece al usuario
+    const training = await Training.findOne({ _id: trainingId, userId: req.userId });
+    if (!training) {
+      return res.status(404).json({ success: false, message: 'Entrenamiento no encontrado' });
+    }
+
+    const session = await TrainingSession.create({
+      userId: req.userId,
+      trainingId,
+      exercises,
+      notes: notes || '',
+      date: date ? new Date(date) : new Date(),
+    });
+
+    const populated = await session.populate('exercises.exerciseId', 'name name_es category primaryMuscles images');
+
+    res.status(201).json({ success: true, data: populated });
+  } catch (error) {
+    console.error('Error al guardar sesión:', error);
+    res.status(500).json({ success: false, message: 'Error al guardar sesión' });
+  }
+};
