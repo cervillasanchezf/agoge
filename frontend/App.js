@@ -98,9 +98,13 @@ function MainTabs() {
         tabBarActiveTintColor: '#6366f1',
         tabBarInactiveTintColor: '#999',
         tabBarStyle: {
-          paddingBottom: 5,
-          paddingTop: 5,
-          height: 60,
+          paddingBottom: 10,
+          paddingTop: 2,
+          height: 70,
+        },
+        tabBarLabelStyle: {
+          marginTop: -10,
+          fontSize: 11,
         },
       }}
     >

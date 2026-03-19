@@ -1,7 +1,20 @@
 const mongoose = require('mongoose');
 
-// Plantilla de entrenamiento — define qué ejercicios y en qué orden
-// NO guarda pesos ni repeticiones (eso va en TrainingSession)
+// Plantilla de entrenamiento — define qué ejercicios, orden, modo de reps y series por defecto.
+// Las series son valores objetivo (plantilla). Los pesos/reps reales van en TrainingSession.
+const setSchema = new mongoose.Schema({
+  // Ejercicios de fuerza
+  kg:     { type: String, default: '' },
+  reps:   { type: String, default: '' },
+  repsTo: { type: String, default: '' }, // solo para repMode 'range'
+  rir:    { type: String, default: '' },
+  // Ejercicios de cardio
+  km:     { type: String, default: '' },
+  h:      { type: Number, default: 0 },
+  m:      { type: Number, default: 0 },
+  s:      { type: Number, default: 0 },
+}, { _id: false });
+
 const trainingSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -21,7 +34,9 @@ const trainingSchema = new mongoose.Schema({
         ref: 'Exercise',
         required: true,
       },
-      order: { type: Number, required: true },
+      order:   { type: Number, required: true },
+      repMode: { type: String, enum: ['reps', 'range', 'cardio'], default: 'reps' },
+      sets:    { type: [setSchema], default: [] },
     },
   ],
 }, {

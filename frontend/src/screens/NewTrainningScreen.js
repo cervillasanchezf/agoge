@@ -443,20 +443,20 @@ export default function NewTrainningScreen({ navigation }) {
             </View>
           </View>
         </ScrollView>
-
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={[styles.saveButton, loading && styles.saveButtonDisabled]}
-            onPress={handleSaveTraining}
-            disabled={loading}
-          >
-            {loading
-              ? <ActivityIndicator color="#fff" />
-              : <Text style={styles.saveButtonText}>Guardar Entrenamiento</Text>
-            }
-          </TouchableOpacity>
-        </View>
       </KeyboardAvoidingView>
+
+      <View style={styles.footer}>
+        <TouchableOpacity
+          style={[styles.saveButton, loading && styles.saveButtonDisabled]}
+          onPress={handleSaveTraining}
+          disabled={loading}
+        >
+          {loading
+            ? <ActivityIndicator color="#fff" />
+            : <Text style={styles.saveButtonText}>Guardar Entrenamiento</Text>
+          }
+        </TouchableOpacity>
+      </View>
       {tiempoTarget && (
         <TiempoPickerModal
           value={(exerciseConfigs[tiempoTarget.exerciseId]?.sets[tiempoTarget.setIdx]) ?? { h: 0, m: 0, s: 0 }}
@@ -475,7 +475,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
   keyboardView: { flex: 1 },
   scrollView: { flex: 1 },
-  content: { padding: 20, paddingBottom: 100 },
+  content: { padding: 20, paddingBottom: 20 },
   section: { marginBottom: 30 },
   sectionHeader: {
     flexDirection: 'row',
@@ -662,10 +662,6 @@ const styles = StyleSheet.create({
 
   // Footer
   footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     backgroundColor: '#fff',
     padding: 20,
     borderTopWidth: 1,

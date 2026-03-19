@@ -28,12 +28,21 @@ const trainingSessionSchema = new mongoose.Schema({
         ref: 'Exercise',
         required: true,
       },
-      order: { type: Number, required: true },
+      order:   { type: Number, required: true },
+      repMode: { type: String, enum: ['reps', 'range', 'cardio'], default: 'reps' },
       sets: [
         {
-          reps: { type: Number, default: 0 },
-          weight: { type: Number, default: 0 }, // kg
+          // Fuerza
+          reps:      { type: Number, default: 0 },
+          repsTo:    { type: Number, default: 0 }, // para repMode 'range'
+          weight:    { type: Number, default: 0 }, // kg
+          rir:       { type: Number, default: 0 },
           completed: { type: Boolean, default: false },
+          // Cardio
+          km: { type: Number, default: 0 },
+          h:  { type: Number, default: 0 },
+          m:  { type: Number, default: 0 },
+          s:  { type: Number, default: 0 },
         },
       ],
     },
