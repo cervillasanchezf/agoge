@@ -39,7 +39,9 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // No intentar renovar token en rutas de autenticación
+    const isAuthRoute = originalRequest.url?.includes('/auth/');
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthRoute) {
       if (isRefreshing) {
         // Encolar la petición mientras se renueva
         return new Promise((resolve, reject) => {
@@ -55,7 +57,14 @@ api.interceptors.response.use(
 
       try {
         const refreshToken = await AsyncStorage.getItem('refreshToken');
-        if (!refreshToken) throw new Error('No refresh token');
+        if (!refreshToken) {
+          processQueue(error, null);
+          await AsyncStorage.removeItem('token');
+          await AsyncStorage.removeItem('refreshToken');
+          await AsyncStorage.removeItem('user');
+          if (onSessionExpired) onSessionExpired();
+          return Promise.reject(error);
+        }
 
         const { data } = await axios.post(`${API_URL}/auth/refresh`, { refreshToken });
         const newToken = data.data.token;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,40 +8,71 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
+  Modal,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { exerciseService } from '../services/api';
 import {
   CATEGORY_LABELS,
-  LEVEL_LABELS,
   EQUIPMENT_LABELS,
   MUSCLE_LABELS,
-  FORCE_LABELS,
-  MECHANIC_LABELS,
   getExerciseName,
 } from '../config/translations';
 
-const FILTER_KEYS = ['category', 'level', 'equipment', 'primaryMuscle'];
-const ADVANCED_FILTER_KEYS = ['mechanic', 'force'];
+const FILTER_CONFIG = [
+  { key: 'category',      backendKey: 'categories', label: 'Tipo',     labelMap: CATEGORY_LABELS },
+  { key: 'equipment',     backendKey: 'equipments',  label: 'Material', labelMap: EQUIPMENT_LABELS },
+  { key: 'primaryMuscle', backendKey: 'muscles',     label: 'Músculo',  labelMap: MUSCLE_LABELS },
+];
 
-const LABEL_MAPS = {
-  category: CATEGORY_LABELS,
-  level: LEVEL_LABELS,
-  equipment: EQUIPMENT_LABELS,
-  primaryMuscle: MUSCLE_LABELS,
-  mechanic: MECHANIC_LABELS,
-  force: FORCE_LABELS,
-};
-
-const FILTER_TITLES = {
-  category: 'Categoría',
-  level: 'Nivel',
-  equipment: 'Material',
-  primaryMuscle: 'Músculo',
-  mechanic: 'Movimiento',
-  force: 'Fuerza',
-};
+function FilterBottomSheet({ visible, config, options, activeValue, onSelect, onClose }) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalContainer}>
+        <TouchableWithoutFeedback onPress={onClose}>
+          <View style={styles.backdrop} />
+        </TouchableWithoutFeedback>
+        <View style={styles.sheet}>
+          <View style={styles.sheetHandle} />
+          <Text style={styles.sheetTitle}>{config?.label}</Text>
+          <FlatList
+            data={options}
+            keyExtractor={item => item}
+            showsVerticalScrollIndicator={false}
+            ListHeaderComponent={
+              <TouchableOpacity
+                style={styles.sheetOption}
+                onPress={() => { onSelect(null); onClose(); }}
+              >
+                <Text style={[styles.sheetOptionText, !activeValue && styles.sheetOptionActive]}>
+                  Cualquiera
+                </Text>
+                {!activeValue && <Ionicons name="checkmark" size={18} color="#6366f1" />}
+              </TouchableOpacity>
+            }
+            renderItem={({ item }) => {
+              const isActive = activeValue === item;
+              return (
+                <TouchableOpacity
+                  style={styles.sheetOption}
+                  onPress={() => { onSelect(item); onClose(); }}
+                >
+                  <Text style={[styles.sheetOptionText, isActive && styles.sheetOptionActive]}>
+                    {config?.labelMap[item] || item}
+                  </Text>
+                  {isActive && <Ionicons name="checkmark" size={18} color="#6366f1" />}
+                </TouchableOpacity>
+              );
+            }}
+            contentContainerStyle={{ paddingBottom: 32 }}
+          />
+        </View>
+      </View>
+    </Modal>
+  );
+}
 
 export default function ExercisePickerScreen({ navigation, route }) {
   const { selectedExercises = [], onSelect } = route.params || {};
@@ -49,21 +80,19 @@ export default function ExercisePickerScreen({ navigation, route }) {
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({});
   const [filterOptions, setFilterOptions] = useState({});
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [exercises, setExercises] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, totalPages: 1 });
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [selected, setSelected] = useState(selectedExercises);
+  const [openSheet, setOpenSheet] = useState(null);
 
-  // Cargar opciones de filtros al montar
   useEffect(() => {
     exerciseService.getFilters()
       .then(res => { if (res.success) setFilterOptions(res.data); })
       .catch(() => {});
   }, []);
 
-  // Cargar ejercicios cuando cambian búsqueda o filtros
   useEffect(() => {
     loadExercises(1);
   }, [search, filters]);
@@ -71,12 +100,12 @@ export default function ExercisePickerScreen({ navigation, route }) {
   const loadExercises = async (page) => {
     if (page === 1) setLoading(true);
     else setLoadingMore(true);
-
     try {
       const params = { search, ...filters, page, limit: 20 };
       const res = await exerciseService.getExercises(params);
       if (res.success) {
-        setExercises(page === 1 ? res.data : prev => [...prev, ...res.data]);
+        if (page === 1) setExercises(res.data);
+        else setExercises(prev => [...prev, ...res.data]);
         setPagination(res.pagination);
       }
     } catch (err) {
@@ -91,7 +120,7 @@ export default function ExercisePickerScreen({ navigation, route }) {
   };
 
   const handleLoadMore = () => {
-    if (!loadingMore && pagination.page < pagination.totalPages) {
+    if (!loading && !loadingMore && pagination.page < pagination.totalPages) {
       loadExercises(pagination.page + 1);
     }
   };
@@ -114,40 +143,15 @@ export default function ExercisePickerScreen({ navigation, route }) {
   const setFilter = (key, value) => {
     setFilters(prev => {
       const next = { ...prev };
-      if (next[key] === value) delete next[key];
+      if (!value) delete next[key];
       else next[key] = value;
       return next;
     });
   };
 
-  const activeAdvancedCount = ADVANCED_FILTER_KEYS.filter(k => filters[k]).length;
   const activeFilterCount = Object.keys(filters).length;
-
-  const renderFilterRow = (keys) => keys.map(key => {
-    const options = filterOptions[key + 's'] || filterOptions[key === 'primaryMuscle' ? 'muscles' : key + 's'] || [];
-    const labelMap = LABEL_MAPS[key];
-    return (
-      <View key={key} style={styles.filterGroup}>
-        <Text style={styles.filterLabel}>{FILTER_TITLES[key]}</Text>
-        <FlatList
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          data={options}
-          keyExtractor={item => item}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={[styles.chip, filters[key] === item && styles.chipActive]}
-              onPress={() => setFilter(key, item)}
-            >
-              <Text style={[styles.chipText, filters[key] === item && styles.chipTextActive]}>
-                {labelMap[item] || item}
-              </Text>
-            </TouchableOpacity>
-          )}
-        />
-      </View>
-    );
-  });
+  const openConfig = FILTER_CONFIG.find(c => c.key === openSheet);
+  const openOptions = openConfig ? (filterOptions[openConfig.backendKey] || []) : [];
 
   const renderExercise = ({ item }) => {
     const sel = isSelected(item);
@@ -192,32 +196,34 @@ export default function ExercisePickerScreen({ navigation, route }) {
         )}
       </View>
 
-      {/* Filtros Tier 1 */}
-      <View style={styles.filtersContainer}>
-        {renderFilterRow(FILTER_KEYS)}
-
-        {/* Búsqueda avanzada */}
-        <TouchableOpacity
-          style={styles.advancedToggle}
-          onPress={() => setShowAdvanced(v => !v)}
-        >
-          <Text style={styles.advancedToggleText}>
-            Búsqueda avanzada
-            {activeAdvancedCount > 0 ? ` (${activeAdvancedCount})` : ''}
-          </Text>
-          <Ionicons name={showAdvanced ? 'chevron-up' : 'chevron-down'} size={16} color="#6366f1" />
-        </TouchableOpacity>
-
-        {showAdvanced && renderFilterRow(ADVANCED_FILTER_KEYS)}
-
+      {/* Filtros — 3 botones */}
+      <View style={styles.filterBar}>
+        {FILTER_CONFIG.map(config => {
+          const isActive = !!filters[config.key];
+          const activeLabel = isActive
+            ? (config.labelMap[filters[config.key]] || filters[config.key])
+            : config.label;
+          return (
+            <TouchableOpacity
+              key={config.key}
+              style={[styles.filterBtn, isActive && styles.filterBtnActive]}
+              onPress={() => setOpenSheet(config.key)}
+            >
+              <Text style={[styles.filterBtnText, isActive && styles.filterBtnTextActive]} numberOfLines={1}>
+                {activeLabel}
+              </Text>
+              <Ionicons name="chevron-down" size={13} color={isActive ? '#6366f1' : '#888'} style={{ marginLeft: 3 }} />
+            </TouchableOpacity>
+          );
+        })}
         {activeFilterCount > 0 && (
-          <TouchableOpacity onPress={() => setFilters({})}>
-            <Text style={styles.clearFilters}>Limpiar filtros ({activeFilterCount})</Text>
+          <TouchableOpacity style={styles.clearBtn} onPress={() => setFilters({})}>
+            <Ionicons name="close-circle" size={20} color="#ef4444" />
           </TouchableOpacity>
         )}
       </View>
 
-      {/* Lista de ejercicios */}
+      {/* Lista */}
       {loading ? (
         <ActivityIndicator style={{ flex: 1 }} color="#6366f1" size="large" />
       ) : (
@@ -237,7 +243,7 @@ export default function ExercisePickerScreen({ navigation, route }) {
         />
       )}
 
-      {/* Footer con seleccionados */}
+      {/* Footer */}
       {selected.length > 0 && (
         <View style={styles.footer}>
           <Text style={styles.footerText}>{selected.length} seleccionado{selected.length !== 1 ? 's' : ''}</Text>
@@ -246,17 +252,30 @@ export default function ExercisePickerScreen({ navigation, route }) {
           </TouchableOpacity>
         </View>
       )}
+
+      {/* Bottom sheet de filtro */}
+      <FilterBottomSheet
+        visible={openSheet !== null}
+        config={openConfig}
+        options={openOptions}
+        activeValue={openSheet ? filters[openSheet] : null}
+        onSelect={(value) => setFilter(openSheet, value)}
+        onClose={() => setOpenSheet(null)}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
+
+  // Buscador
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
     margin: 12,
+    marginBottom: 8,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -268,29 +287,39 @@ const styles = StyleSheet.create({
   },
   searchIcon: { marginRight: 8 },
   searchInput: { flex: 1, fontSize: 15, color: '#333' },
-  filtersContainer: { paddingHorizontal: 12 },
-  filterGroup: { marginBottom: 8 },
-  filterLabel: { fontSize: 12, fontWeight: '600', color: '#666', marginBottom: 4 },
-  chip: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    marginRight: 6,
-  },
-  chipActive: { backgroundColor: '#6366f1', borderColor: '#6366f1' },
-  chipText: { fontSize: 13, color: '#555' },
-  chipTextActive: { color: '#fff', fontWeight: '600' },
-  advancedToggle: {
+
+  // Barra de filtros
+  filterBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    gap: 4,
+    paddingHorizontal: 12,
+    paddingBottom: 10,
+    gap: 8,
   },
-  advancedToggleText: { fontSize: 13, color: '#6366f1', fontWeight: '600' },
-  clearFilters: { fontSize: 13, color: '#ef4444', marginBottom: 8 },
+  filterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  filterBtnActive: {
+    borderColor: '#6366f1',
+    backgroundColor: '#eef2ff',
+  },
+  filterBtnText: { fontSize: 13, fontWeight: '600', color: '#555' },
+  filterBtnTextActive: { color: '#6366f1' },
+  clearBtn: { padding: 2 },
+
+  // Lista de ejercicios
   exerciseItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -311,6 +340,8 @@ const styles = StyleSheet.create({
   exerciseMeta: { fontSize: 12, color: '#888' },
   empty: { padding: 40, alignItems: 'center' },
   emptyText: { color: '#999', fontSize: 15 },
+
+  // Footer de selección
   footer: {
     position: 'absolute',
     bottom: 0,
@@ -338,4 +369,47 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   confirmButtonText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+
+  // Bottom sheet
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  sheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    maxHeight: '70%',
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#e5e7eb',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 12,
+  },
+  sheetTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#111',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  sheetOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  sheetOptionText: { fontSize: 15, color: '#374151' },
+  sheetOptionActive: { color: '#6366f1', fontWeight: '600' },
 });

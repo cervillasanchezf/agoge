@@ -9,10 +9,10 @@ export const CATEGORY_LABELS = {
   strength: 'Fuerza',
   stretching: 'Estiramientos',
   plyometrics: 'Pliometría',
-  strongman: 'Hombre fuerte',
+  strongman: 'Strongman',
   powerlifting: 'Powerlifting',
   cardio: 'Cardio',
-  'olympic weightlifting': 'Halterofilia',
+  olympic_weightlifting: 'Halterofilia',
 };
 
 export const LEVEL_LABELS = {
