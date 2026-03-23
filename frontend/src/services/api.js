@@ -178,8 +178,18 @@ export const sessionService = {
     return response.data;
   },
 
+  getAllSessions: async (params = {}) => {
+    const response = await api.get('/training-sessions/all', { params });
+    return response.data;
+  },
+
   createSession: async (sessionData) => {
     const response = await api.post('/training-sessions', sessionData);
+    return response.data;
+  },
+
+  deleteSession: async (id) => {
+    const response = await api.delete(`/training-sessions/${id}`);
     return response.data;
   },
 };

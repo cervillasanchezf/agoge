@@ -12,6 +12,8 @@ import NewTrainningScreen from './src/screens/NewTrainningScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import ExercisePickerScreen from './src/screens/ExercisePickerScreen';
 import ActiveSessionScreen from './src/screens/ActiveSessionScreen';
+import HistorialScreen from './src/screens/HistorialScreen';
+import SessionDetailScreen from './src/screens/SessionDetailScreen';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 
 
@@ -79,6 +81,16 @@ function ProfileStack() {
         name="EditProfile"
         component={CompleteProfileScreen}
         options={{ title: 'Editar Perfil' }}
+      />
+      <Stack.Screen
+        name="Historial"
+        component={HistorialScreen}
+        options={{ title: 'Historial' }}
+      />
+      <Stack.Screen
+        name="SessionDetail"
+        component={SessionDetailScreen}
+        options={{ title: 'Detalle de sesión' }}
       />
     </Stack.Navigator>
   );

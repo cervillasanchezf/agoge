@@ -43,6 +43,21 @@ export default function ProfileScreen({ navigation }) {
           <Text style={styles.name}>{user?.name}</Text>
         </View>
 
+        {/* Opciones de perfil */}
+        <View style={styles.menuSection}>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => navigation.navigate('Historial')}
+            activeOpacity={0.7}
+          >
+            <View style={styles.menuIconWrap}>
+              <Ionicons name="calendar-outline" size={20} color="#6366f1" />
+            </View>
+            <Text style={styles.menuLabel}>Historial</Text>
+            <Ionicons name="chevron-forward" size={18} color="#9ca3af" />
+          </TouchableOpacity>
+        </View>
+
       </View>
     </SafeAreaView>
   );
@@ -63,6 +78,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 20,
     gap: 16,
+  },
+  menuSection: {
+    marginTop: 28,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.07,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 12,
+  },
+  menuIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    backgroundColor: '#eef2ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuLabel: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#111827',
   },
   editButton: {
     position: 'absolute',

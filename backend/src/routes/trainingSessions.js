@@ -1,10 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
-const { getLastSession, getSessionHistory, createSession } = require('../controllers/trainingSessionController');
+const { getLastSession, getSessionHistory, createSession, getAllSessions, deleteSession } = require('../controllers/trainingSessionController');
 
+router.get('/all', auth, getAllSessions);
 router.get('/last/:trainingId', auth, getLastSession);
 router.get('/history/:trainingId', auth, getSessionHistory);
 router.post('/', auth, createSession);
+router.delete('/:id', auth, deleteSession);
 
 module.exports = router;

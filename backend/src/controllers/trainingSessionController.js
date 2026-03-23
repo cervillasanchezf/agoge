@@ -63,7 +63,7 @@ exports.getSessionHistory = async (req, res) => {
 // @access  Private
 exports.createSession = async (req, res) => {
   try {
-    const { trainingId, exercises, notes, date } = req.body;
+    const { trainingId, exercises, notes, date, duration } = req.body;
 
     // Verificar que la plantilla pertenece al usuario
     const training = await Training.findOne({ _id: trainingId, userId: req.userId });
@@ -77,6 +77,7 @@ exports.createSession = async (req, res) => {
       exercises,
       notes: notes || '',
       date: date ? new Date(date) : new Date(),
+      duration: duration || 0,
     });
 
     const populated = await session.populate('exercises.exerciseId', 'name name_es category primaryMuscles images');
@@ -85,5 +86,55 @@ exports.createSession = async (req, res) => {
   } catch (error) {
     console.error('Error al guardar sesión:', error);
     res.status(500).json({ success: false, message: 'Error al guardar sesión' });
+  }
+};
+
+// @desc    Obtener todo el historial del usuario (todas las plantillas)
+// @route   GET /api/training-sessions/all
+// @access  Private
+exports.getAllSessions = async (req, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const total = await TrainingSession.countDocuments({ userId: req.userId });
+
+    const sessions = await TrainingSession.find({ userId: req.userId })
+      .populate('trainingId', 'name')
+      .populate('exercises.exerciseId', 'name name_es primaryMuscles')
+      .sort({ date: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    res.json({
+      success: true,
+      data: sessions,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(total / parseInt(limit)),
+      },
+    });
+  } catch (error) {
+    console.error('Error al obtener historial:', error);
+    res.status(500).json({ success: false, message: 'Error al obtener historial' });
+  }
+};
+
+// @desc    Eliminar una sesión
+// @route   DELETE /api/training-sessions/:id
+// @access  Private
+exports.deleteSession = async (req, res) => {
+  try {
+    const session = await TrainingSession.findOne({ _id: req.params.id, userId: req.userId });
+    if (!session) {
+      return res.status(404).json({ success: false, message: 'Sesión no encontrada' });
+    }
+    await session.deleteOne();
+    res.json({ success: true, message: 'Sesión eliminada' });
+  } catch (error) {
+    console.error('Error al eliminar sesión:', error);
+    res.status(500).json({ success: false, message: 'Error al eliminar sesión' });
   }
 };

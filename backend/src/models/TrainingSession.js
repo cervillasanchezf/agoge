@@ -48,6 +48,7 @@ const trainingSessionSchema = new mongoose.Schema({
     },
   ],
   notes: { type: String, default: '' },
+  duration: { type: Number, default: 0 }, // segundos
 }, {
   timestamps: true,
 });
