@@ -126,6 +126,14 @@ export default function NewTrainningScreen({ navigation, route }) {
     });
     return configs;
   });
+  const [exerciseNotes, setExerciseNotes] = useState(() => {
+    if (!editTraining) return {};
+    const notes = {};
+    editTraining.exercises.forEach(e => {
+      if (e.note) notes[e.exerciseId._id] = e.note;
+    });
+    return notes;
+  });
   const [loading, setLoading] = useState(false);
   const [tiempoTarget, setTiempoTarget] = useState(null);
   const [exMenuVisible, setExMenuVisible] = useState(false);
@@ -154,12 +162,18 @@ export default function NewTrainningScreen({ navigation, route }) {
           newOnes.forEach(ex => { next[ex._id] = ex.category === 'cardio' ? initCardioConfig() : initExerciseConfig(); });
           return next;
         });
+        setExerciseNotes(prev => {
+          const next = { ...prev };
+          newOnes.forEach(ex => { if (!(ex._id in next)) next[ex._id] = ''; });
+          return next;
+        });
       },
     });
   };
 
   const handleRemoveExercise = (id) => {
     setExercises(prev => prev.filter(e => e._id !== id));
+    setExerciseNotes(prev => { const next = { ...prev }; delete next[id]; return next; });
     setExerciseConfigs(prev => {
       const next = { ...prev };
       delete next[id];
@@ -246,6 +260,15 @@ export default function NewTrainningScreen({ navigation, route }) {
     });
   };
 
+  const removeSet = (exerciseId, setIdx) => {
+    setExerciseConfigs(prev => {
+      const config = prev[exerciseId];
+      if (config.sets.length <= 1) return prev;
+      const sets = config.sets.filter((_, i) => i !== setIdx);
+      return { ...prev, [exerciseId]: { ...config, sets } };
+    });
+  };
+
   const updateSet = (exerciseId, setIdx, fieldOrObject, value) => {
     setExerciseConfigs(prev => {
       const config = prev[exerciseId];
@@ -299,6 +322,7 @@ export default function NewTrainningScreen({ navigation, route }) {
             order: idx,
             repMode: config.repMode,
             sets: config.sets,
+            note: exerciseNotes[ex._id] || '',
           };
         }),
       };
@@ -333,6 +357,7 @@ export default function NewTrainningScreen({ navigation, route }) {
           <Text style={[styles.setsHeaderCell, styles.colSerie]}>SERIE</Text>
           <Text style={[styles.setsHeaderCell, styles.colKm]}>KM</Text>
           <Text style={[styles.setsHeaderCell, styles.colTiempo]}>TIEMPO</Text>
+          <View style={styles.colDel} />
         </View>
         {config.sets.map((set, idx) => (
           <View key={idx} style={styles.setsRow}>
@@ -358,6 +383,13 @@ export default function NewTrainningScreen({ navigation, route }) {
                   ? '—'
                   : `${String(set.h).padStart(2, '0')}:${String(set.m).padStart(2, '0')}:${String(set.s).padStart(2, '0')}`}
               </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.colDel, styles.setsDelBtn, config.sets.length <= 1 && { opacity: 0.2 }]}
+              onPress={() => removeSet(exercise._id, idx)}
+              disabled={config.sets.length <= 1}
+            >
+              <Ionicons name="remove-circle-outline" size={18} color="#ef4444" />
             </TouchableOpacity>
           </View>
         ))}
@@ -391,6 +423,7 @@ export default function NewTrainningScreen({ navigation, route }) {
             <Ionicons name="chevron-down" size={11} color="#6366f1" style={{ marginLeft: 3 }} />
           </TouchableOpacity>
           <Text style={[styles.setsHeaderCell, styles.colRir]}>RIR</Text>
+          <View style={styles.colDel} />
         </View>
 
         {/* Filas */}
@@ -462,6 +495,15 @@ export default function NewTrainningScreen({ navigation, route }) {
               textAlign="center"
               maxLength={2}
             />
+
+            {/* Eliminar serie */}
+            <TouchableOpacity
+              style={[styles.colDel, styles.setsDelBtn, config.sets.length <= 1 && { opacity: 0.2 }]}
+              onPress={() => removeSet(exercise._id, idx)}
+              disabled={config.sets.length <= 1}
+            >
+              <Ionicons name="remove-circle-outline" size={18} color="#ef4444" />
+            </TouchableOpacity>
           </View>
         ))}
 
@@ -532,6 +574,16 @@ export default function NewTrainningScreen({ navigation, route }) {
                                   ? ` · ${MUSCLE_LABELS[exercise.primaryMuscles[0]] || exercise.primaryMuscles[0]}`
                                   : ''}
                               </Text>
+                              {/* Nota del ejercicio */}
+                              <TextInput
+                                style={styles.exerciseNoteInput}
+                                placeholder="Añadir nota..."
+                                placeholderTextColor="#bbb"
+                                value={exerciseNotes[exercise._id] || ''}
+                                onChangeText={v => setExerciseNotes(prev => ({ ...prev, [exercise._id]: v }))}
+                                multiline
+                                numberOfLines={2}
+                              />
                             </View>
                           </View>
                           <TouchableOpacity
@@ -910,6 +962,22 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#6366f1',
     fontWeight: '600',
+  },
+  colDel: {
+    width: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  setsDelBtn: {
+    paddingVertical: 4,
+  },
+  exerciseNoteInput: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#6b7280',
+    paddingHorizontal: 0,
+    paddingVertical: 2,
+    minHeight: 18,
   },
 
   // Botón añadir ejercicio

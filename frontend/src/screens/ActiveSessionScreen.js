@@ -186,6 +186,7 @@ export default function ActiveSessionScreen({ route, navigation }) {
         return {
           exercise:  item.exerciseId,
           repMode,
+          note:      item.note || '',
           sets: buildInitialSets(item.sets, lastEx?.sets, repMode),
         };
       });
@@ -373,6 +374,7 @@ export default function ActiveSessionScreen({ route, navigation }) {
               addSet={addSet}
               removeSet={removeSet}
               onOpenTiempo={(setIndex) => setTiempoTarget({ exIndex, setIndex })}
+              note={item.note}
             />
           )}
         />
@@ -392,7 +394,7 @@ export default function ActiveSessionScreen({ route, navigation }) {
   );
 }
 
-function ExerciseBlock({ item, exIndex, updateSet, toggleComplete, addSet, removeSet, onOpenTiempo }) {
+function ExerciseBlock({ item, exIndex, updateSet, toggleComplete, addSet, removeSet, onOpenTiempo, note }) {
   const exercise = item.exercise;
   const repMode  = item.repMode ?? 'reps';
   const primaryMuscle = exercise?.primaryMuscles?.[0];
@@ -409,6 +411,9 @@ function ExerciseBlock({ item, exIndex, updateSet, toggleComplete, addSet, remov
             {primaryMuscle ? MUSCLE_LABELS[primaryMuscle] ?? primaryMuscle : ''}
             {exercise?.category ? `  ·  ${CATEGORY_LABELS[exercise.category] ?? exercise.category}` : ''}
           </Text>
+          {!!note && (
+            <Text style={styles.exNote}>{note}</Text>
+          )}
         </View>
       </View>
 
@@ -591,6 +596,7 @@ const styles = StyleSheet.create({
   exHeader: { flexDirection: 'row', marginBottom: 12 },
   exName: { fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 2 },
   exMeta: { fontSize: 12, color: '#9ca3af' },
+  exNote: { fontSize: 12, color: '#6366f1', marginTop: 4, fontStyle: 'italic' },
   tableHeader: {
     flexDirection: 'row',
     alignItems: 'center',

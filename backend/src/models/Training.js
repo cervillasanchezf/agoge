@@ -37,6 +37,7 @@ const trainingSchema = new mongoose.Schema({
       order:   { type: Number, required: true },
       repMode: { type: String, enum: ['reps', 'range', 'cardio'], default: 'reps' },
       sets:    { type: [setSchema], default: [] },
+      note:    { type: String, default: '' },
     },
   ],
 }, {
