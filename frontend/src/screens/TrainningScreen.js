@@ -7,6 +7,7 @@ import {
   FlatList,
   Alert,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -16,6 +17,9 @@ import { trainingService } from '../services/api';
 export default function TrainningScreen({ navigation }) {
   const [trainings, setTrainings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [menuTraining, setMenuTraining] = useState(null);
+  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
 
   useFocusEffect(
     useCallback(() => {
@@ -36,6 +40,18 @@ export default function TrainningScreen({ navigation }) {
       loadTrainings();
     }, [])
   );
+
+  const handleOpenMenu = (training, event) => {
+    const { pageX, pageY } = event.nativeEvent;
+    setMenuTraining(training);
+    setMenuPosition({ x: pageX, y: pageY });
+    setMenuVisible(true);
+  };
+
+  const handleEdit = () => {
+    setMenuVisible(false);
+    navigation.navigate('NewTrainning', { editTraining: menuTraining });
+  };
 
   const handleDelete = (training) => {
     Alert.alert(
@@ -71,8 +87,11 @@ export default function TrainningScreen({ navigation }) {
           {item.exercises?.length ?? 0} ejercicio{item.exercises?.length !== 1 ? 's' : ''}
         </Text>
       </View>
-      <TouchableOpacity onPress={() => handleDelete(item)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-        <Ionicons name="trash-outline" size={20} color="#ef4444" />
+      <TouchableOpacity
+        onPress={(e) => handleOpenMenu(item, e)}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <Ionicons name="ellipsis-vertical" size={20} color="#9ca3af" />
       </TouchableOpacity>
     </TouchableOpacity>
   );
@@ -101,6 +120,33 @@ export default function TrainningScreen({ navigation }) {
           contentContainerStyle={styles.list}
         />
       )}
+
+      <Modal
+        visible={menuVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuVisible(false)}
+      >
+        <TouchableOpacity
+          style={StyleSheet.absoluteFillObject}
+          onPress={() => setMenuVisible(false)}
+          activeOpacity={1}
+        />
+        <View style={[styles.dropdown, { top: menuPosition.y + 10 }]}>
+          <TouchableOpacity style={styles.dropdownItem} onPress={handleEdit}>
+            <Ionicons name="pencil-outline" size={16} color="#374151" />
+            <Text style={styles.dropdownItemText}>Editar entrenamiento</Text>
+          </TouchableOpacity>
+          <View style={styles.dropdownDivider} />
+          <TouchableOpacity
+            style={styles.dropdownItem}
+            onPress={() => { setMenuVisible(false); handleDelete(menuTraining); }}
+          >
+            <Ionicons name="trash-outline" size={16} color="#ef4444" />
+            <Text style={[styles.dropdownItemText, { color: '#ef4444' }]}>Eliminar entrenamiento</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
 
       <View style={styles.footer}>
         <TouchableOpacity
@@ -197,6 +243,35 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  dropdown: {
+    position: 'absolute',
+    right: 16,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    paddingVertical: 4,
+    minWidth: 210,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 10,
+  },
+  dropdownItemText: {
+    fontSize: 15,
+    color: '#374151',
+  },
+  dropdownDivider: {
+    height: 1,
+    backgroundColor: '#f3f4f6',
+    marginHorizontal: 8,
   },
 });
 

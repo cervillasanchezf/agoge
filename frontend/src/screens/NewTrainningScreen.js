@@ -105,13 +105,38 @@ function TiempoPickerModal({ value, onClose, onConfirm }) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function NewTrainningScreen({ navigation }) {
+export default function NewTrainningScreen({ navigation, route }) {
   const { user } = useAuth();
-  const [trainingName, setTrainingName] = useState('');
-  const [exercises, setExercises] = useState([]);
-  const [exerciseConfigs, setExerciseConfigs] = useState({});
+  const editTraining = route.params?.editTraining ?? null;
+
+  const [trainingName, setTrainingName] = useState(() => editTraining?.name ?? '');
+  const [exercises, setExercises] = useState(() => {
+    if (!editTraining) return [];
+    return editTraining.exercises.map(e => e.exerciseId);
+  });
+  const [exerciseConfigs, setExerciseConfigs] = useState(() => {
+    if (!editTraining) return {};
+    const configs = {};
+    editTraining.exercises.forEach(e => {
+      const exId = e.exerciseId._id;
+      configs[exId] = {
+        repMode: e.repMode || 'reps',
+        sets: e.sets && e.sets.length > 0 ? e.sets : [e.repMode === 'cardio' ? { ...DEFAULT_CARDIO_SET } : { ...DEFAULT_SET }],
+      };
+    });
+    return configs;
+  });
   const [loading, setLoading] = useState(false);
   const [tiempoTarget, setTiempoTarget] = useState(null);
+  const [exMenuVisible, setExMenuVisible] = useState(false);
+  const [exMenuId, setExMenuId] = useState(null);
+  const [exMenuPos, setExMenuPos] = useState({ x: 0, y: 0 });
+  const [supersets, setSupersets] = useState({});
+  const [supersetPickerForId, setSupersetPickerForId] = useState(null);
+  const [supersetPickerSelected, setSupersetPickerSelected] = useState([]);
+  const supersetGroupCounter = useRef(0);
+  const [reorderVisible, setReorderVisible] = useState(false);
+  const [reorderList, setReorderList] = useState([]);
 
   const handleAddExercise = () => {
     if (!trainingName.trim()) {
@@ -140,6 +165,74 @@ export default function NewTrainningScreen({ navigation }) {
       delete next[id];
       return next;
     });
+    setSupersets(prev => {
+      const next = { ...prev };
+      const groupId = next[id];
+      delete next[id];
+      if (groupId) {
+        const remaining = Object.entries(next).filter(([, g]) => g === groupId);
+        if (remaining.length === 1) next[remaining[0][0]] = null;
+      }
+      return next;
+    });
+  };
+
+  const handleOpenExMenu = (id, event) => {
+    setExMenuId(id);
+    setExMenuPos({ x: event.nativeEvent.pageX, y: event.nativeEvent.pageY });
+    setExMenuVisible(true);
+  };
+
+  const handleMoveExercise = (id, direction) => {
+    setExercises(prev => {
+      const idx = prev.findIndex(e => e._id === id);
+      if (direction === 'up' && idx === 0) return prev;
+      if (direction === 'down' && idx === prev.length - 1) return prev;
+      const next = [...prev];
+      const swap = direction === 'up' ? idx - 1 : idx + 1;
+      [next[idx], next[swap]] = [next[swap], next[idx]];
+      return next;
+    });
+  };
+
+  const handleMoveInReorder = (list, idx, direction) => {
+    const next = [...list];
+    const swap = direction === 'up' ? idx - 1 : idx + 1;
+    [next[idx], next[swap]] = [next[swap], next[idx]];
+    return next;
+  };
+
+  const toggleSupersetSelection = (id) => {
+    setSupersetPickerSelected(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleApplySuperset = (sourceId) => {
+    if (supersetPickerSelected.length === 0) {
+      // Remove from existing superset if any
+      setSupersets(prev => {
+        const next = { ...prev };
+        const groupId = next[sourceId];
+        next[sourceId] = null;
+        if (groupId) {
+          const remaining = Object.entries(next).filter(([, g]) => g === groupId);
+          if (remaining.length === 1) next[remaining[0][0]] = null;
+        }
+        return next;
+      });
+    } else {
+      setSupersets(prev => {
+        const existing = prev[sourceId];
+        const groupId = existing || `ss_${++supersetGroupCounter.current}`;
+        const next = { ...prev };
+        next[sourceId] = groupId;
+        supersetPickerSelected.forEach(id => { next[id] = groupId; });
+        return next;
+      });
+    }
+    setSupersetPickerForId(null);
+    setSupersetPickerSelected([]);
   };
 
   const addSet = (exerciseId) => {
@@ -209,14 +302,23 @@ export default function NewTrainningScreen({ navigation }) {
           };
         }),
       };
-      const result = await trainingService.createTraining(payload);
-      if (result.success) {
-        navigation.goBack();
+      if (editTraining?._id) {
+        const result = await trainingService.updateTraining(editTraining._id, payload);
+        if (result.success) {
+          navigation.goBack();
+        } else {
+          Alert.alert('Error', result.message || 'Error al actualizar el entrenamiento');
+        }
       } else {
-        Alert.alert('Error', result.message || 'Error al guardar el entrenamiento');
+        const result = await trainingService.createTraining(payload);
+        if (result.success) {
+          navigation.goBack();
+        } else {
+          Alert.alert('Error', result.message || 'Error al guardar el entrenamiento');
+        }
       }
     } catch (e) {
-      Alert.alert('Error', 'No se pudo guardar el entrenamiento');
+      Alert.alert('Error', editTraining ? 'No se pudo actualizar el entrenamiento' : 'No se pudo guardar el entrenamiento');
     } finally {
       setLoading(false);
     }
@@ -409,28 +511,80 @@ export default function NewTrainningScreen({ navigation }) {
               ) : (
                 <View style={styles.exercisesList}>
                   {exercises.map((exercise, index) => (
-                    <View key={exercise._id} style={styles.exerciseCard}>
-                      {/* Cabecera del ejercicio */}
-                      <View style={styles.exerciseHeader}>
-                        <View style={styles.exerciseHeaderLeft}>
-                          <Text style={styles.exerciseOrder}>{index + 1}</Text>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.exerciseName}>{getExerciseName(exercise)}</Text>
-                            <Text style={styles.exerciseMeta}>
-                              {CATEGORY_LABELS[exercise.category] || exercise.category}
-                              {exercise.primaryMuscles?.[0]
-                                ? ` · ${MUSCLE_LABELS[exercise.primaryMuscles[0]] || exercise.primaryMuscles[0]}`
-                                : ''}
-                            </Text>
+                    <View key={exercise._id}>
+                      <View style={[styles.exerciseCard, supersets[exercise._id] && styles.exerciseCardSuperset]}>
+                        {/* Cabecera del ejercicio */}
+                        <View style={styles.exerciseHeader}>
+                          <View style={styles.exerciseHeaderLeft}>
+                            <Text style={styles.exerciseOrder}>{index + 1}</Text>
+                            <View style={{ flex: 1 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                <Text style={styles.exerciseName}>{getExerciseName(exercise)}</Text>
+                                {supersets[exercise._id] && (
+                                  <View style={styles.supersetBadge}>
+                                    <Text style={styles.supersetBadgeText}>Superset</Text>
+                                  </View>
+                                )}
+                              </View>
+                              <Text style={styles.exerciseMeta}>
+                                {CATEGORY_LABELS[exercise.category] || exercise.category}
+                                {exercise.primaryMuscles?.[0]
+                                  ? ` · ${MUSCLE_LABELS[exercise.primaryMuscles[0]] || exercise.primaryMuscles[0]}`
+                                  : ''}
+                              </Text>
+                            </View>
                           </View>
+                          <TouchableOpacity
+                            onPress={(e) => handleOpenExMenu(exercise._id, e)}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <Ionicons name="ellipsis-vertical" size={18} color="#9ca3af" />
+                          </TouchableOpacity>
                         </View>
-                        <TouchableOpacity onPress={() => handleRemoveExercise(exercise._id)}>
-                          <Ionicons name="trash-outline" size={20} color="#ef4444" />
-                        </TouchableOpacity>
+
+                        {/* Tabla de series */}
+                        {renderSetsTable(exercise)}
                       </View>
 
-                      {/* Tabla de series */}
-                      {renderSetsTable(exercise)}
+                      {/* Superset picker inline */}
+                      {supersetPickerForId === exercise._id && (
+                        <View style={styles.supersetPicker}>
+                          <Text style={styles.supersetPickerTitle}>Selecciona ejercicios para la superserie</Text>
+                          {exercises.filter(e => e._id !== exercise._id).map(e => (
+                            <TouchableOpacity
+                              key={e._id}
+                              style={styles.supersetPickerItem}
+                              onPress={() => toggleSupersetSelection(e._id)}
+                            >
+                              <View style={[styles.supersetCheckbox, supersetPickerSelected.includes(e._id) && styles.supersetCheckboxChecked]}>
+                                {supersetPickerSelected.includes(e._id) && (
+                                  <Ionicons name="checkmark" size={12} color="#fff" />
+                                )}
+                              </View>
+                              <Text style={styles.supersetPickerItemText}>{getExerciseName(e)}</Text>
+                              {supersets[e._id] && (
+                                <View style={styles.supersetBadge}>
+                                  <Text style={styles.supersetBadgeText}>Superset</Text>
+                                </View>
+                              )}
+                            </TouchableOpacity>
+                          ))}
+                          <View style={styles.supersetPickerActions}>
+                            <TouchableOpacity
+                              style={styles.supersetCancelBtn}
+                              onPress={() => { setSupersetPickerForId(null); setSupersetPickerSelected([]); }}
+                            >
+                              <Text style={styles.supersetCancelBtnText}>Cancelar</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={styles.supersetConfirmBtn}
+                              onPress={() => handleApplySuperset(exercise._id)}
+                            >
+                              <Text style={styles.supersetConfirmBtnText}>Confirmar</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      )}
                     </View>
                   ))}
                 </View>
@@ -440,23 +594,85 @@ export default function NewTrainningScreen({ navigation }) {
                 <Ionicons name="add-circle-outline" size={18} color="#6366f1" style={{ marginRight: 6 }} />
                 <Text style={styles.addExerciseButtonText}>Añadir Ejercicio</Text>
               </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.saveButton, loading && styles.saveButtonDisabled]}
+                onPress={handleSaveTraining}
+                disabled={loading}
+              >
+                {loading
+                  ? <ActivityIndicator color="#fff" />
+                  : <Text style={styles.saveButtonText}>{editTraining ? 'Actualizar Entrenamiento' : 'Guardar Entrenamiento'}</Text>
+                }
+              </TouchableOpacity>
             </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-
-      <View style={styles.footer}>
+      <Modal
+        visible={exMenuVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setExMenuVisible(false)}
+      >
         <TouchableOpacity
-          style={[styles.saveButton, loading && styles.saveButtonDisabled]}
-          onPress={handleSaveTraining}
-          disabled={loading}
-        >
-          {loading
-            ? <ActivityIndicator color="#fff" />
-            : <Text style={styles.saveButtonText}>Guardar Entrenamiento</Text>
-          }
-        </TouchableOpacity>
-      </View>
+          style={StyleSheet.absoluteFillObject}
+          onPress={() => setExMenuVisible(false)}
+          activeOpacity={1}
+        />
+        <View style={[styles.exDropdown, { top: exMenuPos.y + 8 }]}>
+          <TouchableOpacity
+            style={styles.exDropdownItem}
+            onPress={() => {
+              setExMenuVisible(false);
+              setReorderList([...exercises]);
+              setReorderVisible(true);
+            }}
+          >
+            <Ionicons name="swap-vertical-outline" size={16} color="#374151" />
+            <Text style={styles.exDropdownItemText}>Reordenar</Text>
+          </TouchableOpacity>
+          <View style={styles.exDropdownDivider} />
+          {supersets[exMenuId] ? (
+            <TouchableOpacity
+              style={styles.exDropdownItem}
+              onPress={() => {
+                setExMenuVisible(false);
+                const groupId = supersets[exMenuId];
+                setSupersets(prev => {
+                  const next = { ...prev };
+                  Object.keys(next).forEach(k => { if (next[k] === groupId) next[k] = null; });
+                  return next;
+                });
+              }}
+            >
+              <Ionicons name="git-merge-outline" size={16} color="#ef4444" />
+              <Text style={[styles.exDropdownItemText, { color: '#ef4444' }]}>Eliminar Superserie</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.exDropdownItem}
+              onPress={() => {
+                setExMenuVisible(false);
+                setSupersetPickerSelected([]);
+                setSupersetPickerForId(exMenuId);
+              }}
+            >
+              <Ionicons name="git-merge-outline" size={16} color="#374151" />
+              <Text style={styles.exDropdownItemText}>Añadir Superserie</Text>
+            </TouchableOpacity>
+          )}
+          <View style={styles.exDropdownDivider} />
+          <TouchableOpacity
+            style={styles.exDropdownItem}
+            onPress={() => { setExMenuVisible(false); handleRemoveExercise(exMenuId); }}
+          >
+            <Ionicons name="trash-outline" size={16} color="#ef4444" />
+            <Text style={[styles.exDropdownItemText, { color: '#ef4444' }]}>Eliminar Ejercicio</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
       {tiempoTarget && (
         <TiempoPickerModal
           value={(exerciseConfigs[tiempoTarget.exerciseId]?.sets[tiempoTarget.setIdx]) ?? { h: 0, m: 0, s: 0 }}
@@ -467,6 +683,56 @@ export default function NewTrainningScreen({ navigation }) {
           }}
         />
       )}
+
+      <Modal
+        visible={reorderVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setReorderVisible(false)}
+      >
+        <View style={styles.reorderOverlay}>
+          <TouchableOpacity style={StyleSheet.absoluteFillObject} onPress={() => setReorderVisible(false)} activeOpacity={1} />
+          <View style={styles.reorderSheet}>
+            <View style={styles.reorderHandle} />
+            <Text style={styles.reorderTitle}>Reordenar ejercicios</Text>
+            <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+              {reorderList.map((ex, idx) => (
+                <View key={ex._id} style={styles.reorderItem}>
+                  <Text style={styles.reorderItemNum}>{idx + 1}</Text>
+                  <Text style={styles.reorderItemName} numberOfLines={1}>{getExerciseName(ex)}</Text>
+                  <View style={styles.reorderArrows}>
+                    <TouchableOpacity
+                      disabled={idx === 0}
+                      onPress={() => setReorderList(prev => handleMoveInReorder(prev, idx, 'up'))}
+                      style={[styles.reorderArrowBtn, idx === 0 && { opacity: 0.25 }]}
+                    >
+                      <Ionicons name="chevron-up" size={20} color="#6366f1" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      disabled={idx === reorderList.length - 1}
+                      onPress={() => setReorderList(prev => handleMoveInReorder(prev, idx, 'down'))}
+                      style={[styles.reorderArrowBtn, idx === reorderList.length - 1 && { opacity: 0.25 }]}
+                    >
+                      <Ionicons name="chevron-down" size={20} color="#6366f1" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+            <View style={styles.reorderActions}>
+              <TouchableOpacity style={styles.reorderCancelBtn} onPress={() => setReorderVisible(false)}>
+                <Text style={styles.reorderCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.reorderConfirmBtn}
+                onPress={() => { setExercises(reorderList); setReorderVisible(false); }}
+              >
+                <Text style={styles.reorderConfirmText}>Confirmar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -515,7 +781,6 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     borderWidth: 1,
     borderColor: '#ddd',
-    overflow: 'hidden',
   },
   exerciseHeader: {
     flexDirection: 'row',
@@ -654,32 +919,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#fff',
     borderRadius: 10,
-    padding: 15,
-    borderWidth: 2,
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderWidth: 1.5,
     borderColor: '#6366f1',
   },
-  addExerciseButtonText: { color: '#6366f1', fontSize: 16, fontWeight: 'bold' },
+  addExerciseButtonText: { color: '#6366f1', fontSize: 14, fontWeight: '600' },
 
-  // Footer
-  footer: {
-    backgroundColor: '#fff',
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#ddd',
-  },
   saveButton: {
+    marginTop: 16,
     backgroundColor: '#6366f1',
     borderRadius: 10,
-    padding: 18,
+    paddingVertical: 12,
+    paddingHorizontal: 18,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 4,
   },
   saveButtonDisabled: { opacity: 0.6 },
-  saveButtonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
+  saveButtonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 
   // Cardio table
   setsTimeTxt: { fontSize: 13, fontWeight: '600', color: '#333', textAlign: 'center' },
@@ -711,4 +972,211 @@ const styles = StyleSheet.create({
     backgroundColor: '#6366f1', borderRadius: 10, padding: 16, alignItems: 'center',
   },
   drumConfirmText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+
+  // Superset badge
+  supersetBadge: {
+    backgroundColor: '#e0e7ff',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  supersetBadgeText: {
+    fontSize: 10,
+    color: '#6366f1',
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  exerciseCardSuperset: {
+    borderColor: '#6366f1',
+  },
+
+  // Superset picker
+  supersetPicker: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#e0e7ff',
+    padding: 14,
+  },
+  supersetPickerTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#374151',
+    marginBottom: 10,
+  },
+  supersetPickerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    gap: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  supersetPickerItemText: {
+    fontSize: 14,
+    color: '#374151',
+    flex: 1,
+  },
+  supersetCheckbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: '#d1d5db',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  supersetCheckboxChecked: {
+    backgroundColor: '#6366f1',
+    borderColor: '#6366f1',
+  },
+  supersetPickerActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: 12,
+  },
+  supersetCancelBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  supersetCancelBtnText: {
+    fontSize: 14,
+    color: '#6b7280',
+    fontWeight: '600',
+  },
+  supersetConfirmBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    backgroundColor: '#6366f1',
+  },
+  supersetConfirmBtnText: {
+    fontSize: 14,
+    color: '#fff',
+    fontWeight: '700',
+  },
+
+  // Exercise context menu
+  exDropdown: {
+    position: 'absolute',
+    right: 16,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    paddingVertical: 4,
+    minWidth: 200,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  exDropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 10,
+  },
+  exDropdownItemText: {
+    fontSize: 14,
+    color: '#374151',
+  },
+  exDropdownDivider: {
+    height: 1,
+    backgroundColor: '#f3f4f6',
+    marginHorizontal: 8,
+  },
+
+  // Reorder modal
+  reorderOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  reorderSheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 12,
+    paddingHorizontal: 20,
+    paddingBottom: 30,
+  },
+  reorderHandle: {
+    width: 40, height: 4, borderRadius: 2, backgroundColor: '#ddd',
+    alignSelf: 'center', marginBottom: 16,
+  },
+  reorderTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  reorderItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+    gap: 10,
+  },
+  reorderItemNum: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#6366f1',
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  reorderItemName: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  reorderArrows: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  reorderArrowBtn: {
+    padding: 6,
+  },
+  reorderActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 20,
+  },
+  reorderCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    alignItems: 'center',
+  },
+  reorderCancelText: {
+    fontSize: 15,
+    color: '#6b7280',
+    fontWeight: '600',
+  },
+  reorderConfirmBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: '#6366f1',
+    alignItems: 'center',
+  },
+  reorderConfirmText: {
+    fontSize: 15,
+    color: '#fff',
+    fontWeight: '700',
+  },
 });

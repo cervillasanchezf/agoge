@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
@@ -42,7 +42,9 @@ function TrainningStack() {
       <Stack.Screen
         name="NewTrainning"
         component={NewTrainningScreen}
-        options={{ title: 'Nuevo Entrenamiento' }}
+        options={({ route }) => ({
+          title: route.params?.editTraining ? 'Editar Entrenamiento' : 'Nuevo Entrenamiento',
+        })}
       />
       <Stack.Screen
         name="ExercisePicker"
@@ -134,14 +136,21 @@ function MainTabs() {
       <Tab.Screen
         name="TrainningTab"
         component={TrainningStack}
-        options={{
+        options={({ route }) => ({
           headerShown: false,
           tabBarLabel: 'Entrenamiento',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="barbell-outline" size={size} color={color} />
           ),
           unmountOnBlur: true,
-        }}
+          tabBarStyle: (() => {
+            const routeName = getFocusedRouteNameFromRoute(route) ?? 'TrainningList';
+            if (routeName === 'NewTrainning' || routeName === 'ExercisePicker') {
+              return { display: 'none' };
+            }
+            return { paddingBottom: 10, paddingTop: 2, height: 70 };
+          })(),
+        })}
       />
       <Tab.Screen
         name="ProfileTab"
