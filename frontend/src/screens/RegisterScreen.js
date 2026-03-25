@@ -124,7 +124,7 @@ export default function RegisterScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#0D0D0D',
   },
   scrollContent: {
     flexGrow: 1,
@@ -137,13 +137,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#EAEAEA',
     marginBottom: 10,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
-    color: '#666',
+    color: '#9A9A9A',
     marginBottom: 40,
     textAlign: 'center',
   },
@@ -151,16 +151,17 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   input: {
-    backgroundColor: '#fff',
+    backgroundColor: '#1F1F1F',
     borderRadius: 10,
     padding: 15,
     fontSize: 16,
     marginBottom: 15,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#333333',
+    color: '#EAEAEA',
   },
   button: {
-    backgroundColor: '#6366f1',
+    backgroundColor: '#8B0000',
     borderRadius: 10,
     padding: 15,
     alignItems: 'center',
@@ -170,7 +171,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   buttonText: {
-    color: '#fff',
+    color: '#EAEAEA',
     fontSize: 16,
     fontWeight: 'bold',
   },
@@ -180,11 +181,11 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   loginText: {
-    color: '#666',
+    color: '#9A9A9A',
     fontSize: 14,
   },
   loginLink: {
-    color: '#6366f1',
+    color: '#8B0000',
     fontSize: 14,
     fontWeight: 'bold',
   },

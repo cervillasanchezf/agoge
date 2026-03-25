@@ -60,8 +60,8 @@ function DrumColumn({ values, initialIndex, onChange, label }) {
         <View pointerEvents="none" style={{
           position: 'absolute', left: 8, right: 8,
           top: DRUM_ITEM_H * 2, height: DRUM_ITEM_H,
-          borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#c7d2fe',
-          backgroundColor: 'rgba(99,102,241,0.06)', borderRadius: 6,
+          borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#5A0000',
+          backgroundColor: 'rgba(139,0,0,0.1)', borderRadius: 6,
         }} />
       </View>
     </View>
@@ -77,7 +77,7 @@ function TiempoPickerModal({ value, onClose, onConfirm }) {
   const secs  = useMemo(() => Array.from({ length: 60 }, (_, i) => i), []);
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+      <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.7)' }}>
         <TouchableOpacity style={StyleSheet.absoluteFillObject} onPress={onClose} />
         <View style={styles.drumSheet}>
           <View style={styles.drumHandle} />
@@ -324,7 +324,7 @@ export default function ActiveSessionScreen({ route, navigation }) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#6366f1" />
+          <ActivityIndicator size="large" color="#8B0000" />
         </View>
       </SafeAreaView>
     );
@@ -334,12 +334,12 @@ export default function ActiveSessionScreen({ route, navigation }) {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Ionicons name="chevron-back" size={26} color="#111827" />
+          <Ionicons name="chevron-back" size={26} color="#EAEAEA" />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle} numberOfLines={1}>{trainingName}</Text>
           <View style={styles.timerBadge}>
-            <Ionicons name="time-outline" size={13} color="#6366f1" />
+            <Ionicons name="time-outline" size={13} color="#8B0000" />
             <Text style={styles.timerText}>{formatTime(elapsedSeconds)}</Text>
           </View>
         </View>
@@ -349,7 +349,7 @@ export default function ActiveSessionScreen({ route, navigation }) {
           disabled={saving}
         >
           {saving
-            ? <ActivityIndicator size="small" color="#fff" />
+            ? <ActivityIndicator size="small" color="#EAEAEA" />
             : <Text style={styles.finishBtnText}>Finalizar</Text>
           }
         </TouchableOpacity>
@@ -463,7 +463,7 @@ function ExerciseBlock({ item, exIndex, updateSet, toggleComplete, addSet, remov
       )}
 
       <TouchableOpacity style={styles.addSetBtn} onPress={() => addSet(exIndex)}>
-        <Ionicons name="add-circle-outline" size={18} color="#6366f1" />
+        <Ionicons name="add-circle-outline" size={18} color="#8B0000" />
         <Text style={styles.addSetText}>Añadir serie</Text>
       </TouchableOpacity>
     </View>
@@ -489,7 +489,7 @@ function SetRow({ set, setIndex, exIndex, updateSet, toggleComplete, removeSet }
         onChangeText={(v) => updateSet(exIndex, setIndex, 'weight', v)}
         keyboardType="decimal-pad"
         placeholder={set.weight_default || '—'}
-        placeholderTextColor="#9ca3af"
+        placeholderTextColor="#6A6A6A"
       />
       <TextInput
         style={[styles.colReps, styles.input]}
@@ -497,7 +497,7 @@ function SetRow({ set, setIndex, exIndex, updateSet, toggleComplete, removeSet }
         onChangeText={(v) => updateSet(exIndex, setIndex, 'reps', v)}
         keyboardType="number-pad"
         placeholder={set.reps_default || '—'}
-        placeholderTextColor="#9ca3af"
+        placeholderTextColor="#6A6A6A"
       />
       <TextInput
         style={[styles.colRir, styles.input]}
@@ -505,11 +505,11 @@ function SetRow({ set, setIndex, exIndex, updateSet, toggleComplete, removeSet }
         onChangeText={(v) => updateSet(exIndex, setIndex, 'rir', v)}
         keyboardType="number-pad"
         placeholder={set.rir_default || '—'}
-        placeholderTextColor="#9ca3af"
+        placeholderTextColor="#6A6A6A"
       />
       <TouchableOpacity style={styles.colDone} onPress={() => toggleComplete(exIndex, setIndex)}>
         <View style={[styles.checkCircle, set.completed && styles.checkCircleDone]}>
-          {set.completed && <Ionicons name="checkmark" size={14} color="#fff" />}
+          {set.completed && <Ionicons name="checkmark" size={14} color="#EAEAEA" />}
         </View>
       </TouchableOpacity>
     </View>
@@ -537,19 +537,19 @@ function CardioSetRow({ set, setIndex, exIndex, updateSet, toggleComplete, remov
         onChangeText={(v) => updateSet(exIndex, setIndex, 'km', v)}
         keyboardType="decimal-pad"
         placeholder={set.km_default || '—'}
-        placeholderTextColor="#9ca3af"
+        placeholderTextColor="#6A6A6A"
       />
       <TouchableOpacity
         style={[styles.colTiempo, styles.input, { alignItems: 'center', justifyContent: 'center' }]}
         onPress={onOpenTiempo}
       >
-        <Text style={{ fontSize: 13, fontWeight: '600', color: (set.h === 0 && set.m === 0 && set.s === 0) ? '#d1d5db' : '#111827' }}>
+        <Text style={{ fontSize: 13, fontWeight: '600', color: (set.h === 0 && set.m === 0 && set.s === 0) ? '#6A6A6A' : '#EAEAEA' }}>
           {tiempoLabel}
         </Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.colDone} onPress={() => toggleComplete(exIndex, setIndex)}>
         <View style={[styles.checkCircle, set.completed && styles.checkCircleDone]}>
-          {set.completed && <Ionicons name="checkmark" size={14} color="#fff" />}
+          {set.completed && <Ionicons name="checkmark" size={14} color="#EAEAEA" />}
         </View>
       </TouchableOpacity>
     </View>
@@ -557,53 +557,53 @@ function CardioSetRow({ set, setIndex, exIndex, updateSet, toggleComplete, remov
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
+  container: { flex: 1, backgroundColor: '#0D0D0D' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#fff',
+    backgroundColor: '#1F1F1F',
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderBottomColor: '#252525',
     gap: 10,
   },
   headerCenter: { flex: 1, alignItems: 'center' },
-  headerTitle: { fontSize: 16, fontWeight: '700', color: '#111827' },
+  headerTitle: { fontSize: 16, fontWeight: '700', color: '#EAEAEA' },
   timerBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
-  timerText: { fontSize: 12, color: '#6366f1', fontWeight: '600' },
+  timerText: { fontSize: 12, color: '#8B0000', fontWeight: '600' },
   finishBtn: {
-    backgroundColor: '#6366f1',
+    backgroundColor: '#8B0000',
     borderRadius: 8,
     paddingHorizontal: 14,
     paddingVertical: 7,
     minWidth: 80,
     alignItems: 'center',
   },
-  finishBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  finishBtnText: { color: '#EAEAEA', fontWeight: '700', fontSize: 14 },
   listContent: { padding: 16, gap: 16, paddingBottom: 40 },
   exCard: {
-    backgroundColor: '#fff',
+    backgroundColor: '#1F1F1F',
     borderRadius: 12,
     padding: 14,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.07,
+    shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 2,
   },
   exHeader: { flexDirection: 'row', marginBottom: 12 },
-  exName: { fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 2 },
-  exMeta: { fontSize: 12, color: '#9ca3af' },
-  exNote: { fontSize: 12, color: '#6366f1', marginTop: 4, fontStyle: 'italic' },
+  exName: { fontSize: 16, fontWeight: '700', color: '#EAEAEA', marginBottom: 2 },
+  exMeta: { fontSize: 12, color: '#6A6A6A' },
+  exNote: { fontSize: 12, color: '#8B0000', marginTop: 4, fontStyle: 'italic' },
   tableHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 6,
     paddingHorizontal: 2,
   },
-  colLabel: { fontSize: 11, color: '#9ca3af', fontWeight: '600', textAlign: 'center' },
+  colLabel: { fontSize: 11, color: '#6A6A6A', fontWeight: '600', textAlign: 'center' },
   // Columnas fuerza
   colSet:      { width: 32 },
   colPrev:     { flex: 1, textAlign: 'center' },
@@ -623,27 +623,27 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     paddingHorizontal: 2,
   },
-  setRowDone: { backgroundColor: '#f0fdf4' },
+  setRowDone: { backgroundColor: '#0A1A0A' },
   setNumBtn: { alignItems: 'center', justifyContent: 'center' },
-  setNum: { fontSize: 13, fontWeight: '700', color: '#6366f1' },
-  prevText: { fontSize: 12, color: '#9ca3af', textAlign: 'center' },
-  rangeSep: { fontSize: 12, color: '#9ca3af', fontWeight: '600' },
+  setNum: { fontSize: 13, fontWeight: '700', color: '#8B0000' },
+  prevText: { fontSize: 12, color: '#6A6A6A', textAlign: 'center' },
+  rangeSep: { fontSize: 12, color: '#6A6A6A', fontWeight: '600' },
   input: {
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#181818',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: '#333333',
     paddingVertical: 6,
     paddingHorizontal: 4,
     fontSize: 14,
     fontWeight: '600',
-    color: '#111827',
+    color: '#EAEAEA',
     textAlign: 'center',
     marginHorizontal: 2,
   },
   checkCircle: {
     width: 26, height: 26, borderRadius: 13,
-    borderWidth: 2, borderColor: '#d1d5db',
+    borderWidth: 2, borderColor: '#333333',
     alignItems: 'center', justifyContent: 'center',
   },
   checkCircleDone: { borderColor: '#22c55e', backgroundColor: '#22c55e' },
@@ -655,33 +655,33 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     marginTop: 4,
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
+    borderTopColor: '#252525',
   },
-  addSetText: { fontSize: 13, color: '#6366f1', fontWeight: '600' },
+  addSetText: { fontSize: 13, color: '#8B0000', fontWeight: '600' },
   // Drum picker
   drumSheet: {
-    backgroundColor: '#fff',
+    backgroundColor: '#1F1F1F',
     borderTopLeftRadius: 20, borderTopRightRadius: 20,
     paddingTop: 12, paddingBottom: 30,
   },
   drumHandle: {
-    width: 40, height: 4, borderRadius: 2, backgroundColor: '#ddd',
+    width: 40, height: 4, borderRadius: 2, backgroundColor: '#333333',
     alignSelf: 'center', marginBottom: 16,
   },
   drumTitle: {
     textAlign: 'center', fontSize: 16, fontWeight: '700',
-    color: '#333', marginBottom: 12,
+    color: '#EAEAEA', marginBottom: 12,
   },
   drumLabel: {
-    fontSize: 11, fontWeight: '700', color: '#aaa',
+    fontSize: 11, fontWeight: '700', color: '#6A6A6A',
     letterSpacing: 0.5, marginBottom: 4, textAlign: 'center',
   },
-  drumItem:         { fontSize: 22, color: '#ccc', fontWeight: '500' },
-  drumItemSelected: { fontSize: 26, color: '#333', fontWeight: '700' },
+  drumItem:         { fontSize: 22, color: '#4A4A4A', fontWeight: '500' },
+  drumItemSelected: { fontSize: 26, color: '#EAEAEA', fontWeight: '700' },
   drumConfirmBtn: {
     marginHorizontal: 20, marginTop: 8,
-    backgroundColor: '#6366f1', borderRadius: 10,
+    backgroundColor: '#8B0000', borderRadius: 10,
     padding: 16, alignItems: 'center',
   },
-  drumConfirmText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  drumConfirmText: { color: '#EAEAEA', fontSize: 16, fontWeight: '700' },
 });

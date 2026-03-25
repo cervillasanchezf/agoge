@@ -100,7 +100,7 @@ export default function SessionDetailScreen({ route, navigation }) {
 
           <View style={styles.statsGrid}>
             <View style={styles.statCell}>
-              <Ionicons name="time-outline" size={20} color="#6366f1" />
+              <Ionicons name="time-outline" size={20} color="#8B0000" />
               <Text style={styles.statVal}>{formatDuration(session.duration)}</Text>
               <Text style={styles.statLbl}>Duración</Text>
             </View>
@@ -110,7 +110,7 @@ export default function SessionDetailScreen({ route, navigation }) {
               <Text style={styles.statLbl}>Series completas</Text>
             </View>
             <View style={styles.statCell}>
-              <Ionicons name="barbell-outline" size={20} color="#f59e0b" />
+              <Ionicons name="barbell-outline" size={20} color="#C9A44C" />
               <Text style={styles.statVal}>
                 {totalVolume > 0 ? `${totalVolume.toLocaleString('es-ES')} kg` : '—'}
               </Text>
@@ -203,7 +203,7 @@ export default function SessionDetailScreen({ route, navigation }) {
 
         {/* ── Eliminar ─────────────────────────────── */}
         <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete}>
-          <Ionicons name="trash-outline" size={16} color="#ef4444" />
+          <Ionicons name="trash-outline" size={16} color="#CC3333" />
           <Text style={styles.deleteBtnText}>Eliminar sesión</Text>
         </TouchableOpacity>
 
@@ -213,65 +213,65 @@ export default function SessionDetailScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
+  container: { flex: 1, backgroundColor: '#0D0D0D' },
   scroll: { padding: 16, gap: 14, paddingBottom: 40 },
 
   // Summary card
   summaryCard: {
-    backgroundColor: '#fff',
+    backgroundColor: '#1F1F1F',
     borderRadius: 14,
     padding: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 2,
   },
-  trainingName: { fontSize: 18, fontWeight: '800', color: '#111827', marginBottom: 2 },
-  dateText: { fontSize: 13, color: '#9ca3af', marginBottom: 16, textTransform: 'capitalize' },
+  trainingName: { fontSize: 18, fontWeight: '800', color: '#EAEAEA', marginBottom: 2 },
+  dateText: { fontSize: 13, color: '#6A6A6A', marginBottom: 16, textTransform: 'capitalize' },
   statsGrid: {
     flexDirection: 'row',
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#181818',
     borderRadius: 10,
     paddingVertical: 14,
     marginBottom: 16,
   },
   statCell: { flex: 1, alignItems: 'center', gap: 4 },
-  statVal: { fontSize: 15, fontWeight: '700', color: '#111827' },
-  statLbl: { fontSize: 10, color: '#9ca3af', fontWeight: '600', textAlign: 'center' },
+  statVal: { fontSize: 15, fontWeight: '700', color: '#EAEAEA' },
+  statLbl: { fontSize: 10, color: '#6A6A6A', fontWeight: '600', textAlign: 'center' },
 
   // Volume per muscle
-  muscleSection: { borderTopWidth: 1, borderTopColor: '#f3f4f6', paddingTop: 14, gap: 8 },
-  sectionTitle: { fontSize: 12, fontWeight: '700', color: '#9ca3af', letterSpacing: 0.5, marginBottom: 4 },
+  muscleSection: { borderTopWidth: 1, borderTopColor: '#252525', paddingTop: 14, gap: 8 },
+  sectionTitle: { fontSize: 12, fontWeight: '700', color: '#6A6A6A', letterSpacing: 0.5, marginBottom: 4 },
   muscleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  muscleName: { fontSize: 12, color: '#374151', fontWeight: '600' },
-  muscleSets: { fontSize: 10, color: '#9ca3af', fontWeight: '500' },
+  muscleName: { fontSize: 12, color: '#9A9A9A', fontWeight: '600' },
+  muscleSets: { fontSize: 10, color: '#6A6A6A', fontWeight: '500' },
   muscleNameWrap: { width: 90, gap: 1 },
-  barTrack: { flex: 1, height: 6, borderRadius: 3, backgroundColor: '#f3f4f6', flexDirection: 'row', overflow: 'hidden' },
-  barFill: { backgroundColor: '#6366f1', borderRadius: 3 },
-  muscleVol: { width: 70, fontSize: 11, color: '#6b7280', textAlign: 'right' },
+  barTrack: { flex: 1, height: 6, borderRadius: 3, backgroundColor: '#252525', flexDirection: 'row', overflow: 'hidden' },
+  barFill: { backgroundColor: '#8B0000', borderRadius: 3 },
+  muscleVol: { width: 70, fontSize: 11, color: '#9A9A9A', textAlign: 'right' },
 
   // Exercise card
   exCard: {
-    backgroundColor: '#fff',
+    backgroundColor: '#1F1F1F',
     borderRadius: 12,
     padding: 14,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.25,
     shadowRadius: 3,
     elevation: 1,
   },
-  exName: { fontSize: 15, fontWeight: '700', color: '#111827', marginBottom: 10 },
+  exName: { fontSize: 15, fontWeight: '700', color: '#EAEAEA', marginBottom: 10 },
   tableHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 6,
     paddingBottom: 6,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderBottomColor: '#252525',
   },
-  colLabel: { fontSize: 10, color: '#9ca3af', fontWeight: '700', textAlign: 'center' },
+  colLabel: { fontSize: 10, color: '#6A6A6A', fontWeight: '700', textAlign: 'center' },
   colSet:  { width: 36, textAlign: 'center' },
   colKg:   { width: 60, textAlign: 'center' },
   colReps: { width: 60, textAlign: 'center' },
@@ -284,12 +284,12 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 6,
   },
-  setRowDone: { backgroundColor: '#f0fdf4' },
-  setNum: { fontSize: 13, fontWeight: '700', color: '#6366f1', textAlign: 'center' },
-  cellText: { fontSize: 13, fontWeight: '600', color: '#374151', textAlign: 'center' },
+  setRowDone: { backgroundColor: '#0A1A0A' },
+  setNum: { fontSize: 13, fontWeight: '700', color: '#8B0000', textAlign: 'center' },
+  cellText: { fontSize: 13, fontWeight: '600', color: '#9A9A9A', textAlign: 'center' },
   checkCircle: {
     width: 22, height: 22, borderRadius: 11,
-    borderWidth: 2, borderColor: '#d1d5db',
+    borderWidth: 2, borderColor: '#333333',
     alignItems: 'center', justifyContent: 'center',
   },
   checkCircleDone: { borderColor: '#22c55e', backgroundColor: '#22c55e' },
@@ -304,8 +304,8 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#fecaca',
-    backgroundColor: '#fff5f5',
+    borderColor: '#4A1010',
+    backgroundColor: '#1A0505',
   },
-  deleteBtnText: { fontSize: 14, fontWeight: '600', color: '#ef4444' },
+  deleteBtnText: { fontSize: 14, fontWeight: '600', color: '#CC3333' },
 });

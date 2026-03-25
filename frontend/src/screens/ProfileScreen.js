@@ -51,10 +51,10 @@ export default function ProfileScreen({ navigation }) {
             activeOpacity={0.7}
           >
             <View style={styles.menuIconWrap}>
-              <Ionicons name="calendar-outline" size={20} color="#6366f1" />
+              <Ionicons name="calendar-outline" size={20} color="#8B0000" />
             </View>
             <Text style={styles.menuLabel}>Historial</Text>
-            <Ionicons name="chevron-forward" size={18} color="#9ca3af" />
+            <Ionicons name="chevron-forward" size={18} color="#6A6A6A" />
           </TouchableOpacity>
         </View>
 
@@ -66,7 +66,7 @@ export default function ProfileScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#0D0D0D',
   },
   content: {
     flex: 1,
@@ -81,12 +81,12 @@ const styles = StyleSheet.create({
   },
   menuSection: {
     marginTop: 28,
-    backgroundColor: '#fff',
+    backgroundColor: '#1F1F1F',
     borderRadius: 12,
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.07,
+    shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 2,
   },
@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 8,
-    backgroundColor: '#eef2ff',
+    backgroundColor: '#1A0000',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -109,25 +109,25 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     fontWeight: '600',
-    color: '#111827',
+    color: '#EAEAEA',
   },
   editButton: {
     position: 'absolute',
     top: 16,
     right: 16,
-    backgroundColor: '#6366f1',
+    backgroundColor: '#8B0000',
     borderRadius: 24,
     padding: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 4,
   },
   avatarWrapper: {
-    shadowColor: '#6366f1',
+    shadowColor: '#8B0000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 6,
   },
@@ -136,20 +136,20 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: 60,
     borderWidth: 3,
-    borderColor: '#6366f1',
+    borderColor: '#8B0000',
   },
   avatarFallback: {
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#6366f1',
+    backgroundColor: '#8B0000',
     alignItems: 'center',
     justifyContent: 'center',
   },
   name: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#EAEAEA',
     flexShrink: 1,
   },
 });

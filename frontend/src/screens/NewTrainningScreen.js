@@ -67,8 +67,8 @@ function DrumColumn({ values, initialIndex, onChange, label }) {
         <View pointerEvents="none" style={{
           position: 'absolute', left: 8, right: 8,
           top: DRUM_ITEM_H * 2, height: DRUM_ITEM_H,
-          borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#c7d2fe',
-          backgroundColor: 'rgba(99,102,241,0.06)', borderRadius: 6,
+          borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#5A0000',
+          backgroundColor: 'rgba(139,0,0,0.1)', borderRadius: 6,
         }} />
       </View>
     </View>
@@ -85,7 +85,7 @@ function TiempoPickerModal({ value, onClose, onConfirm }) {
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+      <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.7)' }}>
         <TouchableOpacity style={{ ...StyleSheet.absoluteFillObject }} onPress={onClose} />
         <View style={styles.drumSheet}>
           <View style={styles.drumHandle} />
@@ -370,7 +370,7 @@ export default function NewTrainningScreen({ navigation, route }) {
               onChangeText={v => updateSet(exercise._id, idx, 'km', v)}
               keyboardType="decimal-pad"
               placeholder="—"
-              placeholderTextColor="#bbb"
+              placeholderTextColor="#6A6A6A"
               textAlign="center"
               maxLength={6}
             />
@@ -378,7 +378,7 @@ export default function NewTrainningScreen({ navigation, route }) {
               style={[styles.setsInputCell, styles.colTiempo, { alignItems: 'center', justifyContent: 'center' }]}
               onPress={() => setTiempoTarget({ exerciseId: exercise._id, setIdx: idx })}
             >
-              <Text style={[styles.setsTimeTxt, (set.h === 0 && set.m === 0 && set.s === 0) && { color: '#bbb' }]}>
+              <Text style={[styles.setsTimeTxt, (set.h === 0 && set.m === 0 && set.s === 0) && { color: '#6A6A6A' }]}>
                 {(set.h === 0 && set.m === 0 && set.s === 0)
                   ? '—'
                   : `${String(set.h).padStart(2, '0')}:${String(set.m).padStart(2, '0')}:${String(set.s).padStart(2, '0')}`}
@@ -389,12 +389,12 @@ export default function NewTrainningScreen({ navigation, route }) {
               onPress={() => removeSet(exercise._id, idx)}
               disabled={config.sets.length <= 1}
             >
-              <Ionicons name="remove-circle-outline" size={18} color="#ef4444" />
+              <Ionicons name="remove-circle-outline" size={18} color="#CC3333" />
             </TouchableOpacity>
           </View>
         ))}
         <TouchableOpacity style={styles.addSetBtn} onPress={() => addSet(exercise._id)}>
-          <Ionicons name="add" size={15} color="#6366f1" />
+          <Ionicons name="add" size={15} color="#8B0000" />
           <Text style={styles.addSetBtnText}>Agregar Serie</Text>
         </TouchableOpacity>
       </View>
@@ -441,7 +441,7 @@ export default function NewTrainningScreen({ navigation, route }) {
               onChangeText={v => updateSet(exercise._id, idx, 'kg', v)}
               keyboardType="numeric"
               placeholder="—"
-              placeholderTextColor="#bbb"
+              placeholderTextColor="#6A6A6A"
               textAlign="center"
               maxLength={5}
             />
@@ -455,7 +455,7 @@ export default function NewTrainningScreen({ navigation, route }) {
                   onChangeText={v => updateSet(exercise._id, idx, 'reps', v)}
                   keyboardType="numeric"
                   placeholder="—"
-                  placeholderTextColor="#bbb"
+                  placeholderTextColor="#6A6A6A"
                   textAlign="center"
                   maxLength={3}
                 />
@@ -466,7 +466,7 @@ export default function NewTrainningScreen({ navigation, route }) {
                   onChangeText={v => updateSet(exercise._id, idx, 'repsTo', v)}
                   keyboardType="numeric"
                   placeholder="—"
-                  placeholderTextColor="#bbb"
+                  placeholderTextColor="#6A6A6A"
                   textAlign="center"
                   maxLength={3}
                 />
@@ -478,7 +478,7 @@ export default function NewTrainningScreen({ navigation, route }) {
                 onChangeText={v => updateSet(exercise._id, idx, 'reps', v)}
                 keyboardType="numeric"
                 placeholder="—"
-                placeholderTextColor="#bbb"
+                placeholderTextColor="#6A6A6A"
                 textAlign="center"
                 maxLength={4}
               />
@@ -491,7 +491,7 @@ export default function NewTrainningScreen({ navigation, route }) {
               onChangeText={v => updateSet(exercise._id, idx, 'rir', v)}
               keyboardType="numeric"
               placeholder="—"
-              placeholderTextColor="#bbb"
+              placeholderTextColor="#6A6A6A"
               textAlign="center"
               maxLength={2}
             />
@@ -502,14 +502,14 @@ export default function NewTrainningScreen({ navigation, route }) {
               onPress={() => removeSet(exercise._id, idx)}
               disabled={config.sets.length <= 1}
             >
-              <Ionicons name="remove-circle-outline" size={18} color="#ef4444" />
+              <Ionicons name="remove-circle-outline" size={18} color="#CC3333" />
             </TouchableOpacity>
           </View>
         ))}
 
         {/* Agregar serie */}
         <TouchableOpacity style={styles.addSetBtn} onPress={() => addSet(exercise._id)}>
-          <Ionicons name="add" size={15} color="#6366f1" />
+          <Ionicons name="add" size={15} color="#8B0000" />
           <Text style={styles.addSetBtnText}>Agregar Serie</Text>
         </TouchableOpacity>
       </View>
@@ -531,7 +531,7 @@ export default function NewTrainningScreen({ navigation, route }) {
                 placeholder="Ej: Rutina de Fuerza"
                 value={trainingName}
                 onChangeText={setTrainingName}
-                placeholderTextColor="#999"
+                placeholderTextColor="#6A6A6A"
               />
             </View>
 
@@ -578,7 +578,7 @@ export default function NewTrainningScreen({ navigation, route }) {
                               <TextInput
                                 style={styles.exerciseNoteInput}
                                 placeholder="Añadir nota..."
-                                placeholderTextColor="#bbb"
+                                placeholderTextColor="#6A6A6A"
                                 value={exerciseNotes[exercise._id] || ''}
                                 onChangeText={v => setExerciseNotes(prev => ({ ...prev, [exercise._id]: v }))}
                                 multiline
@@ -590,7 +590,7 @@ export default function NewTrainningScreen({ navigation, route }) {
                             onPress={(e) => handleOpenExMenu(exercise._id, e)}
                             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                           >
-                            <Ionicons name="ellipsis-vertical" size={18} color="#9ca3af" />
+                            <Ionicons name="ellipsis-vertical" size={18} color="#6A6A6A" />
                           </TouchableOpacity>
                         </View>
 
@@ -610,7 +610,7 @@ export default function NewTrainningScreen({ navigation, route }) {
                             >
                               <View style={[styles.supersetCheckbox, supersetPickerSelected.includes(e._id) && styles.supersetCheckboxChecked]}>
                                 {supersetPickerSelected.includes(e._id) && (
-                                  <Ionicons name="checkmark" size={12} color="#fff" />
+                                  <Ionicons name="checkmark" size={12} color="#EAEAEA" />
                                 )}
                               </View>
                               <Text style={styles.supersetPickerItemText}>{getExerciseName(e)}</Text>
@@ -643,7 +643,7 @@ export default function NewTrainningScreen({ navigation, route }) {
               )}
 
               <TouchableOpacity style={styles.addExerciseButton} onPress={handleAddExercise}>
-                <Ionicons name="add-circle-outline" size={18} color="#6366f1" style={{ marginRight: 6 }} />
+                <Ionicons name="add-circle-outline" size={18} color="#8B0000" style={{ marginRight: 6 }} />
                 <Text style={styles.addExerciseButtonText}>Añadir Ejercicio</Text>
               </TouchableOpacity>
 
@@ -653,7 +653,7 @@ export default function NewTrainningScreen({ navigation, route }) {
                 disabled={loading}
               >
                 {loading
-                  ? <ActivityIndicator color="#fff" />
+                  ? <ActivityIndicator color="#EAEAEA" />
                   : <Text style={styles.saveButtonText}>{editTraining ? 'Actualizar Entrenamiento' : 'Guardar Entrenamiento'}</Text>
                 }
               </TouchableOpacity>
@@ -681,7 +681,7 @@ export default function NewTrainningScreen({ navigation, route }) {
               setReorderVisible(true);
             }}
           >
-            <Ionicons name="swap-vertical-outline" size={16} color="#374151" />
+            <Ionicons name="swap-vertical-outline" size={16} color="#9A9A9A" />
             <Text style={styles.exDropdownItemText}>Reordenar</Text>
           </TouchableOpacity>
           <View style={styles.exDropdownDivider} />
@@ -698,8 +698,8 @@ export default function NewTrainningScreen({ navigation, route }) {
                 });
               }}
             >
-              <Ionicons name="git-merge-outline" size={16} color="#ef4444" />
-              <Text style={[styles.exDropdownItemText, { color: '#ef4444' }]}>Eliminar Superserie</Text>
+              <Ionicons name="git-merge-outline" size={16} color="#CC3333" />
+              <Text style={[styles.exDropdownItemText, { color: '#CC3333' }]}>Eliminar Superserie</Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
@@ -710,7 +710,7 @@ export default function NewTrainningScreen({ navigation, route }) {
                 setSupersetPickerForId(exMenuId);
               }}
             >
-              <Ionicons name="git-merge-outline" size={16} color="#374151" />
+              <Ionicons name="git-merge-outline" size={16} color="#9A9A9A" />
               <Text style={styles.exDropdownItemText}>Añadir Superserie</Text>
             </TouchableOpacity>
           )}
@@ -719,8 +719,8 @@ export default function NewTrainningScreen({ navigation, route }) {
             style={styles.exDropdownItem}
             onPress={() => { setExMenuVisible(false); handleRemoveExercise(exMenuId); }}
           >
-            <Ionicons name="trash-outline" size={16} color="#ef4444" />
-            <Text style={[styles.exDropdownItemText, { color: '#ef4444' }]}>Eliminar Ejercicio</Text>
+            <Ionicons name="trash-outline" size={16} color="#CC3333" />
+            <Text style={[styles.exDropdownItemText, { color: '#CC3333' }]}>Eliminar Ejercicio</Text>
           </TouchableOpacity>
         </View>
       </Modal>
@@ -758,14 +758,14 @@ export default function NewTrainningScreen({ navigation, route }) {
                       onPress={() => setReorderList(prev => handleMoveInReorder(prev, idx, 'up'))}
                       style={[styles.reorderArrowBtn, idx === 0 && { opacity: 0.25 }]}
                     >
-                      <Ionicons name="chevron-up" size={20} color="#6366f1" />
+                      <Ionicons name="chevron-up" size={20} color="#8B0000" />
                     </TouchableOpacity>
                     <TouchableOpacity
                       disabled={idx === reorderList.length - 1}
                       onPress={() => setReorderList(prev => handleMoveInReorder(prev, idx, 'down'))}
                       style={[styles.reorderArrowBtn, idx === reorderList.length - 1 && { opacity: 0.25 }]}
                     >
-                      <Ionicons name="chevron-down" size={20} color="#6366f1" />
+                      <Ionicons name="chevron-down" size={20} color="#8B0000" />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -790,7 +790,7 @@ export default function NewTrainningScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
+  container: { flex: 1, backgroundColor: '#0D0D0D' },
   keyboardView: { flex: 1 },
   scrollView: { flex: 1 },
   content: { padding: 20, paddingBottom: 20 },
@@ -801,38 +801,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 15,
   },
-  label: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 10 },
-  exerciseCount: { fontSize: 14, color: '#6366f1', fontWeight: '600' },
+  label: { fontSize: 18, fontWeight: 'bold', color: '#EAEAEA', marginBottom: 10 },
+  exerciseCount: { fontSize: 14, color: '#8B0000', fontWeight: '600' },
   input: {
-    backgroundColor: '#fff',
+    backgroundColor: '#1F1F1F',
     borderRadius: 10,
     padding: 15,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: '#ddd',
-    color: '#333',
+    borderColor: '#333333',
+    color: '#EAEAEA',
   },
   emptyExercises: {
-    backgroundColor: '#fff',
+    backgroundColor: '#1F1F1F',
     borderRadius: 10,
     padding: 30,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#333333',
     borderStyle: 'dashed',
     marginBottom: 15,
   },
-  emptyText: { fontSize: 16, color: '#999', marginBottom: 5 },
-  emptySubtext: { fontSize: 14, color: '#bbb', textAlign: 'center' },
+  emptyText: { fontSize: 16, color: '#6A6A6A', marginBottom: 5 },
+  emptySubtext: { fontSize: 14, color: '#4A4A4A', textAlign: 'center' },
   exercisesList: { marginBottom: 15 },
 
   // Card de ejercicio
   exerciseCard: {
-    backgroundColor: '#fff',
+    backgroundColor: '#1F1F1F',
     borderRadius: 10,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#333333',
   },
   exerciseHeader: {
     flexDirection: 'row',
@@ -850,20 +850,20 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#6366f1',
-    color: '#fff',
+    backgroundColor: '#8B0000',
+    color: '#EAEAEA',
     fontSize: 12,
     fontWeight: '700',
     textAlign: 'center',
     lineHeight: 24,
   },
-  exerciseName: { fontSize: 15, color: '#333', fontWeight: '600' },
-  exerciseMeta: { fontSize: 12, color: '#888', marginTop: 2 },
+  exerciseName: { fontSize: 15, color: '#EAEAEA', fontWeight: '600' },
+  exerciseMeta: { fontSize: 12, color: '#6A6A6A', marginTop: 2 },
 
   // Tabla de series
   setsTable: {
     borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
+    borderTopColor: '#252525',
     paddingHorizontal: 14,
     paddingBottom: 6,
   },
@@ -872,7 +872,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: '#252525',
     justifyContent: 'space-between',
   },
   // Anchos de columna
@@ -886,7 +886,7 @@ const styles = StyleSheet.create({
   setsHeaderCell: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#aaa',
+    color: '#6A6A6A',
     letterSpacing: 0.5,
     textAlign: 'center',
   },
@@ -898,7 +898,7 @@ const styles = StyleSheet.create({
   setsHeaderCellBtnText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#6366f1',
+    color: '#8B0000',
     letterSpacing: 0.5,
   },
   setsRow: {
@@ -906,7 +906,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 5,
     borderBottomWidth: 1,
-    borderBottomColor: '#fafafa',
+    borderBottomColor: '#1A1A1A',
     justifyContent: 'space-between',
   },
   setsSerieCell: {
@@ -916,16 +916,16 @@ const styles = StyleSheet.create({
   setsSerieText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#6366f1',
+    color: '#8B0000',
     textAlign: 'center',
   },
   setsInputCell: {
     height: 34,
     borderRadius: 6,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#181818',
     fontSize: 14,
     fontWeight: '600',
-    color: '#333',
+    color: '#EAEAEA',
     textAlign: 'center',
   },
   setsRangeCell: {
@@ -938,15 +938,15 @@ const styles = StyleSheet.create({
     width: 44,
     height: 34,
     borderRadius: 6,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#181818',
     fontSize: 14,
     fontWeight: '600',
-    color: '#333',
+    color: '#EAEAEA',
     textAlign: 'center',
   },
   setsRangeSep: {
     fontSize: 13,
-    color: '#aaa',
+    color: '#6A6A6A',
     fontWeight: '600',
     paddingHorizontal: 2,
   },
@@ -960,7 +960,7 @@ const styles = StyleSheet.create({
   },
   addSetBtnText: {
     fontSize: 13,
-    color: '#6366f1',
+    color: '#8B0000',
     fontWeight: '600',
   },
   colDel: {
@@ -974,7 +974,7 @@ const styles = StyleSheet.create({
   exerciseNoteInput: {
     marginTop: 4,
     fontSize: 12,
-    color: '#6b7280',
+    color: '#9A9A9A',
     paddingHorizontal: 0,
     paddingVertical: 2,
     minHeight: 18,
@@ -985,92 +985,92 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#1F1F1F',
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 15,
     borderWidth: 1.5,
-    borderColor: '#6366f1',
+    borderColor: '#8B0000',
   },
-  addExerciseButtonText: { color: '#6366f1', fontSize: 14, fontWeight: '600' },
+  addExerciseButtonText: { color: '#8B0000', fontSize: 14, fontWeight: '600' },
 
   saveButton: {
     marginTop: 16,
-    backgroundColor: '#6366f1',
+    backgroundColor: '#8B0000',
     borderRadius: 10,
     paddingVertical: 12,
     paddingHorizontal: 18,
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: '#8B0000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.4,
     shadowRadius: 3,
     elevation: 4,
   },
   saveButtonDisabled: { opacity: 0.6 },
-  saveButtonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  saveButtonText: { color: '#EAEAEA', fontSize: 16, fontWeight: '700' },
 
   // Cardio table
-  setsTimeTxt: { fontSize: 13, fontWeight: '600', color: '#333', textAlign: 'center' },
+  setsTimeTxt: { fontSize: 13, fontWeight: '600', color: '#EAEAEA', textAlign: 'center' },
 
   // Drum time picker
   drumSheet: {
-    backgroundColor: '#fff',
+    backgroundColor: '#1F1F1F',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: 12,
     paddingBottom: 30,
   },
   drumHandle: {
-    width: 40, height: 4, borderRadius: 2, backgroundColor: '#ddd',
+    width: 40, height: 4, borderRadius: 2, backgroundColor: '#333333',
     alignSelf: 'center', marginBottom: 16,
   },
   drumTitle: {
     textAlign: 'center', fontSize: 16, fontWeight: '700',
-    color: '#333', marginBottom: 12,
+    color: '#EAEAEA', marginBottom: 12,
   },
   drumLabel: {
-    fontSize: 11, fontWeight: '700', color: '#aaa',
+    fontSize: 11, fontWeight: '700', color: '#6A6A6A',
     letterSpacing: 0.5, marginBottom: 4, textAlign: 'center',
   },
-  drumItem: { fontSize: 22, color: '#ccc', fontWeight: '500' },
-  drumItemSelected: { fontSize: 26, color: '#333', fontWeight: '700' },
+  drumItem: { fontSize: 22, color: '#4A4A4A', fontWeight: '500' },
+  drumItemSelected: { fontSize: 26, color: '#EAEAEA', fontWeight: '700' },
   drumConfirmBtn: {
     marginHorizontal: 20, marginTop: 8,
-    backgroundColor: '#6366f1', borderRadius: 10, padding: 16, alignItems: 'center',
+    backgroundColor: '#8B0000', borderRadius: 10, padding: 16, alignItems: 'center',
   },
-  drumConfirmText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  drumConfirmText: { color: '#EAEAEA', fontSize: 16, fontWeight: '700' },
 
   // Superset badge
   supersetBadge: {
-    backgroundColor: '#e0e7ff',
+    backgroundColor: '#2A0A0A',
     borderRadius: 4,
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
   supersetBadgeText: {
     fontSize: 10,
-    color: '#6366f1',
+    color: '#8B0000',
     fontWeight: '700',
     letterSpacing: 0.3,
   },
   exerciseCardSuperset: {
-    borderColor: '#6366f1',
+    borderColor: '#8B0000',
   },
 
   // Superset picker
   supersetPicker: {
-    backgroundColor: '#fff',
+    backgroundColor: '#1F1F1F',
     borderRadius: 10,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#e0e7ff',
+    borderColor: '#2A0A0A',
     padding: 14,
   },
   supersetPickerTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#374151',
+    color: '#EAEAEA',
     marginBottom: 10,
   },
   supersetPickerItem: {
@@ -1079,11 +1079,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     gap: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderBottomColor: '#252525',
   },
   supersetPickerItemText: {
     fontSize: 14,
-    color: '#374151',
+    color: '#9A9A9A',
     flex: 1,
   },
   supersetCheckbox: {
@@ -1091,13 +1091,13 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 4,
     borderWidth: 2,
-    borderColor: '#d1d5db',
+    borderColor: '#333333',
     alignItems: 'center',
     justifyContent: 'center',
   },
   supersetCheckboxChecked: {
-    backgroundColor: '#6366f1',
-    borderColor: '#6366f1',
+    backgroundColor: '#8B0000',
+    borderColor: '#8B0000',
   },
   supersetPickerActions: {
     flexDirection: 'row',
@@ -1110,22 +1110,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: '#333333',
   },
   supersetCancelBtnText: {
     fontSize: 14,
-    color: '#6b7280',
+    color: '#9A9A9A',
     fontWeight: '600',
   },
   supersetConfirmBtn: {
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: 8,
-    backgroundColor: '#6366f1',
+    backgroundColor: '#8B0000',
   },
   supersetConfirmBtnText: {
     fontSize: 14,
-    color: '#fff',
+    color: '#EAEAEA',
     fontWeight: '700',
   },
 
@@ -1133,13 +1133,13 @@ const styles = StyleSheet.create({
   exDropdown: {
     position: 'absolute',
     right: 16,
-    backgroundColor: '#fff',
+    backgroundColor: '#1F1F1F',
     borderRadius: 10,
     paddingVertical: 4,
     minWidth: 200,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.4,
     shadowRadius: 8,
     elevation: 8,
   },
@@ -1152,11 +1152,11 @@ const styles = StyleSheet.create({
   },
   exDropdownItemText: {
     fontSize: 14,
-    color: '#374151',
+    color: '#EAEAEA',
   },
   exDropdownDivider: {
     height: 1,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#333333',
     marginHorizontal: 8,
   },
 
@@ -1164,10 +1164,10 @@ const styles = StyleSheet.create({
   reorderOverlay: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(0,0,0,0.7)',
   },
   reorderSheet: {
-    backgroundColor: '#fff',
+    backgroundColor: '#1F1F1F',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: 12,
@@ -1175,13 +1175,13 @@ const styles = StyleSheet.create({
     paddingBottom: 30,
   },
   reorderHandle: {
-    width: 40, height: 4, borderRadius: 2, backgroundColor: '#ddd',
+    width: 40, height: 4, borderRadius: 2, backgroundColor: '#333333',
     alignSelf: 'center', marginBottom: 16,
   },
   reorderTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#111827',
+    color: '#EAEAEA',
     marginBottom: 12,
     textAlign: 'center',
   },
@@ -1190,15 +1190,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderBottomColor: '#252525',
     gap: 10,
   },
   reorderItemNum: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#6366f1',
-    color: '#fff',
+    backgroundColor: '#8B0000',
+    color: '#EAEAEA',
     fontSize: 12,
     fontWeight: '700',
     textAlign: 'center',
@@ -1208,7 +1208,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
+    color: '#9A9A9A',
   },
   reorderArrows: {
     flexDirection: 'row',
@@ -1227,24 +1227,24 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: '#333333',
     alignItems: 'center',
   },
   reorderCancelText: {
     fontSize: 15,
-    color: '#6b7280',
+    color: '#9A9A9A',
     fontWeight: '600',
   },
   reorderConfirmBtn: {
     flex: 1,
     paddingVertical: 12,
     borderRadius: 10,
-    backgroundColor: '#6366f1',
+    backgroundColor: '#8B0000',
     alignItems: 'center',
   },
   reorderConfirmText: {
     fontSize: 15,
-    color: '#fff',
+    color: '#EAEAEA',
     fontWeight: '700',
   },
 });

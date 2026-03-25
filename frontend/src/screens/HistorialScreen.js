@@ -118,13 +118,13 @@ export default function HistorialScreen({ navigation }) {
             onPress={() => handleDelete(item)}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons name="trash-outline" size={18} color="#ef4444" />
+            <Ionicons name="trash-outline" size={18} color="#CC3333" />
           </TouchableOpacity>
         </View>
 
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
-            <Ionicons name="time-outline" size={14} color="#6366f1" />
+            <Ionicons name="time-outline" size={14} color="#8B0000" />
             <Text style={styles.statValue}>{formatDuration(item.duration)}</Text>
           </View>
           <View style={styles.statDivider} />
@@ -134,7 +134,7 @@ export default function HistorialScreen({ navigation }) {
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Ionicons name="barbell-outline" size={14} color="#f59e0b" />
+            <Ionicons name="barbell-outline" size={14} color="#C9A44C" />
             <Text style={styles.statValue}>
               {totalVolume > 0 ? `${totalVolume.toLocaleString('es-ES')} kg` : '—'}
             </Text>
@@ -148,7 +148,7 @@ export default function HistorialScreen({ navigation }) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#6366f1" />
+          <ActivityIndicator size="large" color="#8B0000" />
         </View>
       </SafeAreaView>
     );
@@ -165,44 +165,44 @@ export default function HistorialScreen({ navigation }) {
         onEndReachedThreshold={0.3}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Ionicons name="calendar-outline" size={48} color="#d1d5db" />
+            <Ionicons name="calendar-outline" size={48} color="#333333" />
             <Text style={styles.emptyText}>Aún no hay sesiones registradas</Text>
           </View>
         }
-        ListFooterComponent={loadingMore ? <ActivityIndicator style={{ margin: 16 }} color="#6366f1" /> : null}
+        ListFooterComponent={loadingMore ? <ActivityIndicator style={{ margin: 16 }} color="#8B0000" /> : null}
       />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
+  container: { flex: 1, backgroundColor: '#0D0D0D' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   list: { padding: 16, gap: 12 },
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: '#1F1F1F',
     borderRadius: 12,
     padding: 14,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.07,
+    shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 2,
   },
   cardTop: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 12 },
-  cardTitle: { fontSize: 15, fontWeight: '700', color: '#111827', marginBottom: 2 },
-  cardDate: { fontSize: 12, color: '#9ca3af' },
+  cardTitle: { fontSize: 15, fontWeight: '700', color: '#EAEAEA', marginBottom: 2 },
+  cardDate: { fontSize: 12, color: '#6A6A6A' },
   statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#181818',
     borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 12,
   },
   statItem: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
-  statValue: { fontSize: 12, fontWeight: '600', color: '#374151' },
-  statDivider: { width: 1, height: 16, backgroundColor: '#e5e7eb' },
+  statValue: { fontSize: 12, fontWeight: '600', color: '#9A9A9A' },
+  statDivider: { width: 1, height: 16, backgroundColor: '#333333' },
   empty: { alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: 12 },
-  emptyText: { fontSize: 15, color: '#9ca3af', fontWeight: '500' },
+  emptyText: { fontSize: 15, color: '#6A6A6A', fontWeight: '500' },
 });

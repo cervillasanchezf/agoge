@@ -91,7 +91,7 @@ export default function TrainningScreen({ navigation }) {
         onPress={(e) => handleOpenMenu(item, e)}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
-        <Ionicons name="ellipsis-vertical" size={20} color="#9ca3af" />
+        <Ionicons name="ellipsis-vertical" size={20} color="#6A6A6A" />
       </TouchableOpacity>
     </TouchableOpacity>
   );
@@ -104,11 +104,11 @@ export default function TrainningScreen({ navigation }) {
 
       {loading ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#6366f1" />
+          <ActivityIndicator size="large" color="#8B0000" />
         </View>
       ) : trainings.length === 0 ? (
         <View style={styles.centered}>
-          <Ionicons name="barbell-outline" size={64} color="#d1d5db" />
+          <Ionicons name="barbell-outline" size={64} color="#333333" />
           <Text style={styles.emptyText}>Aún no tienes entrenamientos</Text>
           <Text style={styles.emptySubtext}>Crea tu primer entrenamiento</Text>
         </View>
@@ -134,7 +134,7 @@ export default function TrainningScreen({ navigation }) {
         />
         <View style={[styles.dropdown, { top: menuPosition.y + 10 }]}>
           <TouchableOpacity style={styles.dropdownItem} onPress={handleEdit}>
-            <Ionicons name="pencil-outline" size={16} color="#374151" />
+            <Ionicons name="pencil-outline" size={16} color="#9A9A9A" />
             <Text style={styles.dropdownItemText}>Editar entrenamiento</Text>
           </TouchableOpacity>
           <View style={styles.dropdownDivider} />
@@ -142,8 +142,8 @@ export default function TrainningScreen({ navigation }) {
             style={styles.dropdownItem}
             onPress={() => { setMenuVisible(false); handleDelete(menuTraining); }}
           >
-            <Ionicons name="trash-outline" size={16} color="#ef4444" />
-            <Text style={[styles.dropdownItemText, { color: '#ef4444' }]}>Eliminar entrenamiento</Text>
+            <Ionicons name="trash-outline" size={16} color="#CC3333" />
+            <Text style={[styles.dropdownItemText, { color: '#CC3333' }]}>Eliminar entrenamiento</Text>
           </TouchableOpacity>
         </View>
       </Modal>
@@ -153,7 +153,7 @@ export default function TrainningScreen({ navigation }) {
           style={styles.createButton}
           onPress={() => navigation.navigate('NewTrainning')}
         >
-          <Ionicons name="add" size={22} color="#fff" />
+            <Ionicons name="add" size={22} color="#EAEAEA" />
           <Text style={styles.createButtonText}>Crear Nuevo Entrenamiento</Text>
         </TouchableOpacity>
       </View>
@@ -165,7 +165,7 @@ export default function TrainningScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#0D0D0D',
   },
   header: {
     paddingHorizontal: 20,
@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#EAEAEA',
   },
   centered: {
     flex: 1,
@@ -185,27 +185,27 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 18,
-    color: '#9ca3af',
+    color: '#6A6A6A',
     fontWeight: '600',
     marginTop: 12,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#d1d5db',
+    color: '#4A4A4A',
   },
   list: {
     padding: 16,
     gap: 12,
   },
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: '#1F1F1F',
     borderRadius: 12,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 2,
   },
@@ -215,45 +215,45 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#111827',
+    color: '#EAEAEA',
     marginBottom: 4,
   },
   cardMeta: {
     fontSize: 13,
-    color: '#6b7280',
+    color: '#9A9A9A',
   },
   footer: {
     padding: 16,
   },
   createButton: {
-    backgroundColor: '#6366f1',
+    backgroundColor: '#8B0000',
     borderRadius: 12,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    shadowColor: '#6366f1',
+    shadowColor: '#8B0000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.4,
     shadowRadius: 8,
     elevation: 5,
   },
   createButtonText: {
-    color: '#fff',
+    color: '#EAEAEA',
     fontSize: 16,
     fontWeight: '700',
   },
   dropdown: {
     position: 'absolute',
     right: 16,
-    backgroundColor: '#fff',
+    backgroundColor: '#1F1F1F',
     borderRadius: 10,
     paddingVertical: 4,
     minWidth: 210,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.4,
     shadowRadius: 8,
     elevation: 8,
   },
@@ -266,11 +266,11 @@ const styles = StyleSheet.create({
   },
   dropdownItemText: {
     fontSize: 15,
-    color: '#374151',
+    color: '#EAEAEA',
   },
   dropdownDivider: {
     height: 1,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#333333',
     marginHorizontal: 8,
   },
 });

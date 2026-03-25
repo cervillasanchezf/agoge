@@ -26,9 +26,9 @@ function TrainningStack() {
     <Stack.Navigator
       screenOptions={{
         headerStyle: {
-          backgroundColor: '#6366f1',
+          backgroundColor: '#1F1F1F',
         },
-        headerTintColor: '#fff',
+        headerTintColor: '#EAEAEA',
         headerTitleStyle: {
           fontWeight: 'bold',
         },
@@ -66,9 +66,9 @@ function ProfileStack() {
     <Stack.Navigator
       screenOptions={{
         headerStyle: {
-          backgroundColor: '#6366f1',
+          backgroundColor: '#1F1F1F',
         },
-        headerTintColor: '#fff',
+        headerTintColor: '#EAEAEA',
         headerTitleStyle: {
           fontWeight: 'bold',
         },
@@ -103,18 +103,20 @@ function MainTabs() {
     <Tab.Navigator
       screenOptions={{
         headerStyle: {
-          backgroundColor: '#6366f1',
+          backgroundColor: '#1F1F1F',
         },
-        headerTintColor: '#fff',
+        headerTintColor: '#EAEAEA',
         headerTitleStyle: {
           fontWeight: 'bold',
         },
-        tabBarActiveTintColor: '#6366f1',
-        tabBarInactiveTintColor: '#999',
+        tabBarActiveTintColor: '#8B0000',
+        tabBarInactiveTintColor: '#6A6A6A',
         tabBarStyle: {
           paddingBottom: 10,
           paddingTop: 2,
           height: 70,
+          backgroundColor: '#0D0D0D',
+          borderTopColor: '#333333',
         },
         tabBarLabelStyle: {
           marginTop: -10,
@@ -148,7 +150,7 @@ function MainTabs() {
             if (routeName === 'NewTrainning' || routeName === 'ExercisePicker') {
               return { display: 'none' };
             }
-            return { paddingBottom: 10, paddingTop: 2, height: 70 };
+            return { paddingBottom: 10, paddingTop: 2, height: 70, backgroundColor: '#0D0D0D', borderTopColor: '#333333' };
           })(),
         })}
       />
@@ -177,9 +179,9 @@ function Navigation() {
       <Stack.Navigator
         screenOptions={{
           headerStyle: {
-            backgroundColor: '#6366f1',
+            backgroundColor: '#1F1F1F',
           },
-          headerTintColor: '#fff',
+          headerTintColor: '#EAEAEA',
           headerTitleStyle: {
             fontWeight: 'bold',
           },

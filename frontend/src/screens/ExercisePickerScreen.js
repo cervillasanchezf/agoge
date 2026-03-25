@@ -49,7 +49,7 @@ function FilterBottomSheet({ visible, config, options, activeValue, onSelect, on
                 <Text style={[styles.sheetOptionText, !activeValue && styles.sheetOptionActive]}>
                   Cualquiera
                 </Text>
-                {!activeValue && <Ionicons name="checkmark" size={18} color="#6366f1" />}
+                {!activeValue && <Ionicons name="checkmark" size={18} color="#8B0000" />}
               </TouchableOpacity>
             }
             renderItem={({ item }) => {
@@ -62,7 +62,7 @@ function FilterBottomSheet({ visible, config, options, activeValue, onSelect, on
                   <Text style={[styles.sheetOptionText, isActive && styles.sheetOptionActive]}>
                     {config?.labelMap[item] || item}
                   </Text>
-                  {isActive && <Ionicons name="checkmark" size={18} color="#6366f1" />}
+                  {isActive && <Ionicons name="checkmark" size={18} color="#8B0000" />}
                 </TouchableOpacity>
               );
             }}
@@ -171,7 +171,7 @@ export default function ExercisePickerScreen({ navigation, route }) {
         <Ionicons
           name={sel ? 'checkmark-circle' : 'add-circle-outline'}
           size={24}
-          color={sel ? '#6366f1' : '#ccc'}
+          color={sel ? '#8B0000' : '#4A4A4A'}
         />
       </TouchableOpacity>
     );
@@ -181,17 +181,17 @@ export default function ExercisePickerScreen({ navigation, route }) {
     <SafeAreaView style={styles.container} edges={['bottom']}>
       {/* Buscador */}
       <View style={styles.searchContainer}>
-        <Ionicons name="search-outline" size={18} color="#999" style={styles.searchIcon} />
+        <Ionicons name="search-outline" size={18} color="#6A6A6A" style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
           placeholder="Buscar ejercicio..."
-          placeholderTextColor="#999"
+          placeholderTextColor="#6A6A6A"
           value={search}
           onChangeText={setSearch}
         />
         {search.length > 0 && (
           <TouchableOpacity onPress={() => setSearch('')}>
-            <Ionicons name="close-circle" size={18} color="#999" />
+            <Ionicons name="close-circle" size={18} color="#6A6A6A" />
           </TouchableOpacity>
         )}
       </View>
@@ -212,20 +212,20 @@ export default function ExercisePickerScreen({ navigation, route }) {
               <Text style={[styles.filterBtnText, isActive && styles.filterBtnTextActive]} numberOfLines={1}>
                 {activeLabel}
               </Text>
-              <Ionicons name="chevron-down" size={13} color={isActive ? '#6366f1' : '#888'} style={{ marginLeft: 3 }} />
+              <Ionicons name="chevron-down" size={13} color={isActive ? '#8B0000' : '#6A6A6A'} style={{ marginLeft: 3 }} />
             </TouchableOpacity>
           );
         })}
         {activeFilterCount > 0 && (
           <TouchableOpacity style={styles.clearBtn} onPress={() => setFilters({})}>
-            <Ionicons name="close-circle" size={20} color="#ef4444" />
+            <Ionicons name="close-circle" size={20} color="#CC3333" />
           </TouchableOpacity>
         )}
       </View>
 
       {/* Lista */}
       {loading ? (
-        <ActivityIndicator style={{ flex: 1 }} color="#6366f1" size="large" />
+        <ActivityIndicator style={{ flex: 1 }} color="#8B0000" size="large" />
       ) : (
         <FlatList
           data={exercises}
@@ -233,7 +233,7 @@ export default function ExercisePickerScreen({ navigation, route }) {
           renderItem={renderExercise}
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.3}
-          ListFooterComponent={loadingMore ? <ActivityIndicator color="#6366f1" style={{ padding: 16 }} /> : null}
+          ListFooterComponent={loadingMore ? <ActivityIndicator color="#8B0000" style={{ padding: 16 }} /> : null}
           ListEmptyComponent={
             <View style={styles.empty}>
               <Text style={styles.emptyText}>No se encontraron ejercicios</Text>
@@ -267,13 +267,13 @@ export default function ExercisePickerScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
+  container: { flex: 1, backgroundColor: '#0D0D0D' },
 
   // Buscador
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#1F1F1F',
     margin: 12,
     marginBottom: 8,
     borderRadius: 10,
@@ -281,12 +281,12 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.3,
     shadowRadius: 3,
     elevation: 2,
   },
   searchIcon: { marginRight: 8 },
-  searchInput: { flex: 1, fontSize: 15, color: '#333' },
+  searchInput: { flex: 1, fontSize: 15, color: '#EAEAEA' },
 
   // Barra de filtros
   filterBar: {
@@ -299,47 +299,47 @@ const styles = StyleSheet.create({
   filterBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#1F1F1F',
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: '#333333',
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 7,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.2,
     shadowRadius: 2,
     elevation: 1,
   },
   filterBtnActive: {
-    borderColor: '#6366f1',
-    backgroundColor: '#eef2ff',
+    borderColor: '#8B0000',
+    backgroundColor: '#1A0000',
   },
-  filterBtnText: { fontSize: 13, fontWeight: '600', color: '#555' },
-  filterBtnTextActive: { color: '#6366f1' },
+  filterBtnText: { fontSize: 13, fontWeight: '600', color: '#9A9A9A' },
+  filterBtnTextActive: { color: '#EAEAEA' },
   clearBtn: { padding: 2 },
 
   // Lista de ejercicios
   exerciseItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#1F1F1F',
     marginHorizontal: 12,
     marginVertical: 4,
     borderRadius: 10,
     padding: 14,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.25,
     shadowRadius: 2,
     elevation: 1,
   },
-  exerciseItemSelected: { borderWidth: 1.5, borderColor: '#6366f1' },
+  exerciseItemSelected: { borderWidth: 1.5, borderColor: '#8B0000' },
   exerciseInfo: { flex: 1 },
-  exerciseName: { fontSize: 15, fontWeight: '600', color: '#333', marginBottom: 2 },
-  exerciseMeta: { fontSize: 12, color: '#888' },
+  exerciseName: { fontSize: 15, fontWeight: '600', color: '#EAEAEA', marginBottom: 2 },
+  exerciseMeta: { fontSize: 12, color: '#6A6A6A' },
   empty: { padding: 40, alignItems: 'center' },
-  emptyText: { color: '#999', fontSize: 15 },
+  emptyText: { color: '#6A6A6A', fontSize: 15 },
 
   // Footer de selección
   footer: {
@@ -347,28 +347,28 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#fff',
+    backgroundColor: '#1F1F1F',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: '#eee',
+    borderTopColor: '#333333',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 6,
   },
-  footerText: { fontSize: 14, color: '#6366f1', fontWeight: '600' },
+  footerText: { fontSize: 14, color: '#8B0000', fontWeight: '600' },
   confirmButton: {
-    backgroundColor: '#6366f1',
+    backgroundColor: '#8B0000',
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
-  confirmButtonText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  confirmButtonText: { color: '#EAEAEA', fontWeight: '700', fontSize: 14 },
 
   // Bottom sheet
   modalContainer: {
@@ -377,10 +377,10 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
   },
   sheet: {
-    backgroundColor: '#fff',
+    backgroundColor: '#1F1F1F',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 16,
@@ -390,7 +390,7 @@ const styles = StyleSheet.create({
   sheetHandle: {
     width: 40,
     height: 4,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: '#333333',
     borderRadius: 2,
     alignSelf: 'center',
     marginBottom: 12,
@@ -398,7 +398,7 @@ const styles = StyleSheet.create({
   sheetTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#111',
+    color: '#EAEAEA',
     marginBottom: 8,
     textAlign: 'center',
   },
@@ -408,8 +408,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderBottomColor: '#252525',
   },
-  sheetOptionText: { fontSize: 15, color: '#374151' },
-  sheetOptionActive: { color: '#6366f1', fontWeight: '600' },
+  sheetOptionText: { fontSize: 15, color: '#9A9A9A' },
+  sheetOptionActive: { color: '#EAEAEA', fontWeight: '600' },
 });
