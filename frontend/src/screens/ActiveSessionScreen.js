@@ -12,11 +12,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   Modal,
+  Animated,
+  PanResponder,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { trainingService, sessionService } from '../services/api';
 import { CATEGORY_LABELS, MUSCLE_LABELS, getExerciseName } from '../config/translations';
+import { useActiveSession } from '../context/ActiveSessionContext';
 
 // ─── Drum Picker ──────────────────────────────────────────────────────────────
 const DRUM_ITEM_H = 44;
@@ -146,19 +149,56 @@ function buildInitialSets(templateSets, lastSets, repMode) {
 
 export default function ActiveSessionScreen({ route, navigation }) {
   const { trainingId, trainingName } = route.params;
+  const { session: activeSession, saveSession: saveToContext, discardSession } = useActiveSession();
 
   const [training, setTraining]         = useState(null);
   const [exerciseData, setExerciseData] = useState([]);
   const [loading, setLoading]           = useState(true);
   const [saving, setSaving]             = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [tiempoTarget, setTiempoTarget] = useState(null); // { exIndex, setIndex }
-  const timerRef = useRef(null);
+  const [tiempoTarget, setTiempoTarget] = useState(null);
+  const originalSnapshotRef = useRef(null); // snapshot of exercises when session started
+  const timerRef          = useRef(null);
+  const savingRef         = useRef(false);
+  const exerciseDataRef   = useRef([]);
+  const elapsedSecondsRef = useRef(0);
+
+  // Keep refs in sync with state so cleanup/unmount always has latest values
+  useEffect(() => { exerciseDataRef.current   = exerciseData;   }, [exerciseData]);
+  useEffect(() => { elapsedSecondsRef.current = elapsedSeconds; }, [elapsedSeconds]);
 
   useEffect(() => {
-    loadSession();
+    const isRestoring = activeSession?.trainingId === trainingId;
+    if (isRestoring) {
+      // Restore exercise data and recompute elapsed time from stored timestamp
+      setExerciseData(activeSession.exerciseData);
+      setElapsedSeconds(Math.round((Date.now() - activeSession.startTimestamp) / 1000));
+      setLoading(false);
+      // Load training metadata and rebuild snapshot
+      trainingService.getTrainingById(trainingId).then(r => {
+        setTraining(r.data);
+        originalSnapshotRef.current = {
+          exerciseIds: (r.data.exercises || []).map(e => String(e.exerciseId?._id ?? e.exerciseId)),
+          setCounts:   (r.data.exercises || []).map(e => e.sets?.length ?? 0),
+        };
+      }).catch(() => {});
+    } else {
+      loadSession();
+    }
     timerRef.current = setInterval(() => setElapsedSeconds((s) => s + 1), 1000);
-    return () => clearInterval(timerRef.current);
+    return () => {
+      clearInterval(timerRef.current);
+      // Save session to context on unmount (back press, tab switch, etc.)
+      // unless the user explicitly finished and saved to the server.
+      if (!savingRef.current && exerciseDataRef.current.length > 0) {
+        saveToContext({
+          trainingId,
+          trainingName,
+          exerciseData: exerciseDataRef.current,
+          elapsedSeconds: elapsedSecondsRef.current,
+        });
+      }
+    };
   }, []);
 
   const loadSession = async () => {
@@ -191,6 +231,11 @@ export default function ActiveSessionScreen({ route, navigation }) {
         };
       });
       setExerciseData(data);
+      // Save a snapshot for change detection
+      originalSnapshotRef.current = {
+        exerciseIds: (trainingData.exercises || []).map(e => String(e.exerciseId?._id ?? e.exerciseId)),
+        setCounts:   (trainingData.exercises || []).map(e => e.sets?.length ?? 0),
+      };
     } catch (err) {
       Alert.alert('Error', 'No se pudo cargar el entrenamiento');
       navigation.goBack();
@@ -264,21 +309,93 @@ export default function ActiveSessionScreen({ route, navigation }) {
     });
   };
 
+  const removeExercise = (exIndex) => {
+    setExerciseData((prev) => prev.filter((_, i) => i !== exIndex));
+  };
+
+  const addExercisesToSession = (exercises) => {
+    const newItems = exercises
+      .filter(ex => !exerciseData.some(e => String(e.exercise?._id ?? e.exercise) === String(ex._id)))
+      .map(ex => ({
+        exercise: ex,
+        repMode: ex.category === 'cardio' ? 'cardio' : 'reps',
+        note: '',
+        sets: buildInitialSets([], [], ex.category === 'cardio' ? 'cardio' : 'reps'),
+      }));
+    if (newItems.length > 0) {
+      setExerciseData(prev => [...prev, ...newItems]);
+    }
+  };
+
+  const handleAddExercise = () => {
+    navigation.navigate('ExercisePicker', {
+      selectedExercises: exerciseData.map(e => e.exercise).filter(Boolean),
+      onSelect: addExercisesToSession,
+    });
+  };
+
+  const hasChanges = () => {
+    const snap = originalSnapshotRef.current;
+    if (!snap) return false;
+    const currentIds    = exerciseData.map(e => String(e.exercise?._id ?? e.exercise));
+    const currentCounts = exerciseData.map(e => e.sets.length);
+    if (currentIds.length !== snap.exerciseIds.length) return true;
+    if (currentIds.some((id, i) => id !== snap.exerciseIds[i])) return true;
+    if (currentCounts.some((c, i) => c !== snap.setCounts[i])) return true;
+    return false;
+  };
+
   const handleFinish = () => {
     Alert.alert(
       'Finalizar entrenamiento',
       '¿Quieres guardar esta sesión?',
       [
         { text: 'Seguir entrenando', style: 'cancel' },
-        { text: 'Guardar', style: 'default', onPress: saveSession },
+        { text: 'Guardar', style: 'default', onPress: () => {
+          if (hasChanges()) {
+            Alert.alert(
+              'Cambios detectados',
+              'Has añadido o modificado ejercicios/series respecto a la plantilla original. ¿Quieres actualizar la plantilla con estos cambios?',
+              [
+                { text: 'No', style: 'cancel', onPress: () => saveSession(false) },
+                { text: 'Actualizar plantilla', style: 'default', onPress: () => saveSession(true) },
+              ]
+            );
+          } else {
+            saveSession(false);
+          }
+        }},
       ]
     );
   };
 
-  const saveSession = async () => {
+  const saveSession = async (updateTemplate = false) => {
     try {
       setSaving(true);
+      savingRef.current = true;
       clearInterval(timerRef.current);
+
+      if (updateTemplate) {
+        const templatePayload = {
+          exercises: exerciseData.map((item, idx) => ({
+            exerciseId: item.exercise?._id ?? item.exercise,
+            order: idx,
+            repMode: item.repMode,
+            note: item.note || '',
+            sets: item.sets.map(s => {
+              if (item.repMode === 'cardio') {
+                return { km: parseFloat(s.km_default) || 0, h: s.h ?? 0, m: s.m ?? 0, s: s.s ?? 0 };
+              }
+              return {
+                kg:  parseFloat(s.weight_default) || 0,
+                reps: parseInt(s.reps_default)    || 0,
+                rir:  parseInt(s.rir_default)     || 0,
+              };
+            }),
+          })),
+        };
+        await trainingService.updateTraining(trainingId, templatePayload);
+      }
 
       const payload = {
         trainingId,
@@ -311,11 +428,13 @@ export default function ActiveSessionScreen({ route, navigation }) {
       };
 
       await sessionService.createSession(payload);
+      discardSession();
       Alert.alert('¡Genial!', 'Sesión guardada correctamente', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (err) {
       setSaving(false);
+      savingRef.current = false;
       Alert.alert('Error', 'No se pudo guardar la sesión');
     }
   };
@@ -365,14 +484,20 @@ export default function ActiveSessionScreen({ route, navigation }) {
           keyExtractor={(_, i) => String(i)}
           contentContainerStyle={styles.listContent}
           keyboardShouldPersistTaps="handled"
-          renderItem={({ item, index: exIndex }) => (
-            <ExerciseBlock
+          ListFooterComponent={
+            <TouchableOpacity style={styles.addExerciseBtn} onPress={handleAddExercise}>
+              <Ionicons name="add-circle-outline" size={20} color="#8B0000" />
+              <Text style={styles.addExerciseBtnText}>Añadir ejercicio</Text>
+            </TouchableOpacity>
+          }
+          renderItem={({ item, index: exIndex }) => (            <ExerciseBlock
               item={item}
               exIndex={exIndex}
               updateSet={updateSet}
               toggleComplete={toggleComplete}
               addSet={addSet}
               removeSet={removeSet}
+              removeExercise={removeExercise}
               onOpenTiempo={(setIndex) => setTiempoTarget({ exIndex, setIndex })}
               note={item.note}
             />
@@ -394,13 +519,24 @@ export default function ActiveSessionScreen({ route, navigation }) {
   );
 }
 
-function ExerciseBlock({ item, exIndex, updateSet, toggleComplete, addSet, removeSet, onOpenTiempo, note }) {
+function ExerciseBlock({ item, exIndex, updateSet, toggleComplete, addSet, removeSet, removeExercise, onOpenTiempo, note }) {
   const exercise = item.exercise;
   const repMode  = item.repMode ?? 'reps';
   const primaryMuscle = exercise?.primaryMuscles?.[0];
 
   const isCardio = repMode === 'cardio';
   const isRange  = repMode === 'range';
+
+  const handleRemoveExercise = () => {
+    Alert.alert(
+      'Eliminar ejercicio',
+      `¿Eliminar "${getExerciseName(exercise)}" de la sesión?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Eliminar', style: 'destructive', onPress: () => removeExercise(exIndex) },
+      ]
+    );
+  };
 
   return (
     <View style={styles.exCard}>
@@ -415,6 +551,13 @@ function ExerciseBlock({ item, exIndex, updateSet, toggleComplete, addSet, remov
             <Text style={styles.exNote}>{note}</Text>
           )}
         </View>
+        <TouchableOpacity
+          onPress={handleRemoveExercise}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={{ paddingLeft: 8 }}
+        >
+          <Ionicons name="trash-outline" size={18} color="#CC3333" />
+        </TouchableOpacity>
       </View>
 
       {/* Cabecera tabla */}
@@ -478,41 +621,43 @@ function SetRow({ set, setIndex, exIndex, updateSet, toggleComplete, removeSet }
   }
 
   return (
-    <View style={[styles.setRow, set.completed && styles.setRowDone]}>
-      <TouchableOpacity style={[styles.colSet, styles.setNumBtn]} onLongPress={() => removeSet(exIndex, setIndex)}>
-        <Text style={styles.setNum}>{setIndex + 1}</Text>
-      </TouchableOpacity>
-      <Text style={[styles.colPrev, styles.prevText]}>{prevLabel}</Text>
-      <TextInput
-        style={[styles.colKg, styles.input]}
-        value={set.weight}
-        onChangeText={(v) => updateSet(exIndex, setIndex, 'weight', v)}
-        keyboardType="decimal-pad"
-        placeholder={set.weight_default || '—'}
-        placeholderTextColor="#6A6A6A"
-      />
-      <TextInput
-        style={[styles.colReps, styles.input]}
-        value={set.reps}
-        onChangeText={(v) => updateSet(exIndex, setIndex, 'reps', v)}
-        keyboardType="number-pad"
-        placeholder={set.reps_default || '—'}
-        placeholderTextColor="#6A6A6A"
-      />
-      <TextInput
-        style={[styles.colRir, styles.input]}
-        value={set.rir}
-        onChangeText={(v) => updateSet(exIndex, setIndex, 'rir', v)}
-        keyboardType="number-pad"
-        placeholder={set.rir_default || '—'}
-        placeholderTextColor="#6A6A6A"
-      />
-      <TouchableOpacity style={styles.colDone} onPress={() => toggleComplete(exIndex, setIndex)}>
-        <View style={[styles.checkCircle, set.completed && styles.checkCircleDone]}>
-          {set.completed && <Ionicons name="checkmark" size={14} color="#EAEAEA" />}
+    <SwipeableSetRow onDelete={() => removeSet(exIndex, setIndex)}>
+      <View style={[styles.setRow, set.completed && styles.setRowDone]}>
+        <View style={[styles.colSet, styles.setNumBtn]}>
+          <Text style={styles.setNum}>{setIndex + 1}</Text>
         </View>
-      </TouchableOpacity>
-    </View>
+        <Text style={[styles.colPrev, styles.prevText]}>{prevLabel}</Text>
+        <TextInput
+          style={[styles.colKg, styles.input]}
+          value={set.weight}
+          onChangeText={(v) => updateSet(exIndex, setIndex, 'weight', v)}
+          keyboardType="decimal-pad"
+          placeholder={set.weight_default || '—'}
+          placeholderTextColor="#6A6A6A"
+        />
+        <TextInput
+          style={[styles.colReps, styles.input]}
+          value={set.reps}
+          onChangeText={(v) => updateSet(exIndex, setIndex, 'reps', v)}
+          keyboardType="number-pad"
+          placeholder={set.reps_default || '—'}
+          placeholderTextColor="#6A6A6A"
+        />
+        <TextInput
+          style={[styles.colRir, styles.input]}
+          value={set.rir}
+          onChangeText={(v) => updateSet(exIndex, setIndex, 'rir', v)}
+          keyboardType="number-pad"
+          placeholder={set.rir_default || '—'}
+          placeholderTextColor="#6A6A6A"
+        />
+        <TouchableOpacity style={styles.colDone} onPress={() => toggleComplete(exIndex, setIndex)}>
+          <View style={[styles.checkCircle, set.completed && styles.checkCircleDone]}>
+            {set.completed && <Ionicons name="checkmark" size={14} color="#EAEAEA" />}
+          </View>
+        </TouchableOpacity>
+      </View>
+    </SwipeableSetRow>
   );
 }
 
@@ -526,35 +671,124 @@ function CardioSetRow({ set, setIndex, exIndex, updateSet, toggleComplete, remov
     : `${String(set.h).padStart(2,'0')}:${String(set.m).padStart(2,'0')}:${String(set.s).padStart(2,'0')}`;
 
   return (
-    <View style={[styles.setRow, set.completed && styles.setRowDone]}>
-      <TouchableOpacity style={[styles.colSet, styles.setNumBtn]} onLongPress={() => removeSet(exIndex, setIndex)}>
-        <Text style={styles.setNum}>{setIndex + 1}</Text>
-      </TouchableOpacity>
-      <Text style={[styles.colPrev, styles.prevText]}>{prevLabel}</Text>
-      <TextInput
-        style={[styles.colKm, styles.input]}
-        value={set.km}
-        onChangeText={(v) => updateSet(exIndex, setIndex, 'km', v)}
-        keyboardType="decimal-pad"
-        placeholder={set.km_default || '—'}
-        placeholderTextColor="#6A6A6A"
-      />
-      <TouchableOpacity
-        style={[styles.colTiempo, styles.input, { alignItems: 'center', justifyContent: 'center' }]}
-        onPress={onOpenTiempo}
-      >
-        <Text style={{ fontSize: 13, fontWeight: '600', color: (set.h === 0 && set.m === 0 && set.s === 0) ? '#6A6A6A' : '#EAEAEA' }}>
-          {tiempoLabel}
-        </Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.colDone} onPress={() => toggleComplete(exIndex, setIndex)}>
-        <View style={[styles.checkCircle, set.completed && styles.checkCircleDone]}>
-          {set.completed && <Ionicons name="checkmark" size={14} color="#EAEAEA" />}
+    <SwipeableSetRow onDelete={() => removeSet(exIndex, setIndex)}>
+      <View style={[styles.setRow, set.completed && styles.setRowDone]}>
+        <View style={[styles.colSet, styles.setNumBtn]}>
+          <Text style={styles.setNum}>{setIndex + 1}</Text>
         </View>
-      </TouchableOpacity>
+        <Text style={[styles.colPrev, styles.prevText]}>{prevLabel}</Text>
+        <TextInput
+          style={[styles.colKm, styles.input]}
+          value={set.km}
+          onChangeText={(v) => updateSet(exIndex, setIndex, 'km', v)}
+          keyboardType="decimal-pad"
+          placeholder={set.km_default || '—'}
+          placeholderTextColor="#6A6A6A"
+        />
+        <TouchableOpacity
+          style={[styles.colTiempo, styles.input, { alignItems: 'center', justifyContent: 'center' }]}
+          onPress={onOpenTiempo}
+        >
+          <Text style={{ fontSize: 13, fontWeight: '600', color: (set.h === 0 && set.m === 0 && set.s === 0) ? '#6A6A6A' : '#EAEAEA' }}>
+            {tiempoLabel}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.colDone} onPress={() => toggleComplete(exIndex, setIndex)}>
+          <View style={[styles.checkCircle, set.completed && styles.checkCircleDone]}>
+            {set.completed && <Ionicons name="checkmark" size={14} color="#EAEAEA" />}
+          </View>
+        </TouchableOpacity>
+      </View>
+    </SwipeableSetRow>
+  );
+}
+
+const SWIPE_WIDTH = 80;
+
+function SwipeableSetRow({ children, onDelete }) {
+  const translateX = useRef(new Animated.Value(0)).current;
+  const currentOffset = useRef(0);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, g) =>
+        Math.abs(g.dx) > 6 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
+      onPanResponderMove: (_, g) => {
+        const next = Math.min(0, Math.max(-SWIPE_WIDTH, currentOffset.current + g.dx));
+        translateX.setValue(next);
+      },
+      onPanResponderRelease: (_, g) => {
+        const projected = currentOffset.current + g.dx;
+        if (projected < -(SWIPE_WIDTH / 2)) {
+          currentOffset.current = -SWIPE_WIDTH;
+          Animated.spring(translateX, { toValue: -SWIPE_WIDTH, useNativeDriver: true }).start();
+        } else {
+          currentOffset.current = 0;
+          Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
+        }
+      },
+      onPanResponderTerminate: () => {
+        currentOffset.current = 0;
+        Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
+      },
+    })
+  ).current;
+
+  const close = () => {
+    currentOffset.current = 0;
+    Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
+  };
+
+  return (
+    <View style={swipeStyles.wrapper}>
+      <View style={swipeStyles.deleteAction}>
+        <TouchableOpacity style={swipeStyles.deleteBtn} onPress={() => { close(); onDelete(); }}>
+          <Ionicons name="trash-outline" size={18} color="#EAEAEA" />
+          <Text style={swipeStyles.deleteBtnText}>Eliminar</Text>
+        </TouchableOpacity>
+      </View>
+      <Animated.View
+        style={{ transform: [{ translateX }], backgroundColor: '#1F1F1F' }}
+        {...panResponder.panHandlers}
+      >
+        {children}
+      </Animated.View>
     </View>
   );
 }
+
+const swipeStyles = StyleSheet.create({
+  wrapper: {
+    position: 'relative',
+    marginBottom: 4,
+    overflow: 'hidden',
+    borderRadius: 8,
+  },
+  deleteAction: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: SWIPE_WIDTH,
+    backgroundColor: '#CC3333',
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteBtn: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 4,
+  },
+  deleteBtnText: {
+    color: '#EAEAEA',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0D0D0D' },
@@ -620,7 +854,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 5,
     borderRadius: 8,
-    marginBottom: 4,
     paddingHorizontal: 2,
   },
   setRowDone: { backgroundColor: '#0A1A0A' },
@@ -658,6 +891,24 @@ const styles = StyleSheet.create({
     borderTopColor: '#252525',
   },
   addSetText: { fontSize: 13, color: '#8B0000', fontWeight: '600' },
+  addExerciseBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 8,
+    marginHorizontal: 0,
+    paddingVertical: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+    borderStyle: 'dashed',
+  },
+  addExerciseBtnText: {
+    fontSize: 15,
+    color: '#8B0000',
+    fontWeight: '600',
+  },
   // Drum picker
   drumSheet: {
     backgroundColor: '#1F1F1F',

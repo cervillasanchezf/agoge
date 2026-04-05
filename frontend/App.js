@@ -1,7 +1,9 @@
+import { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer, getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createBottomTabNavigator, BottomTabBar } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
@@ -15,6 +17,7 @@ import ActiveSessionScreen from './src/screens/ActiveSessionScreen';
 import HistorialScreen from './src/screens/HistorialScreen';
 import SessionDetailScreen from './src/screens/SessionDetailScreen';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { ActiveSessionProvider, useActiveSession } from './src/context/ActiveSessionContext';
 
 
 const Stack = createNativeStackNavigator();
@@ -98,9 +101,150 @@ function ProfileStack() {
   );
 }
 
+function SessionBanner({ session, tabNavigation, onDiscard }) {
+  const [elapsed, setElapsed] = useState(
+    () => Math.round((Date.now() - session.startTimestamp) / 1000)
+  );
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setElapsed(Math.round((Date.now() - session.startTimestamp) / 1000));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [session.startTimestamp]);
+
+  const formatTime = (secs) => {
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60).toString().padStart(2, '0');
+    const s = (secs % 60).toString().padStart(2, '0');
+    return h > 0 ? `${h}:${m}:${s}` : `${m}:${s}`;
+  };
+
+  return (
+    <TouchableOpacity
+      style={bannerStyles.container}
+      onPress={() =>
+        tabNavigation.navigate('TrainningTab', {
+          screen: 'ActiveSession',
+          params: { trainingId: session.trainingId, trainingName: session.trainingName },
+        })
+      }
+      activeOpacity={0.85}
+    >
+      <View style={bannerStyles.leftBorder} />
+      <View style={bannerStyles.info}>
+        <Text style={bannerStyles.label}>EN CURSO</Text>
+        <Text style={bannerStyles.name} numberOfLines={1}>{session.trainingName}</Text>
+      </View>
+      <View style={bannerStyles.timerRow}>
+        <Ionicons name="time-outline" size={14} color="#8B0000" />
+        <Text style={bannerStyles.timerText}>{formatTime(elapsed)}</Text>
+      </View>
+      <TouchableOpacity
+        onPress={onDiscard}
+        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        style={bannerStyles.discardBtn}
+      >
+        <Ionicons name="close-circle-outline" size={24} color="#CC3333" />
+      </TouchableOpacity>
+    </TouchableOpacity>
+  );
+}
+
+const bannerStyles = StyleSheet.create({
+  container: {
+    position: 'absolute',
+    bottom: 85,
+    left: 16,
+    right: 16,
+    zIndex: 999,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1A1A1A',
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#2E2E2E',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 10,
+  },
+  leftBorder: {
+    width: 4,
+    alignSelf: 'stretch',
+    backgroundColor: '#8B0000',
+  },
+  info: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+  },
+  label: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#8B0000',
+    letterSpacing: 1,
+    marginBottom: 2,
+  },
+  name: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#EAEAEA',
+  },
+  timerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+  },
+  timerText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#8B0000',
+    fontVariant: ['tabular-nums'],
+  },
+  discardBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+});
+
+
 function MainTabs() {
+  const { session, discardSession } = useActiveSession();
+
+  const handleDiscard = () => {
+    Alert.alert(
+      'Descartar entrenamiento',
+      `¿Descartar "${session?.trainingName}"?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Descartar', style: 'destructive', onPress: discardSession },
+      ]
+    );
+  };
+
   return (
     <Tab.Navigator
+      tabBar={(props) => {
+        const focusedTabRoute = props.state.routes[props.state.index];
+        const currentScreen = getFocusedRouteNameFromRoute(focusedTabRoute) ?? '';
+        const hiddenRoutes = ['NewTrainning', 'ExercisePicker', 'ActiveSession'];
+        const showBanner = !!session && !hiddenRoutes.includes(currentScreen);
+        return (
+          <View style={{ overflow: 'visible' }}>
+            {showBanner && (
+              <SessionBanner
+                session={session}
+                tabNavigation={props.navigation}
+                onDiscard={handleDiscard}
+              />
+            )}
+            <BottomTabBar {...props} />
+          </View>
+        );
+      }}
       screenOptions={{
         headerStyle: {
           backgroundColor: '#1F1F1F',
@@ -112,9 +256,9 @@ function MainTabs() {
         tabBarActiveTintColor: '#8B0000',
         tabBarInactiveTintColor: '#6A6A6A',
         tabBarStyle: {
-          paddingBottom: 10,
+          paddingBottom: 25,
           paddingTop: 2,
-          height: 70,
+          height: 75,
           backgroundColor: '#0D0D0D',
           borderTopColor: '#333333',
         },
@@ -138,6 +282,12 @@ function MainTabs() {
       <Tab.Screen
         name="TrainningTab"
         component={TrainningStack}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            e.preventDefault();
+            navigation.navigate('TrainningTab', { screen: 'TrainningList' });
+          },
+        })}
         options={({ route }) => ({
           headerShown: false,
           tabBarLabel: 'Entrenamiento',
@@ -150,7 +300,7 @@ function MainTabs() {
             if (routeName === 'NewTrainning' || routeName === 'ExercisePicker') {
               return { display: 'none' };
             }
-            return { paddingBottom: 10, paddingTop: 2, height: 70, backgroundColor: '#0D0D0D', borderTopColor: '#333333' };
+            return { paddingBottom: 25, paddingTop: 2, height: 75, backgroundColor: '#0D0D0D', borderTopColor: '#333333' };
           })(),
         })}
       />
@@ -224,8 +374,10 @@ function Navigation() {
 export default function App() {
   return (
     <AuthProvider>
-      <StatusBar style="light" />
-      <Navigation />
+      <ActiveSessionProvider>
+        <StatusBar style="light" />
+        <Navigation />
+      </ActiveSessionProvider>
     </AuthProvider>
   );
 }

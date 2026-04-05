@@ -20,6 +20,7 @@ export default function TrainningScreen({ navigation }) {
   const [menuVisible, setMenuVisible] = useState(false);
   const [menuTraining, setMenuTraining] = useState(null);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
+  const [rutinasCollapsed, setRutinasCollapsed] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -102,23 +103,51 @@ export default function TrainningScreen({ navigation }) {
         <Text style={styles.title}>Entrenamientos</Text>
       </View>
 
-      {loading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#8B0000" />
-        </View>
-      ) : trainings.length === 0 ? (
-        <View style={styles.centered}>
-          <Ionicons name="barbell-outline" size={64} color="#333333" />
-          <Text style={styles.emptyText}>Aún no tienes entrenamientos</Text>
-          <Text style={styles.emptySubtext}>Crea tu primer entrenamiento</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={trainings}
-          keyExtractor={(item) => item._id}
-          renderItem={renderItem}
-          contentContainerStyle={styles.list}
+      <View style={styles.topButtons}>
+        <TouchableOpacity
+          style={styles.newTrainingButton}
+          onPress={() => navigation.navigate('NewTrainning')}
+        >
+          <Ionicons name="add" size={18} color="#EAEAEA" />
+          <Text style={styles.newTrainingButtonText}>Nuevo entrenamiento</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.planButton} onPress={() => {}}>
+          <Text style={styles.planButtonText}>Crear planificación</Text>
+        </TouchableOpacity>
+      </View>
+
+      <TouchableOpacity
+        style={styles.sectionHeader}
+        onPress={() => setRutinasCollapsed((v) => !v)}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.sectionTitle}>Rutinas</Text>
+        <Ionicons
+          name={rutinasCollapsed ? 'chevron-forward' : 'chevron-down'}
+          size={18}
+          color="#9A9A9A"
         />
+      </TouchableOpacity>
+
+      {!rutinasCollapsed && (
+        loading ? (
+          <View style={styles.centered}>
+            <ActivityIndicator size="large" color="#8B0000" />
+          </View>
+        ) : trainings.length === 0 ? (
+          <View style={styles.centeredSection}>
+            <Ionicons name="barbell-outline" size={48} color="#333333" />
+            <Text style={styles.emptyText}>Aún no tienes entrenamientos</Text>
+            <Text style={styles.emptySubtext}>Crea tu primer entrenamiento</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={trainings}
+            keyExtractor={(item) => item._id}
+            renderItem={renderItem}
+            contentContainerStyle={styles.list}
+          />
+        )
       )}
 
       <Modal
@@ -148,15 +177,7 @@ export default function TrainningScreen({ navigation }) {
         </View>
       </Modal>
 
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={styles.createButton}
-          onPress={() => navigation.navigate('NewTrainning')}
-        >
-            <Ionicons name="add" size={22} color="#EAEAEA" />
-          <Text style={styles.createButtonText}>Crear Nuevo Entrenamiento</Text>
-        </TouchableOpacity>
-      </View>
+
     </SafeAreaView>
   );
 }
@@ -177,9 +198,28 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#EAEAEA',
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#9A9A9A',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
   centered: {
     flex: 1,
     justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  centeredSection: {
+    paddingVertical: 32,
     alignItems: 'center',
     gap: 8,
   },
@@ -222,27 +262,46 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#9A9A9A',
   },
-  footer: {
-    padding: 16,
+  topButtons: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    gap: 10,
   },
-  createButton: {
+  newTrainingButton: {
+    flex: 1,
     backgroundColor: '#8B0000',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 10,
+    paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 6,
     shadowColor: '#8B0000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowRadius: 6,
+    elevation: 4,
   },
-  createButtonText: {
+  newTrainingButtonText: {
     color: '#EAEAEA',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
+  },
+  planButton: {
+    flex: 1,
+    backgroundColor: '#1F1F1F',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#333333',
+  },
+  planButtonText: {
+    color: '#9A9A9A',
+    fontSize: 14,
+    fontWeight: '600',
   },
   dropdown: {
     position: 'absolute',
