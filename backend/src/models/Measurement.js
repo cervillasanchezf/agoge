@@ -33,7 +33,6 @@ const measurementSchema = new mongoose.Schema({
   musloDer:        { type: Number, default: null }, // cm
   gemeloIzq:    { type: Number, default: null }, // cm
   gemeloDer:     { type: Number, default: null }, // cm
-  notes:           { type: String, default: '' },
 }, {
   timestamps: true,
 });

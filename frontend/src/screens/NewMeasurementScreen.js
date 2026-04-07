@@ -163,7 +163,7 @@ export default function NewMeasurementScreen({ route, navigation }) {
   const [values, setValues] = useState(initialValues);
 
   // Notas
-  const [notes, setNotes] = useState(existing?.notes || '');
+
 
   const [saving, setSaving] = useState(false);
 
@@ -200,7 +200,6 @@ export default function NewMeasurementScreen({ route, navigation }) {
     const payload = {
       date: date.toISOString(),
       photos,
-      notes,
     };
 
     FIELDS.forEach(({ key }) => {
@@ -288,19 +287,6 @@ export default function NewMeasurementScreen({ route, navigation }) {
             </View>
           ))}
         </View>
-
-        {/* ── NOTAS ── */}
-        <Text style={styles.sectionTitle}>Notas</Text>
-        <TextInput
-          style={styles.notesInput}
-          value={notes}
-          onChangeText={setNotes}
-          placeholder="Observaciones opcionales..."
-          placeholderTextColor="#6A6A6A"
-          multiline
-          numberOfLines={3}
-          textAlignVertical="top"
-        />
 
         {/* ── GUARDAR ── */}
         <TouchableOpacity
@@ -440,17 +426,6 @@ const styles = StyleSheet.create({
     color: '#6A6A6A',
     fontSize: 13,
     width: 24,
-  },
-  // Notas
-  notesInput: {
-    backgroundColor: '#1F1F1F',
-    color: '#EAEAEA',
-    fontSize: 14,
-    borderRadius: 10,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#333',
-    minHeight: 80,
   },
   // Guardar
   saveButton: {

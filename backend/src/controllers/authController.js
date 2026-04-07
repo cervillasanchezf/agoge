@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { validationResult } = require('express-validator');
 const User = require('../models/User');
 
 const generateAccessToken = (userId) =>
@@ -24,6 +25,11 @@ const formatUserResponse = (user, token, refreshToken) => ({
 // @route   POST /api/auth/register
 // @access  Public
 exports.register = async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, errors: errors.array() });
+  }
+
   try {
     const { name, email, password } = req.body;
 
@@ -54,12 +60,13 @@ exports.register = async (req, res) => {
 // @route   POST /api/auth/login
 // @access  Public
 exports.login = async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, errors: errors.array() });
+  }
+
   try {
     const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ success: false, message: 'Por favor proporcione email y contraseña' });
-    }
 
     const user = await User.findOne({ email });
     if (!user) {
