@@ -8,6 +8,10 @@ exports.updateProfile = async (req, res) => {
     const { id } = req.params;
     const { profileImage, height, weight, goal } = req.body;
 
+    if (req.userId !== id) {
+      return res.status(403).json({ success: false, message: 'No autorizado' });
+    }
+
     const user = await User.findById(id);
     
     if (!user) {
@@ -56,6 +60,10 @@ exports.updateProfile = async (req, res) => {
 exports.getProfile = async (req, res) => {
   try {
     const { id } = req.params;
+
+    if (req.userId !== id) {
+      return res.status(403).json({ success: false, message: 'No autorizado' });
+    }
 
     const user = await User.findById(id).select('-password');
     
