@@ -19,3 +19,7 @@ backend/uploads/
 
 # OS
 .DS_Store
+
+# Local config
+frontend/src/config/config.js
+backend/src/scripts/addExercise.js

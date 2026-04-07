@@ -16,6 +16,8 @@ import ExercisePickerScreen from './src/screens/ExercisePickerScreen';
 import ActiveSessionScreen from './src/screens/ActiveSessionScreen';
 import HistorialScreen from './src/screens/HistorialScreen';
 import SessionDetailScreen from './src/screens/SessionDetailScreen';
+import MeasurementsScreen from './src/screens/MeasurementsScreen';
+import NewMeasurementScreen from './src/screens/NewMeasurementScreen';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { ActiveSessionProvider, useActiveSession } from './src/context/ActiveSessionContext';
 
@@ -96,6 +98,29 @@ function ProfileStack() {
         name="SessionDetail"
         component={SessionDetailScreen}
         options={{ title: 'Detalle de sesión' }}
+      />
+      <Stack.Screen
+        name="Medidas"
+        component={MeasurementsScreen}
+        options={({ navigation }) => ({
+          title: 'Mis Medidas',
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={() => navigation.navigate('NewMeasurement')}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={{ marginRight: 4 }}
+            >
+              <Ionicons name="add" size={26} color="#EAEAEA" />
+            </TouchableOpacity>
+          ),
+        })}
+      />
+      <Stack.Screen
+        name="NewMeasurement"
+        component={NewMeasurementScreen}
+        options={({ route }) => ({
+          title: route.params?.measurement ? 'Editar registro' : 'Nuevo registro',
+        })}
       />
     </Stack.Navigator>
   );

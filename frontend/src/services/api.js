@@ -194,4 +194,31 @@ export const sessionService = {
   },
 };
 
+export const measurementService = {
+  getMeasurements: async () => {
+    const response = await api.get('/measurements');
+    return response.data;
+  },
+
+  getMeasurementById: async (id) => {
+    const response = await api.get(`/measurements/${id}`);
+    return response.data;
+  },
+
+  createMeasurement: async (data) => {
+    const response = await api.post('/measurements', data);
+    return response.data;
+  },
+
+  updateMeasurement: async (id, data) => {
+    const response = await api.put(`/measurements/${id}`, data);
+    return response.data;
+  },
+
+  deleteMeasurement: async (id) => {
+    const response = await api.delete(`/measurements/${id}`);
+    return response.data;
+  },
+};
+
 export default api;
