@@ -1,13 +1,20 @@
-import React from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
+  ScrollView,
+  Modal,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { SvgXml } from 'react-native-svg';
+import { planService, sessionService } from '../services/api';
 
 const logoXml = `<svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 846 246" width="846px" height="246px" xmlns:xlink="http://www.w3.org/1999/xlink">
 <g><path fill-rule="evenodd" fill="#8B0000" d="M 312.5,25.5 C 313.552,25.3505 314.552,25.5172 315.5,26C 322,31.8333 328.167,38 334,44.5C 334.667,45.1667 334.667,45.8333 334,46.5C 307.167,73.3333 280.333,100.167 253.5,127C 274.667,145.5 295.833,164 317,182.5C 317.5,169.504 317.667,156.504 317.5,143.5C 309.5,143.5 301.5,143.5 293.5,143.5C 293.553,133.953 293.22,124.619 292.5,115.5C 310.167,115.5 327.833,115.5 345.5,115.5C 345.83,153.073 345.496,190.573 344.5,228C 337.5,228.667 330.5,228.667 323.5,228C 289.129,197.294 254.463,166.961 219.5,137C 216.65,134.318 213.984,131.484 211.5,128.5C 244.568,94.9328 277.734,61.5994 311,28.5C 311.513,27.4734 312.013,26.4734 312.5,25.5 Z"/></g>
@@ -17,85 +24,1195 @@ const logoXml = `<svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="
 <g><path fill-rule="evenodd" fill="#8B0000" d="M 789.5,26.5 C 791.371,26.8588 792.871,27.8588 794,29.5C 798.64,36.3066 803.473,42.9732 808.5,49.5C 781.645,71.5229 754.645,93.3562 727.5,115C 751.84,115.167 776.174,115.667 800.5,116.5C 801.744,125.48 801.744,134.48 800.5,143.5C 778.164,143.333 755.831,143.5 733.5,144C 759.62,163.785 785.453,183.952 811,204.5C 805.798,213.168 799.798,221.501 793,229.5C 760.333,203.5 727.667,177.5 695,151.5C 694.333,135.5 694.333,119.5 695,103.5C 726.689,77.9692 758.189,52.3025 789.5,26.5 Z"/></g>
 </svg>`;
 
-export default function HomeScreen() {
-  const { user, logout } = useAuth();
+//---- Date helpers -------------
 
+function toKey(date) {
+  const d = new Date(date);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function getMonday(date) {
+  const d = new Date(date);
+  const jsDay = d.getDay();
+  d.setDate(d.getDate() - (jsDay === 0 ? 6 : jsDay - 1));
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function jsToPlanDay(jsDay) {
+  return jsDay === 0 ? 7 : jsDay;
+}
+
+function calcStreak(dateSet) {
+  let streak = 0;
+  const d = new Date();
+  d.setHours(12, 0, 0, 0);
+  while (dateSet.has(toKey(d))) {
+    streak++;
+    d.setDate(d.getDate() - 1);
+  }
+  return streak;
+}
+
+function calcVolume(sessions) {
+  return sessions.reduce(
+    (t, s) =>
+      t +
+      (s.exercises || []).reduce(
+        (t2, ex) =>
+          t2 +
+          (ex.sets || []).reduce(
+            (t3, set) =>
+              set.completed && set.weight > 0 && set.reps > 0
+                ? t3 + set.weight * set.reps
+                : t3,
+            0,
+          ),
+        0,
+      ),
+    0,
+  );
+}
+
+function fmtVolume(kg) {
+  if (kg === 0) return '0 kg';
+  if (kg >= 1000) return `${(kg / 1000).toFixed(1)}t`;
+  return `${Math.round(kg)} kg`;
+}
+
+function getNextPlanDay(plan, todayPlanDay) {
+  for (let i = 1; i <= 7; i++) {
+    const checkDay = ((todayPlanDay - 1 + i) % 7) + 1;
+    const found = (plan.days || []).find(
+      d => d.dayOfWeek === checkDay && d.trainings.length > 0,
+    );
+    if (found) return { ...found, daysFromNow: i };
+  }
+  return null;
+}
+
+function buildMonthGrid(year, month) {
+  const firstJsDay = new Date(year, month, 1).getDay();
+  const offset = firstJsDay === 0 ? 6 : firstJsDay - 1;
+  const totalDays = new Date(year, month + 1, 0).getDate();
+  const cells = [];
+  for (let i = 0; i < offset; i++) cells.push(null);
+  for (let d = 1; d <= totalDays; d++) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
+}
+
+const MONTHS_ES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+];
+const MONTHS_GEN = [
+  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+];
+const WEEKDAYS_ES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+const PLAN_DAY_NAMES = {
+  1: 'Lunes', 2: 'Martes', 3: 'Miércoles', 4: 'Jueves',
+  5: 'Viernes', 6: 'Sábado', 7: 'Domingo',
+};
+const STRIP_LABELS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+
+//---- Component -------------
+
+export default function HomeScreen({ navigation }) {
+  const { user } = useAuth();
+
+  const today = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+
+  const todayPlanDay = useMemo(() => jsToPlanDay(today.getDay()), [today]);
+  const todayKey = useMemo(() => toKey(today), [today]);
+
+  const [loading, setLoading] = useState(true);
+  const [activePlan, setActivePlan] = useState(null);
+  const [sessions, setSessions] = useState([]);
+
+  // Calendar modal
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [calYear, setCalYear] = useState(() => today.getFullYear());
+  const [calMonth, setCalMonth] = useState(() => today.getMonth());
+  const [selectedDayKey, setSelectedDayKey] = useState(null);
+
+  // Day sheet (bottom sheet for strip/calendar day details)
+  const [daySheet, setDaySheet] = useState(null); // { key, label, plannedDay, sessions }
+
+  // Date-edit picker
+  const [editingSession, setEditingSession] = useState(null); // session object
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [pickYear, setPickYear] = useState(() => today.getFullYear());
+  const [pickMonth, setPickMonth] = useState(() => today.getMonth());
+
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, []),
+  );
+
+  async function loadData() {
+    try {
+      setLoading(true);
+      const ninetyAgo = new Date();
+      ninetyAgo.setDate(ninetyAgo.getDate() - 90);
+      const [plansRes, sessionsRes] = await Promise.all([
+        planService.getPlans(),
+        sessionService.getAllSessions({ startDate: ninetyAgo.toISOString(), limit: 500 }),
+      ]);
+      const plans = plansRes?.data || [];
+      setActivePlan(plans.find(p => p.active) || null);
+      setSessions(sessionsRes?.data || []);
+    } catch (e) {
+      console.error('HomeScreen load:', e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  //---- Derived -------------
+  const sessionsByDate = useMemo(() => {
+    const map = {};
+    sessions.forEach(s => {
+      const k = toKey(s.date);
+      if (!map[k]) map[k] = [];
+      map[k].push(s);
+    });
+    return map;
+  }, [sessions]);
+
+  const sessionDateSet = useMemo(
+    () => new Set(Object.keys(sessionsByDate)),
+    [sessionsByDate],
+  );
+
+  const weekDays = useMemo(() => {
+    const mon = getMonday(today);
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(mon);
+      d.setDate(mon.getDate() + i);
+      return d;
+    });
+  }, [today]);
+
+  const weekSessions = useMemo(() => {
+    const minKey = toKey(weekDays[0]);
+    const maxKey = toKey(weekDays[6]);
+    return sessions.filter(s => {
+      const k = toKey(s.date);
+      return k >= minKey && k <= maxKey;
+    });
+  }, [sessions, weekDays]);
+
+  const streak = useMemo(() => calcStreak(sessionDateSet), [sessionDateSet]);
+  const weeklyVolume = useMemo(() => calcVolume(weekSessions), [weekSessions]);
+
+  // Map from plan dayOfWeek (1=Mon…7=Sun) -> plan day object
+  const planDayMap = useMemo(() => {
+    if (!activePlan) return {};
+    const map = {};
+    (activePlan.days || []).forEach(d => {
+      if (d.trainings?.length > 0) map[d.dayOfWeek] = d;
+    });
+    return map;
+  }, [activePlan]);
+
+  const planProgress = useMemo(() => {
+    if (!activePlan?.startDate || !activePlan?.weeks) return null;
+    const elapsed = Math.max(
+      0,
+      Math.floor(
+        (Date.now() - new Date(activePlan.startDate).getTime()) /
+          (7 * 24 * 3600 * 1000),
+      ),
+    );
+    return { elapsed, weeks: activePlan.weeks };
+  }, [activePlan]);
+
+  const isLastPlanWeek = planProgress
+    ? planProgress.elapsed >= planProgress.weeks - 1
+    : false;
+
+  const todayTrainings = useMemo(() => {
+    if (!activePlan) return null;
+    return (activePlan.days || []).find(d => d.dayOfWeek === todayPlanDay) || null;
+  }, [activePlan, todayPlanDay]);
+
+  const nextPlanDay = useMemo(() => {
+    if (!activePlan) return null;
+    return getNextPlanDay(activePlan, todayPlanDay);
+  }, [activePlan, todayPlanDay]);
+
+  const calendarGrid = useMemo(
+    () => buildMonthGrid(calYear, calMonth),
+    [calYear, calMonth],
+  );
+
+  //---- Month nav -------------
+  function prevMonth() {
+    if (calMonth === 0) {
+      setCalYear(y => y - 1);
+      setCalMonth(11);
+    } else {
+      setCalMonth(m => m - 1);
+    }
+  }
+
+  function nextMonth() {
+    if (calMonth === 11) {
+      setCalYear(y => y + 1);
+      setCalMonth(0);
+    } else {
+      setCalMonth(m => m + 1);
+    }
+  }
+
+  function openCalendar() {
+    setCalYear(today.getFullYear());
+    setCalMonth(today.getMonth());
+    setSelectedDayKey(null);
+    setShowCalendar(true);
+  }
+
+  function openDaySheet(d) {
+    const key = toKey(d);
+    const planDay = planDayMap[jsToPlanDay(d.getDay())] || null;
+    const daySessions = sessionsByDate[key] || [];
+    const label = `${WEEKDAYS_ES[d.getDay()]}, ${d.getDate()} de ${MONTHS_GEN[d.getMonth()]}`;
+    setDaySheet({ key, label, planDay, sessions: daySessions, date: d });
+  }
+
+  async function handleUpdateSessionDate(sessionId, newDateKey) {
+    try {
+      await sessionService.updateSession(sessionId, { date: new Date(`${newDateKey}T12:00:00`).toISOString() });
+      setShowDatePicker(false);
+      setEditingSession(null);
+      setDaySheet(null);
+      await loadData();
+    } catch (e) {
+      Alert.alert('Error', 'No se pudo actualizar la fecha de la sesión');
+    }
+  }
+
+  function openDatePicker(session) {
+    const d = new Date(session.date);
+    setPickYear(d.getFullYear());
+    setPickMonth(d.getMonth());
+    setEditingSession(session);
+    setShowDatePicker(true);
+  }
+
+  const selectedDaySessions = selectedDayKey
+    ? sessionsByDate[selectedDayKey] || []
+    : [];
+
+  const selectedDayPlanDay = useMemo(() => {
+    if (!selectedDayKey || !activePlan) return null;
+    const d = new Date(`${selectedDayKey}T12:00:00`);
+    return planDayMap[jsToPlanDay(d.getDay())] || null;
+  }, [selectedDayKey, activePlan, planDayMap]);
+
+  const todayFormatted = `${WEEKDAYS_ES[today.getDay()]}, ${today.getDate()} de ${MONTHS_GEN[today.getMonth()]}`;
+
+  // ---- Loading -------------
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ActivityIndicator size="large" color="#8B0000" style={styles.loader} />
+      </SafeAreaView>
+    );
+  }
+
+  // ---- Render -------------
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <SvgXml xml={logoXml} width="240" height="70" style={styles.logo} />
-        <Text style={styles.name}>{user?.name}</Text>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Logo */}
+        <View style={styles.logoContainer}>
+          <SvgXml xml={logoXml} width="160" height="50" />
+        </View>
 
-        <TouchableOpacity style={styles.logoutButton} onPress={logout}>
-          <Text style={styles.logoutButtonText}>Cerrar Sesión</Text>
-        </TouchableOpacity>
-      </View>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.greeting}>
+            Hola, {user?.name?.split(' ')[0] || user?.name}
+          </Text>
+          <Text style={styles.dateText}>{todayFormatted}</Text>
+        </View>
+
+        {/* End-of-cycle banner */}
+        {isLastPlanWeek && (
+          <View style={styles.endBanner}>
+            <Ionicons name="flag-outline" size={16} color="#C9A44C" />
+            <Text style={styles.endBannerText}>
+              Última semana del mesociclo "{activePlan.name}". ¡Aprieta fuerte!
+            </Text>
+          </View>
+        )}
+
+        {/*  Esta semana  */}
+        <View style={styles.section}>
+          <View style={styles.rowBetween}>
+            <Text style={styles.sectionTitle}>Esta semana</Text>
+            <TouchableOpacity
+              onPress={openCalendar}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="calendar-outline" size={22} color="#C9A44C" />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.strip}>
+            {weekDays.map((d, i) => {
+              const key = toKey(d);
+              const isToday = key === todayKey;
+              const hasSess = !!sessionsByDate[key]?.length;
+              const planDay = planDayMap[jsToPlanDay(d.getDay())];
+              const hasPlanned = !!planDay;
+              const isPast = key <= todayKey;
+              // bar: gold if session done, dark red if planned+past+not done, nothing otherwise
+              const barColor = hasSess
+                ? '#C9A44C'
+                : hasPlanned && isPast && key !== todayKey
+                  ? '#5A0000'
+                  : hasPlanned
+                    ? '#3A1010'
+                    : null;
+              return (
+                <TouchableOpacity
+                  key={i}
+                  style={[styles.stripDay, isToday && styles.stripDayToday]}
+                  onPress={() => openDaySheet(d)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.stripLabel, isToday && styles.redText]}>
+                    {STRIP_LABELS[i]}
+                  </Text>
+                  <Text style={[styles.stripNum, isToday && styles.redText]}>
+                    {d.getDate()}
+                  </Text>
+                  <View style={[styles.stripBar, barColor && { backgroundColor: barColor }]} />
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        {/*  Hoy */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Hoy</Text>
+          {!activePlan ? (
+            <View style={styles.card}>
+              <Ionicons
+                name="calendar-clear-outline"
+                size={28}
+                color="#9A9A9A"
+                style={styles.cardIcon}
+              />
+              <Text style={styles.cardEmptyTitle}>Sin planificación activa</Text>
+              <Text style={styles.cardEmptyDesc}>
+                Crea un mesociclo para ver aquí tu entrenamiento del día.
+              </Text>
+              <TouchableOpacity
+                style={styles.primaryBtn}
+                onPress={() =>
+                  navigation.navigate('TrainningTab', { screen: 'Plans' })
+                }
+              >
+                <Text style={styles.primaryBtnText}>Crear planificación</Text>
+              </TouchableOpacity>
+            </View>
+          ) : todayTrainings && todayTrainings.trainings.length > 0 ? (
+            <View style={styles.card}>
+              <Text style={styles.microLabel}>DÍA DE ENTRENO</Text>
+              <View style={styles.rowBetween}>
+                <View style={{ flex: 1, marginRight: 12 }}>
+                  {todayTrainings.trainings.map((t, i) => (
+                    <Text key={i} style={styles.todayName}>
+                      {t.name}
+                    </Text>
+                  ))}
+                  {todayTrainings.trainings.length > 1 && (
+                    <Text style={styles.doubleTag}>Doble sesión</Text>
+                  )}
+                </View>
+                <TouchableOpacity
+                  style={styles.playBtn}
+                  onPress={() => {
+                    const t = todayTrainings.trainings[0];
+                    navigation.navigate('TrainningTab', {
+                      screen: 'ActiveSession',
+                      params: { trainingId: t._id, trainingName: t.name },
+                    });
+                  }}
+                >
+                  <Ionicons name="play" size={20} color="#EAEAEA" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.card}>
+              <Text style={styles.restTitle}>Descanso</Text>
+              {nextPlanDay && (
+                <Text style={styles.nextText}>
+                  {'Próximo: '}
+                  {PLAN_DAY_NAMES[nextPlanDay.dayOfWeek]}
+                  {nextPlanDay.daysFromNow === 1
+                    ? ' (mañana)'
+                    : ` (en ${nextPlanDay.daysFromNow} días)`}
+                  {' – '}
+                  {nextPlanDay.trainings.map(t => t.name).join(', ')}
+                </Text>
+              )}
+            </View>
+          )}
+        </View>
+
+        {/* ── Estadísticas ── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Estadísticas</Text>
+          <View style={styles.statsRow}>
+            <View style={styles.statCard}>
+              <Ionicons name="flame-outline" size={22} color="#8B0000" />
+              <Text style={styles.statValue}>{streak}</Text>
+              <Text style={styles.statLabel}>{'Racha\ndías'}</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Ionicons name="checkmark-circle-outline" size={22} color="#C9A44C" />
+              <Text style={styles.statValue}>{weekSessions.length}</Text>
+              <Text style={styles.statLabel}>{'Sesiones\nsemana'}</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Ionicons name="barbell-outline" size={22} color="#9A9A9A" />
+              <Text style={styles.statValue}>{fmtVolume(weeklyVolume)}</Text>
+              <Text style={styles.statLabel}>{'Volumen\nsemana'}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Mesociclo activo */}
+        {activePlan && planProgress && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Mesociclo activo</Text>
+            <View style={styles.card}>
+              <View style={styles.rowBetween}>
+                <Text style={styles.planName} numberOfLines={1}>
+                  {activePlan.name}
+                </Text>
+                <View style={styles.activeBadge}>
+                  <Text style={styles.activeBadgeText}>EN CURSO</Text>
+                </View>
+              </View>
+              <Text style={styles.progressLabel}>
+                Semana{' '}
+                {Math.min(planProgress.elapsed + 1, planProgress.weeks)} de{' '}
+                {planProgress.weeks}
+              </Text>
+              <View style={styles.progressBarBg}>
+                <View
+                  style={[
+                    styles.progressBarFill,
+                    {
+                      width: `${Math.min(
+                        (planProgress.elapsed / planProgress.weeks) * 100,
+                        100,
+                      )}%`,
+                    },
+                  ]}
+                />
+              </View>
+              <TouchableOpacity
+                style={styles.linkBtn}
+                onPress={() =>
+                  navigation.navigate('TrainningTab', { screen: 'Plans' })
+                }
+              >
+                <Text style={styles.linkBtnText}>Ver planificación</Text>
+                <Ionicons name="chevron-forward" size={14} color="#8B0000" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        <View style={{ height: 24 }} />
+      </ScrollView>
+
+      {/* Monthly Calendar Modal */}
+      <Modal
+        visible={showCalendar}
+        animationType="slide"
+        onRequestClose={() => setShowCalendar(false)}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          {/* Modal header */}
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              onPress={() => setShowCalendar(false)}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <Ionicons name="close" size={24} color="#EAEAEA" />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Calendario</Text>
+            <View style={{ width: 24 }} />
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {/* Month navigation */}
+            <View style={styles.monthNav}>
+              <TouchableOpacity
+                onPress={prevMonth}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Ionicons name="chevron-back" size={22} color="#EAEAEA" />
+              </TouchableOpacity>
+              <Text style={styles.monthTitle}>
+                {MONTHS_ES[calMonth]} {calYear}
+              </Text>
+              <TouchableOpacity
+                onPress={nextMonth}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Ionicons name="chevron-forward" size={22} color="#EAEAEA" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Week day headers */}
+            <View style={styles.calWeekRow}>
+              {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(l => (
+                <Text key={l} style={styles.calWeekLabel}>
+                  {l}
+                </Text>
+              ))}
+            </View>
+
+            {/* Days grid */}
+            <View style={styles.calGrid}>
+              {Array.from({ length: calendarGrid.length / 7 }, (_, row) => (
+                <View key={row} style={styles.calRow}>
+                  {calendarGrid
+                    .slice(row * 7, row * 7 + 7)
+                    .map((day, col) => {
+                      if (day === null) {
+                        return <View key={col} style={styles.calCell} />;
+                      }
+                      const cellKey = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                      const isToday = cellKey === todayKey;
+                      const hasSess = !!sessionsByDate[cellKey]?.length;
+                      const cellDate = new Date(`${cellKey}T12:00:00`);
+                      const hasPlanned = !!planDayMap[jsToPlanDay(cellDate.getDay())];
+                      const isSelected = cellKey === selectedDayKey;
+                      return (
+                        <TouchableOpacity
+                          key={col}
+                          style={[
+                            styles.calCell,
+                            isToday && styles.calCellToday,
+                            isSelected && styles.calCellSelected,
+                          ]}
+                          onPress={() =>
+                            setSelectedDayKey(isSelected ? null : cellKey)
+                          }
+                          activeOpacity={0.7}
+                        >
+                          <View style={styles.calCellInner}>
+                            <Text
+                              style={[
+                                styles.calCellNum,
+                                isToday && styles.calCellTodayNum,
+                                isSelected && styles.calCellSelectedNum,
+                              ]}
+                            >
+                              {day}
+                            </Text>
+                            {(hasSess || hasPlanned) && (
+                              <View style={styles.calDotsRow}>
+                                {hasPlanned && (
+                                  <View style={[
+                                    styles.calDot,
+                                    { backgroundColor: hasSess ? '#C9A44C' : '#8B0000' },
+                                    (isToday || isSelected) && { backgroundColor: '#EAEAEA' },
+                                  ]} />
+                                )}
+                                {hasSess && !hasPlanned && (
+                                  <View style={[
+                                    styles.calDot,
+                                    { backgroundColor: '#C9A44C' },
+                                    (isToday || isSelected) && { backgroundColor: '#EAEAEA' },
+                                  ]} />
+                                )}
+                              </View>
+                            )}
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                </View>
+              ))}
+            </View>
+
+            {/* Selected day details */}
+            {selectedDayKey && (
+              <View style={styles.dayPanel}>
+                <Text style={styles.dayPanelTitle}>
+                  {(() => {
+                    const d = new Date(`${selectedDayKey}T12:00:00`);
+                    return `${WEEKDAYS_ES[d.getDay()]}, ${d.getDate()} de ${MONTHS_GEN[d.getMonth()]}`;
+                  })()}
+                </Text>
+
+                {/* Planificado */}
+                {selectedDayPlanDay && (
+                  <View style={styles.dayPanelSection}>
+                    <Text style={styles.dayPanelSectionLabel}>PLANIFICADO</Text>
+                    {selectedDayPlanDay.trainings.map((t, i) => (
+                      <View key={i} style={styles.sessionRow}>
+                        <Ionicons name="calendar-outline" size={16} color="#8B0000" />
+                        <View style={{ marginLeft: 10, flex: 1 }}>
+                          <Text style={styles.sessionRowName}>{t.name}</Text>
+                        </View>
+                        {!selectedDaySessions.length && (
+                          <TouchableOpacity
+                            style={styles.dayPanelPlayBtn}
+                            onPress={() => {
+                              setShowCalendar(false);
+                              navigation.navigate('TrainningTab', {
+                                screen: 'ActiveSession',
+                                params: {
+                                  trainingId: t._id,
+                                  trainingName: t.name,
+                                  scheduledDate: selectedDayKey,
+                                },
+                              });
+                            }}
+                          >
+                            <Ionicons name="play" size={14} color="#EAEAEA" />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Completado */}
+                {selectedDaySessions.length > 0 && (
+                  <View style={styles.dayPanelSection}>
+                    <Text style={styles.dayPanelSectionLabel}>COMPLETADO</Text>
+                    {selectedDaySessions.map((s, i) => (
+                      <View key={i} style={styles.sessionRow}>
+                        <Ionicons name="barbell-outline" size={16} color="#C9A44C" />
+                        <View style={{ marginLeft: 10, flex: 1 }}>
+                          <Text style={styles.sessionRowName}>
+                            {s.trainingId?.name || 'Entrenamiento'}
+                          </Text>
+                          <Text style={styles.sessionRowMeta}>
+                            {Math.floor((s.duration || 0) / 60)} min ·{' '}
+                            {(s.exercises || []).length} ejercicios
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          style={styles.editDateBtn}
+                          onPress={() => { setShowCalendar(false); openDatePicker(s); }}
+                        >
+                          <Ionicons name="calendar-outline" size={14} color="#C9A44C" />
+                          <Text style={styles.editDateBtnText}>Fecha</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Descanso */}
+                {!selectedDayPlanDay && !selectedDaySessions.length && (
+                  <Text style={styles.noSessionsText}>Día de descanso 💪</Text>
+                )}
+              </View>
+            )}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Day Sheet – bottom sheet for strip day taps */}
+      <Modal
+        visible={!!daySheet}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setDaySheet(null)}
+      >
+        <TouchableOpacity
+          style={styles.sheetOverlay}
+          activeOpacity={1}
+          onPress={() => setDaySheet(null)}
+        />
+        <View style={styles.sheetContainer}>
+          <View style={styles.sheetHandle} />
+          <Text style={styles.sheetTitle} numberOfLines={1}>
+            {daySheet?.label}
+          </Text>
+
+          {/* Planned workout */}
+          {daySheet?.planDay && (
+            <View style={styles.sheetSection}>
+              <Text style={styles.sheetSectionLabel}>PLANIFICADO</Text>
+              {daySheet.planDay.trainings.map((t, i) => (
+                <View key={i} style={styles.sheetTrainingRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.sheetTrainingName}>{t.name}</Text>
+                  </View>
+                  {/* Only show start button if there's no session yet for that day */}
+                  {!daySheet.sessions?.length && (
+                    <TouchableOpacity
+                      style={styles.sheetPlayBtn}
+                      onPress={() => {
+                        setDaySheet(null);
+                        navigation.navigate('TrainningTab', {
+                          screen: 'ActiveSession',
+                          params: {
+                            trainingId: t._id,
+                            trainingName: t.name,
+                            scheduledDate: daySheet.key,
+                          },
+                        });
+                      }}
+                    >
+                      <Ionicons name="play" size={16} color="#EAEAEA" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Completed sessions */}
+          {daySheet?.sessions?.length > 0 && (
+            <View style={styles.sheetSection}>
+              <Text style={styles.sheetSectionLabel}>COMPLETADO</Text>
+              {daySheet.sessions.map((s, i) => (
+                <View key={i} style={styles.sheetSessionCard}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.sheetSessionName}>
+                      {s.trainingId?.name || 'Entrenamiento'}
+                    </Text>
+                    <Text style={styles.sheetSessionMeta}>
+                      {Math.floor((s.duration || 0) / 60)} min · {(s.exercises || []).length} ejercicios
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.editDateBtn}
+                    onPress={() => openDatePicker(s)}
+                  >
+                    <Ionicons name="calendar-outline" size={14} color="#C9A44C" />
+                    <Text style={styles.editDateBtnText}>Fecha</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Rest day – no plan, no session */}
+          {!daySheet?.planDay && !daySheet?.sessions?.length && (
+            <Text style={styles.sheetRestText}>Día de descanso</Text>
+          )}
+
+          <View style={{ height: 24 }} />
+        </View>
+      </Modal>
+
+      {/* Date Picker Modal – change a session's date */}
+      <Modal
+        visible={showDatePicker}
+        animationType="slide"
+        transparent
+        onRequestClose={() => { setShowDatePicker(false); setEditingSession(null); }}
+      >
+        <TouchableOpacity
+          style={styles.sheetOverlay}
+          activeOpacity={1}
+          onPress={() => { setShowDatePicker(false); setEditingSession(null); }}
+        />
+        <View style={[styles.sheetContainer, { maxHeight: '75%' }]}>
+          <View style={styles.sheetHandle} />
+          <Text style={styles.sheetTitle}>Cambiar fecha</Text>
+
+          {/* Month nav */}
+          <View style={styles.monthNav}>
+            <TouchableOpacity
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              onPress={() => {
+                if (pickMonth === 0) { setPickYear(y => y - 1); setPickMonth(11); }
+                else setPickMonth(m => m - 1);
+              }}
+            >
+              <Ionicons name="chevron-back" size={22} color="#EAEAEA" />
+            </TouchableOpacity>
+            <Text style={styles.monthTitle}>{MONTHS_ES[pickMonth]} {pickYear}</Text>
+            <TouchableOpacity
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              onPress={() => {
+                if (pickMonth === 11) { setPickYear(y => y + 1); setPickMonth(0); }
+                else setPickMonth(m => m + 1);
+              }}
+            >
+              <Ionicons name="chevron-forward" size={22} color="#EAEAEA" />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.calWeekRow}>
+            {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(l => (
+              <Text key={l} style={styles.calWeekLabel}>{l}</Text>
+            ))}
+          </View>
+
+          {(() => {
+            const grid = buildMonthGrid(pickYear, pickMonth);
+            const currentKey = editingSession ? toKey(new Date(editingSession.date)) : null;
+            return (
+              <View style={styles.calGrid}>
+                {Array.from({ length: grid.length / 7 }, (_, row) => (
+                  <View key={row} style={styles.calRow}>
+                    {grid.slice(row * 7, row * 7 + 7).map((day, col) => {
+                      if (!day) return <View key={col} style={styles.calCell} />;
+                      const cellKey = `${pickYear}-${String(pickMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                      const isSelected = cellKey === currentKey;
+                      const isTodayCell = cellKey === todayKey;
+                      return (
+                        <TouchableOpacity
+                          key={col}
+                          style={[
+                            styles.calCell,
+                            isTodayCell && styles.calCellToday,
+                            isSelected && styles.calCellSelected,
+                          ]}
+                          onPress={() => {
+                            if (editingSession) {
+                              Alert.alert(
+                                'Cambiar fecha',
+                                `¿Mover la sesión al ${day} de ${MONTHS_GEN[pickMonth]}?`,
+                                [
+                                  { text: 'Cancelar', style: 'cancel' },
+                                  { text: 'Confirmar', onPress: () => handleUpdateSessionDate(editingSession._id, cellKey) },
+                                ]
+                              );
+                            }
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <View style={styles.calCellInner}>
+                            <Text style={[
+                              styles.calCellNum,
+                              isTodayCell && styles.calCellTodayNum,
+                              isSelected && styles.calCellSelectedNum,
+                            ]}>{day}</Text>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                ))}
+              </View>
+            );
+          })()}
+
+          <View style={{ height: 24 }} />
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0D0D0D',
-  },
-  content: {
-    flex: 1,
-    padding: 20,
+  container:          { flex: 1, backgroundColor: '#0D0D0D' },
+  loader:             { flex: 1 },
+  scroll:             { paddingHorizontal: 16, paddingTop: 0 },
+
+  // Header
+  header:             { marginBottom: 12 },
+  logoContainer:      { alignItems: 'center', paddingTop: 0, paddingBottom: 12 },
+  greeting:           { fontSize: 22, fontWeight: '700', color: '#EAEAEA' },
+  dateText:           { fontSize: 13, color: '#9A9A9A', marginTop: 3, textTransform: 'capitalize' },
+
+  // End-of-cycle banner
+  endBanner: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#1D1700',
+    borderLeftWidth: 3,
+    borderLeftColor: '#C9A44C',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
   },
-  logo: {
-    marginBottom: 32,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#EAEAEA',
-    marginBottom: 20,
-  },
-  name: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: '#C9A44C',
+  endBannerText:      { flex: 1, fontSize: 13, color: '#C9A44C' },
+
+  // Section
+  section:            { marginBottom: 20 },
+  rowBetween: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 10,
   },
-  email: {
-    fontSize: 16,
-    color: '#9A9A9A',
-    marginBottom: 40,
-  },
-  infoContainer: {
-    backgroundColor: '#1F1F1F',
-    padding: 20,
+  sectionTitle:       { fontSize: 15, fontWeight: '700', color: '#EAEAEA' },
+
+  // Weekly strip
+  strip:              { flexDirection: 'row' },
+  stripDay: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    marginHorizontal: 2,
     borderRadius: 10,
-    marginBottom: 30,
-    width: '100%',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    elevation: 3,
   },
-  infoText: {
-    fontSize: 16,
-    color: '#9A9A9A',
-    textAlign: 'center',
-    lineHeight: 24,
+  stripDayToday: {
+    backgroundColor: '#1A0000',
+    borderWidth: 1,
+    borderColor: '#8B0000',
   },
-  logoutButton: {
-    backgroundColor: '#CC3333',
-    borderRadius: 10,
-    padding: 15,
-    width: '100%',
+  stripLabel:         { fontSize: 11, color: '#9A9A9A', marginBottom: 6 },
+  stripNum:           { fontSize: 15, fontWeight: '600', color: '#EAEAEA' },
+  redText:            { color: '#8B0000', fontWeight: '700' },
+  stripBar: {
+    width: '60%',
+    height: 4,
+    borderRadius: 2,
+    marginTop: 6,
+    backgroundColor: 'transparent',
+  },
+  dot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    marginTop: 6,
+    backgroundColor: 'transparent',
+  },
+  dotActive:          { backgroundColor: '#C9A44C' },
+
+  // Card
+  card:               { backgroundColor: '#1F1F1F', borderRadius: 12, padding: 16 },
+  cardIcon:           { alignSelf: 'center', marginBottom: 8 },
+  cardEmptyTitle:     { fontSize: 16, fontWeight: '600', color: '#EAEAEA', textAlign: 'center', marginBottom: 6 },
+  cardEmptyDesc:      { fontSize: 13, color: '#9A9A9A', textAlign: 'center', marginBottom: 16 },
+  primaryBtn:         { backgroundColor: '#8B0000', borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
+  primaryBtnText:     { color: '#EAEAEA', fontWeight: '700', fontSize: 14 },
+
+  // Today training
+  microLabel:         { fontSize: 10, fontWeight: '700', color: '#8B0000', letterSpacing: 1, marginBottom: 8 },
+  todayName:          { fontSize: 18, fontWeight: '700', color: '#EAEAEA' },
+  doubleTag:          { marginTop: 4, fontSize: 12, color: '#C9A44C' },
+  playBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#8B0000',
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  logoutButtonText: {
-    color: '#EAEAEA',
-    fontSize: 16,
-    fontWeight: 'bold',
+  restTitle:          { fontSize: 17, fontWeight: '600', color: '#EAEAEA', marginBottom: 6 },
+  nextText:           { fontSize: 13, color: '#9A9A9A', lineHeight: 20 },
+
+  // Stats
+  statsRow:           { flexDirection: 'row', gap: 8 },
+  statCard: {
+    flex: 1,
+    backgroundColor: '#1F1F1F',
+    borderRadius: 12,
+    padding: 14,
+    alignItems: 'center',
   },
+  statValue:          { fontSize: 20, fontWeight: '700', color: '#EAEAEA', marginVertical: 4 },
+  statLabel:          { fontSize: 11, color: '#9A9A9A', textAlign: 'center' },
+
+  // Mesociclo
+  planName:           { fontSize: 16, fontWeight: '700', color: '#EAEAEA', flex: 1, marginRight: 8 },
+  activeBadge: {
+    backgroundColor: '#1A0000',
+    borderWidth: 1,
+    borderColor: '#8B0000',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  activeBadgeText:    { fontSize: 10, fontWeight: '700', color: '#8B0000', letterSpacing: 0.5 },
+  progressLabel:      { fontSize: 13, color: '#9A9A9A', marginTop: 8, marginBottom: 8 },
+  progressBarBg: {
+    height: 6,
+    backgroundColor: '#2A2A2A',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressBarFill:    { height: 6, backgroundColor: '#8B0000', borderRadius: 3 },
+  linkBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginTop: 12,
+  },
+  linkBtnText:        { fontSize: 13, color: '#8B0000', marginRight: 2 },
+
+  // Calendar modal
+  modalContainer:     { flex: 1, backgroundColor: '#0D0D0D' },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2E2E2E',
+  },
+  modalTitle:         { fontSize: 17, fontWeight: '700', color: '#EAEAEA' },
+  monthNav: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+  },
+  monthTitle:         { fontSize: 18, fontWeight: '700', color: '#EAEAEA' },
+  calWeekRow:         { flexDirection: 'row', paddingHorizontal: 10, marginBottom: 4 },
+  calWeekLabel:       { flex: 1, textAlign: 'center', fontSize: 12, fontWeight: '600', color: '#9A9A9A' },
+  calGrid:            { paddingHorizontal: 10 },
+  calRow:             { flexDirection: 'row' },
+  calCell: {
+    flex: 1,
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    margin: 2,
+  },
+  calCellToday:       { backgroundColor: '#1A0000', borderWidth: 1, borderColor: '#8B0000' },
+  calCellSelected:    { backgroundColor: '#8B0000' },
+  calCellInner:       { alignItems: 'center' },
+  calCellNum:         { fontSize: 14, color: '#EAEAEA' },
+  calCellTodayNum:    { color: '#8B0000', fontWeight: '700' },
+  calCellSelectedNum: { color: '#EAEAEA', fontWeight: '700' },
+  calDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    marginTop: 2,
+    backgroundColor: '#C9A44C',
+  },
+  calDotsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 3,
+    marginTop: 2,
+  },
+
+  // Day details panel
+  dayPanel: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#2E2E2E',
+    marginTop: 4,
+  },
+  dayPanelTitle:        { fontSize: 15, fontWeight: '700', color: '#EAEAEA', marginBottom: 12, textTransform: 'capitalize' },
+  dayPanelSection:      { marginBottom: 12 },
+  dayPanelSectionLabel: { fontSize: 10, fontWeight: '700', color: '#8B0000', letterSpacing: 1, marginBottom: 6 },
+  dayPanelPlayBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#8B0000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  noSessionsText:       { fontSize: 14, color: '#9A9A9A', textAlign: 'center', paddingVertical: 16 },
+  sessionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1F1F1F',
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 8,
+  },
+  sessionRowName:     { fontSize: 15, fontWeight: '600', color: '#EAEAEA' },
+  sessionRowMeta:     { fontSize: 12, color: '#9A9A9A', marginTop: 2 },
+
+  // Day Sheet (bottom sheet)
+  sheetOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  sheetContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#1A1A1A',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    maxHeight: '65%',
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#444',
+    alignSelf: 'center',
+    marginBottom: 12,
+  },
+  sheetTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#EAEAEA',
+    textTransform: 'capitalize',
+    marginBottom: 16,
+  },
+  sheetSection:       { marginBottom: 16 },
+  sheetSectionLabel:  { fontSize: 10, fontWeight: '700', color: '#8B0000', letterSpacing: 1, marginBottom: 8 },
+  sheetTrainingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2A2A2A',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 6,
+  },
+  sheetTrainingName:  { fontSize: 15, fontWeight: '600', color: '#EAEAEA' },
+  sheetPlayBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#8B0000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  sheetSessionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2A2A2A',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 6,
+  },
+  sheetSessionName:   { fontSize: 15, fontWeight: '600', color: '#EAEAEA' },
+  sheetSessionMeta:   { fontSize: 12, color: '#9A9A9A', marginTop: 2 },
+  editDateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#C9A44C',
+    marginLeft: 8,
+  },
+  editDateBtnText:    { fontSize: 11, color: '#C9A44C', fontWeight: '600' },
+  sheetRestText:      { fontSize: 15, color: '#9A9A9A', textAlign: 'center', paddingVertical: 24 },
 });
+

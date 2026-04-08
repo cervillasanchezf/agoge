@@ -188,6 +188,11 @@ export const sessionService = {
     return response.data;
   },
 
+  updateSession: async (id, data) => {
+    const response = await api.put(`/training-sessions/${id}`, data);
+    return response.data;
+  },
+
   deleteSession: async (id) => {
     const response = await api.delete(`/training-sessions/${id}`);
     return response.data;
@@ -217,6 +222,43 @@ export const measurementService = {
 
   deleteMeasurement: async (id) => {
     const response = await api.delete(`/measurements/${id}`);
+    return response.data;
+  },
+};
+
+export const planService = {
+  getPlans: async () => {
+    const response = await api.get('/plans');
+    return response.data;
+  },
+
+  getPlanById: async (id) => {
+    const response = await api.get(`/plans/${id}`);
+    return response.data;
+  },
+
+  createPlan: async (data) => {
+    const response = await api.post('/plans', data);
+    return response.data;
+  },
+
+  updatePlan: async (id, data) => {
+    const response = await api.put(`/plans/${id}`, data);
+    return response.data;
+  },
+
+  activatePlan: async (id) => {
+    const response = await api.patch(`/plans/${id}/activate`);
+    return response.data;
+  },
+
+  finishPlan: async (id) => {
+    const response = await api.patch(`/plans/${id}/finish`);
+    return response.data;
+  },
+
+  deletePlan: async (id) => {
+    const response = await api.delete(`/plans/${id}`);
     return response.data;
   },
 };

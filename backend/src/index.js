@@ -8,6 +8,7 @@ const exerciseRoutes = require('./routes/exercises');
 const trainingRoutes = require('./routes/trainings');
 const trainingSessionRoutes = require('./routes/trainingSessions');
 const measurementRoutes = require('./routes/measurements');
+const planRoutes = require('./routes/plans');
 
 dotenv.config();
 
@@ -28,6 +29,7 @@ app.use('/api/exercises', exerciseRoutes);
 app.use('/api/trainings', trainingRoutes);
 app.use('/api/training-sessions', trainingSessionRoutes);
 app.use('/api/measurements', measurementRoutes);
+app.use('/api/plans', planRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: 'API de Agoge funcionando correctamente' });

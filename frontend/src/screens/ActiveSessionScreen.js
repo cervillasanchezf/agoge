@@ -148,7 +148,7 @@ function buildInitialSets(templateSets, lastSets, repMode) {
 }
 
 export default function ActiveSessionScreen({ route, navigation }) {
-  const { trainingId, trainingName } = route.params;
+  const { trainingId, trainingName, scheduledDate } = route.params;
   const { session: activeSession, saveSession: saveToContext, discardSession } = useActiveSession();
 
   const [training, setTraining]         = useState(null);
@@ -313,6 +313,37 @@ export default function ActiveSessionScreen({ route, navigation }) {
     setExerciseData((prev) => prev.filter((_, i) => i !== exIndex));
   };
 
+  const replaceExercise = (exIndex, newExercise) => {
+    setExerciseData((prev) => {
+      const updated = [...prev];
+      const old = updated[exIndex];
+      const repMode = newExercise.category === 'cardio' ? 'cardio' : 'reps';
+      const newSets = Array.from({ length: old.sets.length }, () =>
+        repMode === 'cardio'
+          ? { km: '', km_default: '', h: 0, m: 0, s: 0, completed: false, prev_km: null, prev_h: null, prev_m: null, prev_s: null }
+          : { weight: '', weight_default: '', reps: '', reps_default: '', rir: '', rir_default: '', completed: false, prev_weight: null, prev_reps: null, prev_rir: null }
+      );
+      updated[exIndex] = { exercise: newExercise, repMode, note: old.note, sets: newSets };
+      return updated;
+    });
+  };
+
+  const handleReplaceExerciseInSession = (exIndex) => {
+    const currentExIds = new Set(
+      exerciseData.filter((_, i) => i !== exIndex).map(e => String(e.exercise?._id ?? e.exercise))
+    );
+    navigation.navigate('ExercisePicker', {
+      selectedExercises: exerciseData
+        .filter((_, i) => i !== exIndex)
+        .map(e => e.exercise)
+        .filter(Boolean),
+      onSelect: (selected) => {
+        const newEx = selected.find(e => !currentExIds.has(String(e._id)));
+        if (newEx) replaceExercise(exIndex, newEx);
+      },
+    });
+  };
+
   const addExercisesToSession = (exercises) => {
     const newItems = exercises
       .filter(ex => !exerciseData.some(e => String(e.exercise?._id ?? e.exercise) === String(ex._id)))
@@ -400,6 +431,7 @@ export default function ActiveSessionScreen({ route, navigation }) {
       const payload = {
         trainingId,
         duration: elapsedSeconds,
+        ...(scheduledDate && { date: new Date(`${scheduledDate}T12:00:00`).toISOString() }),
         exercises: exerciseData.map((item, idx) => ({
           exerciseId: item.exercise?._id ?? item.exercise,
           order: idx,
@@ -498,6 +530,7 @@ export default function ActiveSessionScreen({ route, navigation }) {
               addSet={addSet}
               removeSet={removeSet}
               removeExercise={removeExercise}
+              onReplacePress={() => handleReplaceExerciseInSession(exIndex)}
               onOpenTiempo={(setIndex) => setTiempoTarget({ exIndex, setIndex })}
               note={item.note}
             />
@@ -519,15 +552,17 @@ export default function ActiveSessionScreen({ route, navigation }) {
   );
 }
 
-function ExerciseBlock({ item, exIndex, updateSet, toggleComplete, addSet, removeSet, removeExercise, onOpenTiempo, note }) {
+function ExerciseBlock({ item, exIndex, updateSet, toggleComplete, addSet, removeSet, removeExercise, onReplacePress, onOpenTiempo, note }) {
   const exercise = item.exercise;
   const repMode  = item.repMode ?? 'reps';
   const primaryMuscle = exercise?.primaryMuscles?.[0];
+  const [menuVisible, setMenuVisible] = useState(false);
 
   const isCardio = repMode === 'cardio';
   const isRange  = repMode === 'range';
 
   const handleRemoveExercise = () => {
+    setMenuVisible(false);
     Alert.alert(
       'Eliminar ejercicio',
       `¿Eliminar "${getExerciseName(exercise)}" de la sesión?`,
@@ -552,13 +587,41 @@ function ExerciseBlock({ item, exIndex, updateSet, toggleComplete, addSet, remov
           )}
         </View>
         <TouchableOpacity
-          onPress={handleRemoveExercise}
+          onPress={() => setMenuVisible(true)}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           style={{ paddingLeft: 8 }}
         >
-          <Ionicons name="trash-outline" size={18} color="#CC3333" />
+          <Ionicons name="ellipsis-vertical" size={18} color="#6A6A6A" />
         </TouchableOpacity>
       </View>
+
+      {/* Exercise context menu */}
+      <Modal
+        visible={menuVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuVisible(false)}
+      >
+        <TouchableOpacity
+          style={StyleSheet.absoluteFillObject}
+          onPress={() => setMenuVisible(false)}
+          activeOpacity={1}
+        />
+        <View style={styles.exMenu}>
+          <TouchableOpacity
+            style={styles.exMenuItem}
+            onPress={() => { setMenuVisible(false); if (onReplacePress) onReplacePress(); }}
+          >
+            <Ionicons name="swap-horizontal-outline" size={16} color="#9A9A9A" />
+            <Text style={styles.exMenuItemText}>Reemplazar ejercicio</Text>
+          </TouchableOpacity>
+          <View style={styles.exMenuDivider} />
+          <TouchableOpacity style={styles.exMenuItem} onPress={handleRemoveExercise}>
+            <Ionicons name="trash-outline" size={16} color="#CC3333" />
+            <Text style={[styles.exMenuItemText, { color: '#CC3333' }]}>Eliminar ejercicio</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
 
       {/* Cabecera tabla */}
       {isCardio ? (
@@ -935,4 +998,29 @@ const styles = StyleSheet.create({
     padding: 16, alignItems: 'center',
   },
   drumConfirmText: { color: '#EAEAEA', fontSize: 16, fontWeight: '700' },
+
+  // Exercise context menu
+  exMenu: {
+    position: 'absolute',
+    right: 16,
+    top: '30%',
+    backgroundColor: '#1F1F1F',
+    borderRadius: 10,
+    paddingVertical: 4,
+    minWidth: 210,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  exMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    gap: 10,
+  },
+  exMenuItemText: { fontSize: 14, color: '#EAEAEA' },
+  exMenuDivider:  { height: 1, backgroundColor: '#333333', marginHorizontal: 8 },
 });

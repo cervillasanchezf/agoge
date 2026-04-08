@@ -39,7 +39,7 @@ exports.getMeasurementById = async (req, res) => {
 exports.createMeasurement = async (req, res) => {
   try {
     const {
-      date, photos, notes,
+      date, photos,
       peso, cintura, cuello, hombro, pecho,
       bicepsIzq, bicepsDer, antebrazoIzq, antebrazoDer,
       abdomen, cadera, musloIzq, musloDer, gemeloIzq, gemeloDer,
@@ -49,7 +49,6 @@ exports.createMeasurement = async (req, res) => {
       userId: req.userId,
       date: date || Date.now(),
       photos: photos || [],
-      notes: notes || '',
       peso, cintura, cuello, hombro, pecho,
       bicepsIzq, bicepsDer, antebrazoIzq, antebrazoDer,
       abdomen, cadera, musloIzq, musloDer, gemeloIzq, gemeloDer,
@@ -74,7 +73,7 @@ exports.updateMeasurement = async (req, res) => {
     }
 
     const fields = [
-      'date', 'photos', 'notes',
+      'date', 'photos',
       'peso', 'cintura', 'cuello', 'hombro', 'pecho',
       'bicepsIzq', 'bicepsDer', 'antebrazoIzq', 'antebrazoDer',
       'abdomen', 'cadera', 'musloIzq', 'musloDer', 'gemeloIzq', 'gemeloDer',

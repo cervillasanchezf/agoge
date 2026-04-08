@@ -18,6 +18,8 @@ import HistorialScreen from './src/screens/HistorialScreen';
 import SessionDetailScreen from './src/screens/SessionDetailScreen';
 import MeasurementsScreen from './src/screens/MeasurementsScreen';
 import NewMeasurementScreen from './src/screens/NewMeasurementScreen';
+import PlanScreen from './src/screens/PlanScreen';
+import NewPlanScreen from './src/screens/NewPlanScreen';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { ActiveSessionProvider, useActiveSession } from './src/context/ActiveSessionContext';
 
@@ -60,6 +62,18 @@ function TrainningStack() {
         name="ActiveSession"
         component={ActiveSessionScreen}
         options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="Plans"
+        component={PlanScreen}
+        options={{ title: 'Planificaciones' }}
+      />
+      <Stack.Screen
+        name="NewPlan"
+        component={NewPlanScreen}
+        options={({ route }) => ({
+          title: route.params?.plan ? 'Editar planificación' : 'Nueva planificación',
+        })}
       />
     </Stack.Navigator>
   );

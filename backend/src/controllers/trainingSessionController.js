@@ -94,12 +94,19 @@ exports.createSession = async (req, res) => {
 // @access  Private
 exports.getAllSessions = async (req, res) => {
   try {
-    const { page = 1, limit = 20 } = req.query;
+    const { page = 1, limit = 20, startDate, endDate } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    const total = await TrainingSession.countDocuments({ userId: req.userId });
+    const filter = { userId: req.userId };
+    if (startDate || endDate) {
+      filter.date = {};
+      if (startDate) filter.date.$gte = new Date(startDate);
+      if (endDate) filter.date.$lte = new Date(endDate);
+    }
 
-    const sessions = await TrainingSession.find({ userId: req.userId })
+    const total = await TrainingSession.countDocuments(filter);
+
+    const sessions = await TrainingSession.find(filter)
       .populate('trainingId', 'name')
       .populate('exercises.exerciseId', 'name name_es primaryMuscles')
       .sort({ date: -1 })
@@ -119,6 +126,25 @@ exports.getAllSessions = async (req, res) => {
   } catch (error) {
     console.error('Error al obtener historial:', error);
     res.status(500).json({ success: false, message: 'Error al obtener historial' });
+  }
+};
+
+// @desc    Actualizar la fecha de una sesión
+// @route   PUT /api/training-sessions/:id
+// @access  Private
+exports.updateSession = async (req, res) => {
+  try {
+    const { date } = req.body;
+    const session = await TrainingSession.findOne({ _id: req.params.id, userId: req.userId });
+    if (!session) {
+      return res.status(404).json({ success: false, message: 'Sesión no encontrada' });
+    }
+    if (date) session.date = new Date(date);
+    await session.save();
+    res.json({ success: true, data: session });
+  } catch (error) {
+    console.error('Error al actualizar sesión:', error);
+    res.status(500).json({ success: false, message: 'Error al actualizar sesión' });
   }
 };
 

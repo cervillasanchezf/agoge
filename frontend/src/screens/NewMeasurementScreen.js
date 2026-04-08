@@ -162,9 +162,6 @@ export default function NewMeasurementScreen({ route, navigation }) {
   };
   const [values, setValues] = useState(initialValues);
 
-  // Notas
-
-
   const [saving, setSaving] = useState(false);
 
   // ---------- fotos ----------

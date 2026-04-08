@@ -197,6 +197,39 @@ export default function NewTrainningScreen({ navigation, route }) {
     setExMenuVisible(true);
   };
 
+  const handleReplaceExercise = (id) => {
+    const remainingExercises = exercises.filter(e => e._id !== id);
+    const remainingIds = new Set(remainingExercises.map(e => e._id));
+    navigation.navigate('ExercisePicker', {
+      selectedExercises: remainingExercises,
+      onSelect: (selected) => {
+        const newEx = selected.find(e => !remainingIds.has(e._id));
+        if (!newEx) return;
+        const oldConfig = exerciseConfigs[id];
+        setExercises(prev => prev.map(e => e._id === id ? newEx : e));
+        setExerciseConfigs(prev => {
+          const next = { ...prev };
+          next[newEx._id] = newEx.category === 'cardio' ? initCardioConfig() : { ...oldConfig };
+          delete next[id];
+          return next;
+        });
+        setExerciseNotes(prev => {
+          const next = { ...prev };
+          next[newEx._id] = next[id] || '';
+          delete next[id];
+          return next;
+        });
+        setSupersets(prev => {
+          const next = { ...prev };
+          const groupId = next[id];
+          if (groupId) next[newEx._id] = groupId;
+          delete next[id];
+          return next;
+        });
+      },
+    });
+  };
+
   const handleMoveExercise = (id, direction) => {
     setExercises(prev => {
       const idx = prev.findIndex(e => e._id === id);
@@ -714,6 +747,14 @@ export default function NewTrainningScreen({ navigation, route }) {
               <Text style={styles.exDropdownItemText}>Añadir Superserie</Text>
             </TouchableOpacity>
           )}
+          <View style={styles.exDropdownDivider} />
+          <TouchableOpacity
+            style={styles.exDropdownItem}
+            onPress={() => { setExMenuVisible(false); handleReplaceExercise(exMenuId); }}
+          >
+            <Ionicons name="swap-horizontal-outline" size={16} color="#9A9A9A" />
+            <Text style={styles.exDropdownItemText}>Reemplazar Ejercicio</Text>
+          </TouchableOpacity>
           <View style={styles.exDropdownDivider} />
           <TouchableOpacity
             style={styles.exDropdownItem}

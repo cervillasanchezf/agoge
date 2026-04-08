@@ -111,8 +111,8 @@ export default function TrainningScreen({ navigation }) {
           <Ionicons name="add" size={18} color="#EAEAEA" />
           <Text style={styles.newTrainingButtonText}>Nuevo entrenamiento</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.planButton} onPress={() => {}}>
-          <Text style={styles.planButtonText}>Crear planificación</Text>
+        <TouchableOpacity style={styles.planButton} onPress={() => navigation.navigate('Plans')}>
+          <Text style={styles.planButtonText}>Planificación</Text>
         </TouchableOpacity>
       </View>
 
