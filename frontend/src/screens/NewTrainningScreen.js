@@ -552,10 +552,11 @@ export default function NewTrainningScreen({ navigation, route }) {
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
         style={styles.keyboardView}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 70}
       >
-        <ScrollView style={styles.scrollView} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
           <View style={styles.content}>
             <View style={styles.section}>
               <Text style={styles.label}>Nombre del Entrenamiento</Text>

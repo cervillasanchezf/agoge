@@ -1,6 +1,8 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
 import { authService, profileService, setTokenExpiredCallback } from '../services/api';
+import { API_URL } from '../config/config';
 
 const AuthContext = createContext({});
 
@@ -18,9 +20,31 @@ export const AuthProvider = ({ children }) => {
     try {
       const storedUser = await AsyncStorage.getItem('user');
       const token = await AsyncStorage.getItem('token');
-      
+      const refreshToken = await AsyncStorage.getItem('refreshToken');
+
       if (storedUser && token) {
-        setUser(JSON.parse(storedUser));
+        // Check if the access token is expired or about to expire (within 60s)
+        let needsRefresh = false;
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          needsRefresh = payload.exp * 1000 - Date.now() < 60_000;
+        } catch {
+          needsRefresh = true;
+        }
+
+        if (needsRefresh && refreshToken) {
+          try {
+            const { data } = await axios.post(`${API_URL}/auth/refresh`, { refreshToken });
+            const newToken = data.data.token;
+            await AsyncStorage.setItem('token', newToken);
+            setUser(JSON.parse(storedUser));
+          } catch {
+            // Refresh failed — clear storage and force re-login
+            await AsyncStorage.multiRemove(['token', 'refreshToken', 'user']);
+          }
+        } else if (!needsRefresh) {
+          setUser(JSON.parse(storedUser));
+        }
       }
     } catch (error) {
       console.error('Error al cargar datos:', error);

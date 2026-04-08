@@ -9,6 +9,8 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import * as ImagePicker from 'expo-image-picker';
@@ -87,7 +89,11 @@ export default function CompleteProfileScreen({ navigation }) {
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: '#0D0D0D' }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+    <ScrollView style={styles.container} contentContainerStyle={{ flexGrow: 1 }}>
       <View style={styles.content}>
         <Text style={styles.title}>Completa tu perfil</Text>
         <Text style={styles.subtitle}>Para personalizar tu experiencia</Text>
@@ -165,6 +171,7 @@ export default function CompleteProfileScreen({ navigation }) {
         </TouchableOpacity>
       </View>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

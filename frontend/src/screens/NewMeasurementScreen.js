@@ -12,6 +12,7 @@ import {
   Modal,
   FlatList,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -222,10 +223,15 @@ export default function NewMeasurementScreen({ route, navigation }) {
   // ---------- render ----------
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 70}
       >
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+        >
         {/* ── FECHA ── */}
         <Text style={styles.sectionTitle}>Fecha</Text>
         <TouchableOpacity
@@ -301,6 +307,7 @@ export default function NewMeasurementScreen({ route, navigation }) {
           )}
         </TouchableOpacity>
       </ScrollView>
+      </KeyboardAvoidingView>
 
       <DatePickerModal
         visible={datePickerOpen}

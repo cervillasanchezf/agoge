@@ -459,7 +459,7 @@ export default function HomeScreen({ navigation }) {
             </View>
           ) : (
             <View style={styles.card}>
-              <Text style={styles.restTitle}>Descanso</Text>
+              <Text style={styles.restTitle}>DescansoHoy</Text>
               {nextPlanDay && (
                 <Text style={styles.nextText}>
                   {'Próximo: '}
@@ -817,7 +817,7 @@ export default function HomeScreen({ navigation }) {
 
           {/* Rest day – no plan, no session */}
           {!daySheet?.planDay && !daySheet?.sessions?.length && (
-            <Text style={styles.sheetRestText}>Día de descanso</Text>
+            <Text style={styles.sheetRestText}>Día de descansoHoy</Text>
           )}
 
           <View style={{ height: 24 }} />
@@ -952,14 +952,14 @@ const styles = StyleSheet.create({
   endBannerText:      { flex: 1, fontSize: 13, color: '#C9A44C' },
 
   // Section
-  section:            { marginBottom: 20 },
+  section: { marginBottom: 0 },
   rowBetween: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 10,
   },
-  sectionTitle:       { fontSize: 15, fontWeight: '700', color: '#EAEAEA' },
+  sectionTitle:       { fontSize: 15, fontWeight: '700', color: '#EAEAEA', marginBottom: 8, marginTop: 8 },
 
   // Weekly strip
   strip:              { flexDirection: 'row' },

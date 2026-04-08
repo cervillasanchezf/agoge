@@ -46,8 +46,9 @@ export default function LoginScreen({ navigation }) {
 
   return (
     <KeyboardAvoidingView 
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 50}
     >
       <View style={styles.content}>
         <SvgXml xml={logoXml} width="220" height="64" style={styles.logo} />
