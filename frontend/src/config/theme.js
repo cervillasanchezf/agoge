@@ -2,14 +2,14 @@
 export const COLORS = {
   // Fondos
   background: '#0D0D0D',     // Negro profundo — fondo principal
-  surface: '#1F1F1F',        // Gris carbón — cards, inputs, modales
+  surface: '#1A1A1A',        // Gris superficie — cards, inputs, modales
   surfaceAlt: '#181818',     // Fondo sutil alternativo
   surfaceDeep: '#252525',    // Divisores, bordes sutiles
 
   // Marca principal
-  primary: '#8B0000',        // Rojo espartano — botones principales, activos
-  primaryDark: '#6B0000',    // Rojo más oscuro para sombras
-  primaryLight: '#1A0000',   // Tinte rojo muy oscuro para fondos activos
+  primary: '#B11226',        // Rojo principal — botones principales, activos
+  primaryDark: '#8A0E1E',    // Rojo más oscuro para sombras
+  primaryLight: '#1A0005',   // Tinte rojo muy oscuro para fondos activos
 
   // Acento dorado — logros, rachas, gamificación
   gold: '#C9A44C',
@@ -25,7 +25,7 @@ export const COLORS = {
 
   // Estados funcionales (mantener legibles en fondo oscuro)
   success: '#22c55e',        // Verde — sets completados
-  danger: '#CC3333',         // Rojo — acciones destructivas
+  danger: '#FF3B3B',         // Rojo activo — acciones destructivas
   dangerBg: '#1A0505',       // Fondo rojo muy oscuro
   dangerBorder: '#4A1010',   // Borde rojo oscuro
 

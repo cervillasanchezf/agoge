@@ -13,6 +13,9 @@ const setSchema = new mongoose.Schema({
   h:      { type: Number, default: 0 },
   m:      { type: Number, default: 0 },
   s:      { type: Number, default: 0 },
+  // Ejercicios pliométricos
+  height:   { type: Number, default: 0 }, // cm — altura de caja/plataforma
+  distance: { type: Number, default: 0 }, // cm — distancia de salto (broad jump, etc.)
 }, { _id: false });
 
 const trainingSchema = new mongoose.Schema({
@@ -27,6 +30,10 @@ const trainingSchema = new mongoose.Schema({
     required: [true, 'El nombre del entrenamiento es requerido'],
     trim: true,
   },
+  // Tipo y formato del entrenamiento
+  type:    { type: String, enum: ['strength', 'cardio', 'functional', 'plyometrics'], default: 'strength' },
+  format:  { type: String, enum: ['straight', 'circuit', 'amrap', 'emom', 'fortime', 'tabata'], default: 'straight' },
+  timeCap: { type: Number, default: 0 }, // segundos; 0 = sin límite de tiempo
   exercises: [
     {
       exerciseId: {
@@ -35,7 +42,7 @@ const trainingSchema = new mongoose.Schema({
         required: true,
       },
       order:   { type: Number, required: true },
-      repMode: { type: String, enum: ['reps', 'range', 'cardio'], default: 'reps' },
+      repMode: { type: String, enum: ['reps', 'range', 'cardio', 'plyometric'], default: 'reps' },
       sets:    { type: [setSchema], default: [] },
       note:    { type: String, default: '' },
     },

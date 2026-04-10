@@ -9,6 +9,10 @@ module.exports = (req, res, next) => {
   const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // Reject refresh tokens presented as access tokens
+    if (decoded.type !== 'access') {
+      return res.status(401).json({ success: false, message: 'Token inválido' });
+    }
     req.userId = decoded.id;
     next();
   } catch {

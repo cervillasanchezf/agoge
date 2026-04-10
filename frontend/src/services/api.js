@@ -77,10 +77,15 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
-        await AsyncStorage.removeItem('token');
-        await AsyncStorage.removeItem('refreshToken');
-        await AsyncStorage.removeItem('user');
-        if (onSessionExpired) onSessionExpired();
+        // Only clear session if the server explicitly rejected the refresh token (4xx).
+        // Network errors (no internet, timeout) should NOT log the user out.
+        const isServerRejection = refreshError.response?.status >= 400 && refreshError.response?.status < 500;
+        if (isServerRejection) {
+          await AsyncStorage.removeItem('token');
+          await AsyncStorage.removeItem('refreshToken');
+          await AsyncStorage.removeItem('user');
+          if (onSessionExpired) onSessionExpired();
+        }
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

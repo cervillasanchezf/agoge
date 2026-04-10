@@ -49,7 +49,7 @@ function FilterBottomSheet({ visible, config, options, activeValue, onSelect, on
                 <Text style={[styles.sheetOptionText, !activeValue && styles.sheetOptionActive]}>
                   Cualquiera
                 </Text>
-                {!activeValue && <Ionicons name="checkmark" size={18} color="#8B0000" />}
+                {!activeValue && <Ionicons name="checkmark" size={18} color="#B11226" />}
               </TouchableOpacity>
             }
             renderItem={({ item }) => {
@@ -62,7 +62,7 @@ function FilterBottomSheet({ visible, config, options, activeValue, onSelect, on
                   <Text style={[styles.sheetOptionText, isActive && styles.sheetOptionActive]}>
                     {config?.labelMap[item] || item}
                   </Text>
-                  {isActive && <Ionicons name="checkmark" size={18} color="#8B0000" />}
+                  {isActive && <Ionicons name="checkmark" size={18} color="#B11226" />}
                 </TouchableOpacity>
               );
             }}
@@ -171,7 +171,7 @@ export default function ExercisePickerScreen({ navigation, route }) {
         <Ionicons
           name={sel ? 'checkmark-circle' : 'add-circle-outline'}
           size={24}
-          color={sel ? '#8B0000' : '#4A4A4A'}
+          color={sel ? '#B11226' : '#4A4A4A'}
         />
       </TouchableOpacity>
     );
@@ -212,20 +212,20 @@ export default function ExercisePickerScreen({ navigation, route }) {
               <Text style={[styles.filterBtnText, isActive && styles.filterBtnTextActive]} numberOfLines={1}>
                 {activeLabel}
               </Text>
-              <Ionicons name="chevron-down" size={13} color={isActive ? '#8B0000' : '#6A6A6A'} style={{ marginLeft: 3 }} />
+              <Ionicons name="chevron-down" size={13} color={isActive ? '#B11226' : '#6A6A6A'} style={{ marginLeft: 3 }} />
             </TouchableOpacity>
           );
         })}
         {activeFilterCount > 0 && (
           <TouchableOpacity style={styles.clearBtn} onPress={() => setFilters({})}>
-            <Ionicons name="close-circle" size={20} color="#CC3333" />
+            <Ionicons name="close-circle" size={20} color="#FF3B3B" />
           </TouchableOpacity>
         )}
       </View>
 
       {/* Lista */}
       {loading ? (
-        <ActivityIndicator style={{ flex: 1 }} color="#8B0000" size="large" />
+        <ActivityIndicator style={{ flex: 1 }} color="#B11226" size="large" />
       ) : (
         <FlatList
           data={exercises}
@@ -233,7 +233,7 @@ export default function ExercisePickerScreen({ navigation, route }) {
           renderItem={renderExercise}
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.3}
-          ListFooterComponent={loadingMore ? <ActivityIndicator color="#8B0000" style={{ padding: 16 }} /> : null}
+          ListFooterComponent={loadingMore ? <ActivityIndicator color="#B11226" style={{ padding: 16 }} /> : null}
           ListEmptyComponent={
             <View style={styles.empty}>
               <Text style={styles.emptyText}>No se encontraron ejercicios</Text>
@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1F1F1F',
+    backgroundColor: '#1A1A1A',
     margin: 12,
     marginBottom: 8,
     borderRadius: 10,
@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
   filterBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1F1F1F',
+    backgroundColor: '#1A1A1A',
     borderWidth: 1,
     borderColor: '#333333',
     borderRadius: 20,
@@ -312,7 +312,7 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   filterBtnActive: {
-    borderColor: '#8B0000',
+    borderColor: '#B11226',
     backgroundColor: '#1A0000',
   },
   filterBtnText: { fontSize: 13, fontWeight: '600', color: '#9A9A9A' },
@@ -323,7 +323,7 @@ const styles = StyleSheet.create({
   exerciseItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1F1F1F',
+    backgroundColor: '#1A1A1A',
     marginHorizontal: 12,
     marginVertical: 4,
     borderRadius: 10,
@@ -334,7 +334,7 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 1,
   },
-  exerciseItemSelected: { borderWidth: 1.5, borderColor: '#8B0000' },
+  exerciseItemSelected: { borderWidth: 1.5, borderColor: '#B11226' },
   exerciseInfo: { flex: 1 },
   exerciseName: { fontSize: 15, fontWeight: '600', color: '#EAEAEA', marginBottom: 2 },
   exerciseMeta: { fontSize: 12, color: '#6A6A6A' },
@@ -347,7 +347,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#1F1F1F',
+    backgroundColor: '#1A1A1A',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -361,9 +361,9 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 6,
   },
-  footerText: { fontSize: 14, color: '#8B0000', fontWeight: '600' },
+  footerText: { fontSize: 14, color: '#B11226', fontWeight: '600' },
   confirmButton: {
-    backgroundColor: '#8B0000',
+    backgroundColor: '#B11226',
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 10,
@@ -380,7 +380,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.6)',
   },
   sheet: {
-    backgroundColor: '#1F1F1F',
+    backgroundColor: '#1A1A1A',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 16,

@@ -239,7 +239,7 @@ export default function NewMeasurementScreen({ route, navigation }) {
           onPress={() => setDatePickerOpen(true)}
           activeOpacity={0.7}
         >
-          <Ionicons name="calendar-outline" size={18} color="#8B0000" />
+          <Ionicons name="calendar-outline" size={18} color="#B11226" />
           <Text style={styles.dateText}>{dateToDisplay(date)}</Text>
           <Ionicons name="chevron-down" size={16} color="#9A9A9A" />
         </TouchableOpacity>
@@ -259,12 +259,12 @@ export default function NewMeasurementScreen({ route, navigation }) {
                 style={styles.photoRemove}
                 onPress={() => removePhoto(idx)}
               >
-                <Ionicons name="close-circle" size={20} color="#CC3333" />
+                <Ionicons name="close-circle" size={20} color="#FF3B3B" />
               </TouchableOpacity>
             </View>
           ))}
           <TouchableOpacity style={styles.photoAdd} onPress={pickPhoto} activeOpacity={0.7}>
-            <Ionicons name="add" size={28} color="#8B0000" />
+            <Ionicons name="add" size={28} color="#B11226" />
             <Text style={styles.photoAddLabel}>Añadir</Text>
           </TouchableOpacity>
         </ScrollView>
@@ -342,7 +342,7 @@ const styles = StyleSheet.create({
   dateButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1F1F1F',
+    backgroundColor: '#1A1A1A',
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -379,7 +379,7 @@ const styles = StyleSheet.create({
     width: 90,
     height: 90,
     borderRadius: 10,
-    backgroundColor: '#1F1F1F',
+    backgroundColor: '#1A1A1A',
     borderWidth: 1,
     borderColor: '#333',
     borderStyle: 'dashed',
@@ -388,7 +388,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   photoAddLabel: {
-    color: '#8B0000',
+    color: '#B11226',
     fontSize: 12,
     fontWeight: '600',
   },
@@ -401,7 +401,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#1F1F1F',
+    borderBottomColor: '#1A1A1A',
   },
   fieldLabel: {
     flex: 1,
@@ -414,7 +414,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   fieldInput: {
-    backgroundColor: '#1F1F1F',
+    backgroundColor: '#1A1A1A',
     color: '#EAEAEA',
     fontSize: 15,
     fontWeight: '600',
@@ -433,7 +433,7 @@ const styles = StyleSheet.create({
   },
   // Guardar
   saveButton: {
-    backgroundColor: '#8B0000',
+    backgroundColor: '#B11226',
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
@@ -458,7 +458,7 @@ const dp = StyleSheet.create({
     alignItems: 'center',
   },
   box: {
-    backgroundColor: '#1F1F1F',
+    backgroundColor: '#1A1A1A',
     borderRadius: 16,
     padding: 24,
     width: 300,
@@ -524,7 +524,7 @@ const dp = StyleSheet.create({
   },
   btnConfirm: {
     flex: 1,
-    backgroundColor: '#8B0000',
+    backgroundColor: '#B11226',
     borderRadius: 10,
     paddingVertical: 11,
     alignItems: 'center',

@@ -20,6 +20,8 @@ import MeasurementsScreen from './src/screens/MeasurementsScreen';
 import NewMeasurementScreen from './src/screens/NewMeasurementScreen';
 import PlanScreen from './src/screens/PlanScreen';
 import NewPlanScreen from './src/screens/NewPlanScreen';
+import StatsScreen from './src/screens/StatsScreen';
+import HypertrophyStatsScreen from './src/screens/HypertrophyStatsScreen';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { ActiveSessionProvider, useActiveSession } from './src/context/ActiveSessionContext';
 
@@ -33,7 +35,7 @@ function TrainningStack() {
     <Stack.Navigator
       screenOptions={{
         headerStyle: {
-          backgroundColor: '#1F1F1F',
+          backgroundColor: '#1A1A1A',
         },
         headerTintColor: '#EAEAEA',
         headerTitleStyle: {
@@ -85,7 +87,7 @@ function ProfileStack() {
     <Stack.Navigator
       screenOptions={{
         headerStyle: {
-          backgroundColor: '#1F1F1F',
+          backgroundColor: '#1A1A1A',
         },
         headerTintColor: '#EAEAEA',
         headerTitleStyle: {
@@ -140,6 +142,34 @@ function ProfileStack() {
   );
 }
 
+function HomeStack() {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: '#1A1A1A' },
+        headerTintColor: '#EAEAEA',
+        headerTitleStyle: { fontWeight: 'bold' },
+      }}
+    >
+      <Stack.Screen
+        name="HomeMain"
+        component={HomeScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="HomeStats"
+        component={StatsScreen}
+        options={{ title: 'Estadísticas avanzadas' }}
+      />
+      <Stack.Screen
+        name="HypertrophyStats"
+        component={HypertrophyStatsScreen}
+        options={{ title: 'Fuerza & Hipertrofia' }}
+      />
+    </Stack.Navigator>
+  );
+}
+
 function SessionBanner({ session, tabNavigation, onDiscard }) {
   const [elapsed, setElapsed] = useState(
     () => Math.round((Date.now() - session.startTimestamp) / 1000)
@@ -176,7 +206,7 @@ function SessionBanner({ session, tabNavigation, onDiscard }) {
         <Text style={bannerStyles.name} numberOfLines={1}>{session.trainingName}</Text>
       </View>
       <View style={bannerStyles.timerRow}>
-        <Ionicons name="time-outline" size={14} color="#8B0000" />
+        <Ionicons name="time-outline" size={14} color="#B11226" />
         <Text style={bannerStyles.timerText}>{formatTime(elapsed)}</Text>
       </View>
       <TouchableOpacity
@@ -184,7 +214,7 @@ function SessionBanner({ session, tabNavigation, onDiscard }) {
         hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         style={bannerStyles.discardBtn}
       >
-        <Ionicons name="close-circle-outline" size={24} color="#CC3333" />
+        <Ionicons name="close-circle-outline" size={24} color="#FF3B3B" />
       </TouchableOpacity>
     </TouchableOpacity>
   );
@@ -212,7 +242,7 @@ const bannerStyles = StyleSheet.create({
   leftBorder: {
     width: 4,
     alignSelf: 'stretch',
-    backgroundColor: '#8B0000',
+    backgroundColor: '#B11226',
   },
   info: {
     flex: 1,
@@ -222,7 +252,7 @@ const bannerStyles = StyleSheet.create({
   label: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#8B0000',
+    color: '#B11226',
     letterSpacing: 1,
     marginBottom: 2,
   },
@@ -240,7 +270,7 @@ const bannerStyles = StyleSheet.create({
   timerText: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#8B0000',
+    color: '#B11226',
     fontVariant: ['tabular-nums'],
   },
   discardBtn: {
@@ -286,13 +316,13 @@ function MainTabs() {
       }}
       screenOptions={{
         headerStyle: {
-          backgroundColor: '#1F1F1F',
+          backgroundColor: '#1A1A1A',
         },
         headerTintColor: '#EAEAEA',
         headerTitleStyle: {
           fontWeight: 'bold',
         },
-        tabBarActiveTintColor: '#8B0000',
+        tabBarActiveTintColor: '#B11226',
         tabBarInactiveTintColor: '#6A6A6A',
         tabBarStyle: {
           paddingBottom: 25,
@@ -309,8 +339,9 @@ function MainTabs() {
     >
       <Tab.Screen
         name="HomeTab"
-        component={HomeScreen}
+        component={HomeStack}
         options={{
+          headerShown: false,
           title: 'Inicio',
           tabBarLabel: 'Inicio',
           tabBarIcon: ({ color, size }) => (
@@ -368,7 +399,7 @@ function Navigation() {
       <Stack.Navigator
         screenOptions={{
           headerStyle: {
-            backgroundColor: '#1F1F1F',
+            backgroundColor: '#1A1A1A',
           },
           headerTintColor: '#EAEAEA',
           headerTitleStyle: {

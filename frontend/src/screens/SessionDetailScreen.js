@@ -100,7 +100,7 @@ export default function SessionDetailScreen({ route, navigation }) {
 
           <View style={styles.statsGrid}>
             <View style={styles.statCell}>
-              <Ionicons name="time-outline" size={20} color="#8B0000" />
+              <Ionicons name="time-outline" size={20} color="#B11226" />
               <Text style={styles.statVal}>{formatDuration(session.duration)}</Text>
               <Text style={styles.statLbl}>Duración</Text>
             </View>
@@ -203,7 +203,7 @@ export default function SessionDetailScreen({ route, navigation }) {
 
         {/* ── Eliminar ─────────────────────────────── */}
         <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete}>
-          <Ionicons name="trash-outline" size={16} color="#CC3333" />
+          <Ionicons name="trash-outline" size={16} color="#FF3B3B" />
           <Text style={styles.deleteBtnText}>Eliminar sesión</Text>
         </TouchableOpacity>
 
@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
 
   // Summary card
   summaryCard: {
-    backgroundColor: '#1F1F1F',
+    backgroundColor: '#1A1A1A',
     borderRadius: 14,
     padding: 16,
     shadowColor: '#000',
@@ -248,12 +248,12 @@ const styles = StyleSheet.create({
   muscleSets: { fontSize: 10, color: '#6A6A6A', fontWeight: '500' },
   muscleNameWrap: { width: 90, gap: 1 },
   barTrack: { flex: 1, height: 6, borderRadius: 3, backgroundColor: '#252525', flexDirection: 'row', overflow: 'hidden' },
-  barFill: { backgroundColor: '#8B0000', borderRadius: 3 },
+  barFill: { backgroundColor: '#B11226', borderRadius: 3 },
   muscleVol: { width: 70, fontSize: 11, color: '#9A9A9A', textAlign: 'right' },
 
   // Exercise card
   exCard: {
-    backgroundColor: '#1F1F1F',
+    backgroundColor: '#1A1A1A',
     borderRadius: 12,
     padding: 14,
     shadowColor: '#000',
@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   setRowDone: { backgroundColor: '#0A1A0A' },
-  setNum: { fontSize: 13, fontWeight: '700', color: '#8B0000', textAlign: 'center' },
+  setNum: { fontSize: 13, fontWeight: '700', color: '#B11226', textAlign: 'center' },
   cellText: { fontSize: 13, fontWeight: '600', color: '#9A9A9A', textAlign: 'center' },
   checkCircle: {
     width: 22, height: 22, borderRadius: 11,
@@ -307,5 +307,5 @@ const styles = StyleSheet.create({
     borderColor: '#4A1010',
     backgroundColor: '#1A0505',
   },
-  deleteBtnText: { fontSize: 14, fontWeight: '600', color: '#CC3333' },
+  deleteBtnText: { fontSize: 14, fontWeight: '600', color: '#FF3B3B' },
 });

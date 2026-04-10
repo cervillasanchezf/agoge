@@ -61,7 +61,7 @@ export default function ProfileScreen({ navigation }) {
             activeOpacity={0.7}
           >
             <View style={styles.gridIconWrap}>
-              <Ionicons name="calendar-outline" size={26} color="#8B0000" />
+              <Ionicons name="calendar-outline" size={26} color="#B11226" />
             </View>
             <Text style={styles.gridLabel}>Historial</Text>
           </TouchableOpacity>
@@ -71,7 +71,7 @@ export default function ProfileScreen({ navigation }) {
             activeOpacity={0.7}
           >
             <View style={styles.gridIconWrap}>
-              <Ionicons name="body-outline" size={26} color="#8B0000" />
+              <Ionicons name="body-outline" size={26} color="#B11226" />
             </View>
             <Text style={styles.gridLabel}>Medidas</Text>
           </TouchableOpacity>
@@ -95,8 +95,8 @@ export default function ProfileScreen({ navigation }) {
               style={styles.dropdownItem}
               onPress={() => { setMenuVisible(false); logout(); }}
             >
-              <Ionicons name="log-out-outline" size={16} color="#CC3333" />
-              <Text style={[styles.dropdownText, { color: '#CC3333' }]}>Cerrar sesión</Text>
+              <Ionicons name="log-out-outline" size={16} color="#FF3B3B" />
+              <Text style={[styles.dropdownText, { color: '#FF3B3B' }]}>Cerrar sesión</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
     marginTop: 28,
   },
   gridItem: {
-    backgroundColor: '#1F1F1F',
+    backgroundColor: '#1A1A1A',
     borderRadius: 12,
     paddingVertical: 16,
     paddingHorizontal: 14,
@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
     padding: 6,
   },
   avatarWrapper: {
-    shadowColor: '#8B0000',
+    shadowColor: '#B11226',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -165,13 +165,13 @@ const styles = StyleSheet.create({
     height: 72,
     borderRadius: 36,
     borderWidth: 2,
-    borderColor: '#8B0000',
+    borderColor: '#B11226',
   },
   avatarFallback: {
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: '#8B0000',
+    backgroundColor: '#B11226',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
   },
   dropdown: {
     position: 'absolute',
-    backgroundColor: '#1F1F1F',
+    backgroundColor: '#1A1A1A',
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#2E2E2E',

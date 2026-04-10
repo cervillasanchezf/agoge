@@ -154,7 +154,7 @@ export default function NewPlanScreen({ navigation, route }) {
         {/* Días */}
         <Text style={styles.label}>Días</Text>
         {loadingTrainings ? (
-          <ActivityIndicator color="#8B0000" style={{ marginVertical: 24 }} />
+          <ActivityIndicator color="#B11226" style={{ marginVertical: 24 }} />
         ) : (
           <View style={styles.daysCard}>
             {DAYS.map(({ num, label }, index) => {
@@ -291,7 +291,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   input: {
-    backgroundColor: '#1F1F1F',
+    backgroundColor: '#1A1A1A',
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 14,
@@ -303,7 +303,7 @@ const styles = StyleSheet.create({
   weeksRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1F1F1F',
+    backgroundColor: '#1A1A1A',
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#2A2A2A',
@@ -323,7 +323,7 @@ const styles = StyleSheet.create({
     color: '#EAEAEA',
   },
   daysCard: {
-    backgroundColor: '#1F1F1F',
+    backgroundColor: '#1A1A1A',
     borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
@@ -382,13 +382,13 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   saveBtn: {
-    backgroundColor: '#8B0000',
+    backgroundColor: '#B11226',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 32,
-    shadowColor: '#8B0000',
+    shadowColor: '#B11226',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.4,
     shadowRadius: 6,
@@ -491,13 +491,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   checkboxSelected: {
-    backgroundColor: '#8B0000',
-    borderColor: '#8B0000',
+    backgroundColor: '#B11226',
+    borderColor: '#B11226',
   },
   modalDoneBtn: {
     marginHorizontal: 20,
     marginTop: 14,
-    backgroundColor: '#8B0000',
+    backgroundColor: '#B11226',
     borderRadius: 10,
     paddingVertical: 14,
     alignItems: 'center',

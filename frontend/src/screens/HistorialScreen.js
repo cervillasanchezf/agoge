@@ -118,13 +118,13 @@ export default function HistorialScreen({ navigation }) {
             onPress={() => handleDelete(item)}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons name="trash-outline" size={18} color="#CC3333" />
+            <Ionicons name="trash-outline" size={18} color="#FF3B3B" />
           </TouchableOpacity>
         </View>
 
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
-            <Ionicons name="time-outline" size={14} color="#8B0000" />
+            <Ionicons name="time-outline" size={14} color="#B11226" />
             <Text style={styles.statValue}>{formatDuration(item.duration)}</Text>
           </View>
           <View style={styles.statDivider} />
@@ -148,7 +148,7 @@ export default function HistorialScreen({ navigation }) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#8B0000" />
+          <ActivityIndicator size="large" color="#B11226" />
         </View>
       </SafeAreaView>
     );
@@ -169,7 +169,7 @@ export default function HistorialScreen({ navigation }) {
             <Text style={styles.emptyText}>Aún no hay sesiones registradas</Text>
           </View>
         }
-        ListFooterComponent={loadingMore ? <ActivityIndicator style={{ margin: 16 }} color="#8B0000" /> : null}
+        ListFooterComponent={loadingMore ? <ActivityIndicator style={{ margin: 16 }} color="#B11226" /> : null}
       />
     </SafeAreaView>
   );
@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   list: { padding: 16, gap: 12 },
   card: {
-    backgroundColor: '#1F1F1F',
+    backgroundColor: '#1A1A1A',
     borderRadius: 12,
     padding: 14,
     shadowColor: '#000',

@@ -29,7 +29,7 @@ const trainingSessionSchema = new mongoose.Schema({
         required: true,
       },
       order:   { type: Number, required: true },
-      repMode: { type: String, enum: ['reps', 'range', 'cardio'], default: 'reps' },
+      repMode: { type: String, enum: ['reps', 'range', 'cardio', 'plyometric'], default: 'reps' },
       sets: [
         {
           // Fuerza
@@ -43,12 +43,18 @@ const trainingSessionSchema = new mongoose.Schema({
           h:  { type: Number, default: 0 },
           m:  { type: Number, default: 0 },
           s:  { type: Number, default: 0 },
+          // Pliométrico
+          height:   { type: Number, default: 0 }, // cm — altura de caja/plataforma
+          distance: { type: Number, default: 0 }, // cm — distancia de salto
         },
       ],
     },
   ],
   notes: { type: String, default: '' },
-  duration: { type: Number, default: 0 }, // segundos
+  duration:  { type: Number, default: 0 }, // segundos
+  // Resultados de formatos funcionales/circuito
+  rounds:    { type: Number, default: 0 }, // rondas completadas (AMRAP, ForTime, circuit)
+  totalTime: { type: Number, default: 0 }, // tiempo real del WOD en segundos (ForTime)
 }, {
   timestamps: true,
 });

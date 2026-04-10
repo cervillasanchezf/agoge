@@ -207,10 +207,10 @@ const styles = StyleSheet.create({
     borderRadius: 60,
     marginBottom: 15,
     borderWidth: 3,
-    borderColor: '#8B0000',
+    borderColor: '#B11226',
   },
   changeImageButton: {
-    backgroundColor: '#8B0000',
+    backgroundColor: '#B11226',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 20,
@@ -230,7 +230,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   input: {
-    backgroundColor: '#1F1F1F',
+    backgroundColor: '#1A1A1A',
     borderRadius: 10,
     padding: 15,
     fontSize: 16,
@@ -239,7 +239,7 @@ const styles = StyleSheet.create({
     color: '#EAEAEA',
   },
   goalButton: {
-    backgroundColor: '#1F1F1F',
+    backgroundColor: '#1A1A1A',
     borderRadius: 10,
     padding: 15,
     marginBottom: 10,
@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
     borderColor: '#333333',
   },
   goalButtonSelected: {
-    borderColor: '#8B0000',
+    borderColor: '#B11226',
     backgroundColor: '#1A0000',
   },
   goalButtonText: {
@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   submitButton: {
-    backgroundColor: '#8B0000',
+    backgroundColor: '#B11226',
     borderRadius: 10,
     padding: 15,
     alignItems: 'center',

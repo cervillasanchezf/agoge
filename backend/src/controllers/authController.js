@@ -3,10 +3,10 @@ const { validationResult } = require('express-validator');
 const User = require('../models/User');
 
 const generateAccessToken = (userId) =>
-  jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '1h' });
+  jwt.sign({ id: userId, type: 'access' }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
 const generateRefreshToken = (userId) =>
-  jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '90d' });
+  jwt.sign({ id: userId, type: 'refresh' }, process.env.JWT_SECRET, { expiresIn: '90d' });
 
 const formatUserResponse = (user, token, refreshToken) => ({
   id: user._id,
@@ -105,12 +105,15 @@ exports.refresh = async (req, res) => {
       return res.status(401).json({ success: false, message: 'Refresh token requerido' });
     }
 
-    // Verificar firma del JWT
+    // Verificar firma del JWT y que sea un refresh token
     let decoded;
     try {
       decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
     } catch {
       return res.status(401).json({ success: false, message: 'Refresh token inválido o expirado' });
+    }
+    if (decoded.type !== 'refresh') {
+      return res.status(401).json({ success: false, message: 'Token de tipo incorrecto' });
     }
 
     // Verificar que el token coincide con el guardado en BD

@@ -1,12 +1,21 @@
 const Plan = require('../models/Plan');
 
+const TRAINING_POPULATE = {
+  path: 'days.trainings',
+  select: 'name exercises',
+  populate: {
+    path: 'exercises.exerciseId',
+    select: 'name name_es primaryMuscles',
+  },
+};
+
 // @desc    Obtener todos los planes del usuario
 // @route   GET /api/plans
 // @access  Private
 exports.getPlans = async (req, res) => {
   try {
     const plans = await Plan.find({ userId: req.userId })
-      .populate('days.trainings', 'name')
+      .populate(TRAINING_POPULATE)
       .sort({ createdAt: -1 });
 
     res.json({ success: true, data: plans });
@@ -22,7 +31,7 @@ exports.getPlans = async (req, res) => {
 exports.getPlanById = async (req, res) => {
   try {
     const plan = await Plan.findOne({ _id: req.params.id, userId: req.userId })
-      .populate('days.trainings', 'name');
+      .populate(TRAINING_POPULATE);
 
     if (!plan) {
       return res.status(404).json({ success: false, message: 'Plan no encontrado' });
@@ -51,7 +60,7 @@ exports.createPlan = async (req, res) => {
       active: false,
     });
 
-    const populated = await plan.populate('days.trainings', 'name');
+    const populated = await plan.populate(TRAINING_POPULATE);
 
     res.status(201).json({ success: true, data: populated });
   } catch (error) {
@@ -79,7 +88,7 @@ exports.updatePlan = async (req, res) => {
     });
 
     await plan.save();
-    const populated = await plan.populate('days.trainings', 'name');
+    const populated = await plan.populate(TRAINING_POPULATE);
 
     res.json({ success: true, data: populated });
   } catch (error) {
@@ -107,7 +116,7 @@ exports.activatePlan = async (req, res) => {
     plan.endDate = null;
     await plan.save();
 
-    const populated = await plan.populate('days.trainings', 'name');
+    const populated = await plan.populate(TRAINING_POPULATE);
 
     res.json({ success: true, data: populated });
   } catch (error) {

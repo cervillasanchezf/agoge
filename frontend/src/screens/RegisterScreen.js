@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   input: {
-    backgroundColor: '#1F1F1F',
+    backgroundColor: '#1A1A1A',
     borderRadius: 10,
     padding: 15,
     fontSize: 16,
@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
     color: '#EAEAEA',
   },
   button: {
-    backgroundColor: '#8B0000',
+    backgroundColor: '#B11226',
     borderRadius: 10,
     padding: 15,
     alignItems: 'center',
@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   loginLink: {
-    color: '#8B0000',
+    color: '#B11226',
     fontSize: 14,
     fontWeight: 'bold',
   },

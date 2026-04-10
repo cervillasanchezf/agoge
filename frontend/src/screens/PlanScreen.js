@@ -161,7 +161,7 @@ export default function PlanScreen({ navigation }) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#8B0000" />
+          <ActivityIndicator size="large" color="#B11226" />
         </View>
       </SafeAreaView>
     );
@@ -318,8 +318,8 @@ export default function PlanScreen({ navigation }) {
             style={styles.dropdownItem}
             onPress={() => handleDelete(menuPlan)}
           >
-            <Ionicons name="trash-outline" size={16} color="#CC3333" />
-            <Text style={[styles.dropdownItemText, { color: '#CC3333' }]}>Eliminar</Text>
+            <Ionicons name="trash-outline" size={16} color="#FF3B3B" />
+            <Text style={[styles.dropdownItemText, { color: '#FF3B3B' }]}>Eliminar</Text>
           </TouchableOpacity>
         </View>
       </Modal>
@@ -380,7 +380,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#8B0000',
+    backgroundColor: '#B11226',
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 10,
@@ -418,7 +418,7 @@ const styles = StyleSheet.create({
   },
   // Active plan card
   activePlanCard: {
-    backgroundColor: '#1F1F1F',
+    backgroundColor: '#1A1A1A',
     borderRadius: 14,
     overflow: 'hidden',
     borderWidth: 1,
@@ -486,7 +486,7 @@ const styles = StyleSheet.create({
   },
   progressBarFill: {
     height: 6,
-    backgroundColor: '#8B0000',
+    backgroundColor: '#B11226',
     borderRadius: 3,
   },
   startDateText: {
@@ -578,7 +578,7 @@ const styles = StyleSheet.create({
   },
   // Past plan cards
   pastCard: {
-    backgroundColor: '#1F1F1F',
+    backgroundColor: '#1A1A1A',
     borderRadius: 12,
     padding: 16,
     flexDirection: 'row',
@@ -604,7 +604,7 @@ const styles = StyleSheet.create({
   dropdown: {
     position: 'absolute',
     right: 16,
-    backgroundColor: '#1F1F1F',
+    backgroundColor: '#1A1A1A',
     borderRadius: 10,
     paddingVertical: 4,
     minWidth: 190,

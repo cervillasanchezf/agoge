@@ -132,7 +132,7 @@ export default function TrainningScreen({ navigation }) {
       {!rutinasCollapsed && (
         loading ? (
           <View style={styles.centered}>
-            <ActivityIndicator size="large" color="#8B0000" />
+            <ActivityIndicator size="large" color="#B11226" />
           </View>
         ) : trainings.length === 0 ? (
           <View style={styles.centeredSection}>
@@ -171,8 +171,8 @@ export default function TrainningScreen({ navigation }) {
             style={styles.dropdownItem}
             onPress={() => { setMenuVisible(false); handleDelete(menuTraining); }}
           >
-            <Ionicons name="trash-outline" size={16} color="#CC3333" />
-            <Text style={[styles.dropdownItemText, { color: '#CC3333' }]}>Eliminar entrenamiento</Text>
+            <Ionicons name="trash-outline" size={16} color="#FF3B3B" />
+            <Text style={[styles.dropdownItemText, { color: '#FF3B3B' }]}>Eliminar entrenamiento</Text>
           </TouchableOpacity>
         </View>
       </Modal>
@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   card: {
-    backgroundColor: '#1F1F1F',
+    backgroundColor: '#1A1A1A',
     borderRadius: 12,
     padding: 16,
     flexDirection: 'row',
@@ -270,14 +270,14 @@ const styles = StyleSheet.create({
   },
   newTrainingButton: {
     flex: 1,
-    backgroundColor: '#8B0000',
+    backgroundColor: '#B11226',
     borderRadius: 10,
     paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    shadowColor: '#8B0000',
+    shadowColor: '#B11226',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.4,
     shadowRadius: 6,
@@ -290,7 +290,7 @@ const styles = StyleSheet.create({
   },
   planButton: {
     flex: 1,
-    backgroundColor: '#1F1F1F',
+    backgroundColor: '#1A1A1A',
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: 'center',
@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
   dropdown: {
     position: 'absolute',
     right: 16,
-    backgroundColor: '#1F1F1F',
+    backgroundColor: '#1A1A1A',
     borderRadius: 10,
     paddingVertical: 4,
     minWidth: 210,

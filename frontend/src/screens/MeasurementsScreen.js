@@ -55,7 +55,7 @@ const MEASUREMENT_UNITS = { peso: 'kg' };
 
 // ─── Gráfica SVG ────────────────────────────────────────────
 const CHART_H = 180;
-const PADDING = { top: 16, bottom: 36, left: 36, right: 36 };
+const PADDING = { top: 16, bottom: 16, left: 16, right: 16 };
 
 function LineChart({ data, fieldKey }) {
   const screenWidth = Dimensions.get('window').width;
@@ -150,8 +150,8 @@ function LineChart({ data, fieldKey }) {
       <Svg width={chartWidth} height={CHART_H}>
         <Defs>
           <LinearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor="#8B0000" stopOpacity="0.35" />
-            <Stop offset="1" stopColor="#8B0000" stopOpacity="0" />
+            <Stop offset="0" stopColor="#B11226" stopOpacity="0.35" />
+            <Stop offset="1" stopColor="#B11226" stopOpacity="0" />
           </LinearGradient>
         </Defs>
 
@@ -182,7 +182,7 @@ function LineChart({ data, fieldKey }) {
         <Path d={areaPath} fill="url(#areaGrad)" />
 
         {/* Línea de la gráfica */}
-        <Path d={linePath} stroke="#8B0000" strokeWidth="2" fill="none" strokeLinejoin="round" strokeLinecap="round" />
+        <Path d={linePath} stroke="#B11226" strokeWidth="2" fill="none" strokeLinejoin="round" strokeLinecap="round" />
 
         {/* Puntos */}
         {points.map((p, i) => (
@@ -191,7 +191,7 @@ function LineChart({ data, fieldKey }) {
             cx={xFor(i)}
             cy={yFor(p.value)}
             r="3.5"
-            fill="#8B0000"
+            fill="#B11226"
             stroke="#0D0D0D"
             strokeWidth="1.5"
           />
@@ -265,7 +265,7 @@ function RangeDropdown({ selected, onSelect }) {
                   {r.label}
                 </Text>
                 {selected === r.key && (
-                  <Ionicons name="checkmark" size={14} color="#8B0000" />
+                  <Ionicons name="checkmark" size={14} color="#B11226" />
                 )}
               </TouchableOpacity>
             ))}
@@ -317,7 +317,7 @@ function FieldDropdown({ selected, onSelect, measurements }) {
                     {MEASUREMENT_LABELS[k]}
                   </Text>
                   {selected === k && (
-                    <Ionicons name="checkmark" size={14} color="#8B0000" />
+                    <Ionicons name="checkmark" size={14} color="#B11226" />
                   )}
                 </TouchableOpacity>
               ))}
@@ -338,7 +338,7 @@ function MeasurementCard({ item, onDelete, onPress }) {
           onPress={onDelete}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Ionicons name="trash-outline" size={18} color="#CC3333" />
+          <Ionicons name="trash-outline" size={18} color="#FF3B3B" />
         </TouchableOpacity>
       </View>
 
@@ -410,7 +410,7 @@ export default function MeasurementsScreen({ navigation }) {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#8B0000" />
+        <ActivityIndicator size="large" color="#B11226" />
       </View>
     );
   }
@@ -484,7 +484,7 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   card: {
-    backgroundColor: '#1F1F1F',
+    backgroundColor: '#1A1A1A',
     borderRadius: 12,
     padding: 14,
     marginBottom: 12,
@@ -535,7 +535,7 @@ const styles = StyleSheet.create({
     bottom: 24,
     right: 24,
     zIndex: 10,
-    backgroundColor: '#8B0000',
+    backgroundColor: '#B11226',
     width: 52,
     height: 52,
     borderRadius: 26,
@@ -567,7 +567,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   chartCard: {
-    backgroundColor: '#1F1F1F',
+    backgroundColor: '#1A1A1A',
     borderRadius: 12,
     padding: 14,
     marginBottom: 16,
@@ -658,7 +658,7 @@ const selectorStyles = StyleSheet.create({
     paddingRight: 16,
   },
   dropdownMenu: {
-    backgroundColor: '#1F1F1F',
+    backgroundColor: '#1A1A1A',
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#333',
@@ -695,7 +695,7 @@ const selectorStyles = StyleSheet.create({
   },
   chipActive: {
     backgroundColor: '#1A0000',
-    borderColor: '#8B0000',
+    borderColor: '#B11226',
   },
   chipText: {
     color: '#9A9A9A',
