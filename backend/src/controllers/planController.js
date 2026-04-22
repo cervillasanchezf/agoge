@@ -49,14 +49,17 @@ exports.getPlanById = async (req, res) => {
 // @access  Private
 exports.createPlan = async (req, res) => {
   try {
-    const { name, weeks, startDate, days } = req.body;
+    const { name, weeks, startDate, days, measurementDay } = req.body;
+    const effectiveStart = startDate ? new Date(startDate) : new Date();
 
     const plan = await Plan.create({
       userId: req.userId,
       name,
       weeks,
-      startDate: startDate || Date.now(),
+      startDate: effectiveStart,
       days: days || [],
+      measurementDay: measurementDay ?? null,
+      dayHistory: [{ effectiveFrom: effectiveStart, days: days || [] }],
       active: false,
     });
 
@@ -80,12 +83,19 @@ exports.updatePlan = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Plan no encontrado' });
     }
 
-    const fields = ['name', 'weeks', 'startDate', 'days'];
+    const fields = ['name', 'weeks', 'startDate', 'measurementDay'];
     fields.forEach((field) => {
       if (req.body[field] !== undefined) {
         plan[field] = req.body[field];
       }
     });
+
+    // If days change, update current config AND append a versioned snapshot
+    if (req.body.days !== undefined) {
+      plan.days = req.body.days;
+      const effectiveFrom = plan.active ? new Date() : (plan.startDate || new Date());
+      plan.dayHistory.push({ effectiveFrom, days: req.body.days });
+    }
 
     await plan.save();
     const populated = await plan.populate(TRAINING_POPULATE);
@@ -114,6 +124,8 @@ exports.activatePlan = async (req, res) => {
     plan.active = true;
     plan.startDate = new Date();
     plan.endDate = null;
+    // Reset history to a single entry at the moment of activation
+    plan.dayHistory = [{ effectiveFrom: plan.startDate, days: plan.days }];
     await plan.save();
 
     const populated = await plan.populate(TRAINING_POPULATE);

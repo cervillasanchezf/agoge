@@ -14,6 +14,21 @@ import { useFocusEffect } from '@react-navigation/native';
 import { sessionService } from '../services/api';
 import { MUSCLE_LABELS, getExerciseName } from '../config/translations';
 
+const PERIODS = [
+  { label: 'Semana', days: 7 },
+  { label: 'Mes',    days: 30 },
+  { label: '3 meses', days: 90 },
+  { label: 'Todo',   days: null },
+];
+
+function getStartDate(days) {
+  if (!days) return null;
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+}
+
 function formatDate(dateStr) {
   const d = new Date(dateStr);
   return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -51,13 +66,19 @@ export default function HistorialScreen({ navigation }) {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [activePeriod, setActivePeriod] = useState(2); // índice en PERIODS (90 días por defecto)
 
-  const loadSessions = useCallback(async (pageNum = 1) => {
+  const loadSessions = useCallback(async (pageNum = 1, periodIdx = activePeriod) => {
     try {
       if (pageNum === 1) setLoading(true);
       else setLoadingMore(true);
 
-      const result = await sessionService.getAllSessions({ page: pageNum, limit: 20 });
+      const startDate = getStartDate(PERIODS[periodIdx].days);
+      const result = await sessionService.getAllSessions({
+        page: pageNum,
+        limit: 20,
+        ...(startDate && { startDate }),
+      });
       const newSessions = result.data || [];
 
       setSessions((prev) => pageNum === 1 ? newSessions : [...prev, ...newSessions]);
@@ -69,13 +90,18 @@ export default function HistorialScreen({ navigation }) {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, []);
+  }, [activePeriod]);
 
   useFocusEffect(
     useCallback(() => {
-      loadSessions(1);
+      loadSessions(1, activePeriod);
     }, [loadSessions])
   );
+
+  const handlePeriodChange = (idx) => {
+    setActivePeriod(idx);
+    loadSessions(1, idx);
+  };
 
   const handleDelete = (session) => {
     Alert.alert(
@@ -156,6 +182,21 @@ export default function HistorialScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
+      {/* Barra de filtros de período */}
+      <View style={styles.periodBar}>
+        {PERIODS.map((p, i) => (
+          <TouchableOpacity
+            key={i}
+            style={[styles.periodBtn, activePeriod === i && styles.periodBtnActive]}
+            onPress={() => handlePeriodChange(i)}
+          >
+            <Text style={[styles.periodBtnText, activePeriod === i && styles.periodBtnTextActive]}>
+              {p.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       <FlatList
         data={sessions}
         keyExtractor={(item) => item._id}
@@ -178,6 +219,35 @@ export default function HistorialScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0D0D0D' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+
+  // Filtros de período
+  periodBar: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1F1F1F',
+  },
+  periodBtn: {
+    flex: 1,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignItems: 'center',
+    backgroundColor: '#1A1A1A',
+  },
+  periodBtnActive: {
+    backgroundColor: '#8B0000',
+  },
+  periodBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6A6A6A',
+  },
+  periodBtnTextActive: {
+    color: '#EAEAEA',
+  },
+
   list: { padding: 16, gap: 12 },
   card: {
     backgroundColor: '#1A1A1A',

@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SvgXml } from 'react-native-svg';
@@ -46,10 +47,14 @@ export default function LoginScreen({ navigation }) {
 
   return (
     <KeyboardAvoidingView 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
       style={styles.container}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 50}
     >
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
       <View style={styles.content}>
         <SvgXml xml={logoXml} width="220" height="64" style={styles.logo} />
         <Text style={styles.subtitle}>Inicia sesión en tu cuenta</Text>
@@ -109,6 +114,7 @@ export default function LoginScreen({ navigation }) {
           </View>
         </View>
       </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -117,6 +123,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0D0D0D',
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   content: {
     flex: 1,

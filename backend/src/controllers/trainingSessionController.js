@@ -134,12 +134,15 @@ exports.getAllSessions = async (req, res) => {
 // @access  Private
 exports.updateSession = async (req, res) => {
   try {
-    const { date } = req.body;
+    const { date, exercises, notes, duration } = req.body;
     const session = await TrainingSession.findOne({ _id: req.params.id, userId: req.userId });
     if (!session) {
       return res.status(404).json({ success: false, message: 'Sesión no encontrada' });
     }
-    if (date) session.date = new Date(date);
+    if (date !== undefined)      session.date      = new Date(date);
+    if (exercises !== undefined) session.exercises = exercises;
+    if (notes !== undefined)     session.notes     = notes;
+    if (duration !== undefined)  session.duration  = duration;
     await session.save();
     res.json({ success: true, data: session });
   } catch (error) {

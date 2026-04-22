@@ -42,6 +42,7 @@ export default function NewPlanScreen({ navigation, route }) {
   const [name, setName] = useState(existing?.name || '');
   const [weeks, setWeeks] = useState(existing?.weeks ?? 6);
   const [dayMap, setDayMap] = useState(() => initDayMap(existing));
+  const [measurementDay, setMeasurementDay] = useState(existing?.measurementDay ?? null);
   const [trainings, setTrainings] = useState([]);
   const [loadingTrainings, setLoadingTrainings] = useState(true);
   const [pickerDay, setPickerDay] = useState(null);
@@ -90,6 +91,7 @@ export default function NewPlanScreen({ navigation, route }) {
       const payload = {
         name: name.trim(),
         weeks,
+        measurementDay: measurementDay ?? null,
         days: Object.entries(dayMap)
           .filter(([, ts]) => ts.length > 0)
           .map(([dayOfWeek, ts]) => ({
@@ -188,6 +190,41 @@ export default function NewPlanScreen({ navigation, route }) {
             })}
           </View>
         )}
+
+        {/* Toma de medidas */}
+        <Text style={styles.label}>Día de toma de medidas</Text>
+        <View style={styles.daysCard}>
+          {DAYS.map(({ num, label }, index) => {
+            const isSelected = measurementDay === num;
+            return (
+              <React.Fragment key={num}>
+                {index > 0 && <View style={styles.dayDivider} />}
+                <TouchableOpacity
+                  style={styles.dayRow}
+                  onPress={() => setMeasurementDay(isSelected ? null : num)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.dayLabel, isSelected && { color: '#B11226' }]}>{label}</Text>
+                  <View style={styles.dayRight}>
+                    {isSelected ? (
+                      <View style={[styles.chip, { backgroundColor: '#2A1515', borderColor: '#B11226' }]}>
+                        <Text style={[styles.chipText, { color: '#B11226' }]}>Medidas</Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.restLabel}>—</Text>
+                    )}
+                    <View style={[styles.checkbox, isSelected && styles.checkboxSelected, { marginLeft: 8 }]}>
+                      {isSelected && <Ionicons name="checkmark" size={14} color="#EAEAEA" />}
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              </React.Fragment>
+            );
+          })}
+        </View>
+        <Text style={styles.measurementHint}>
+          Se te recordará en la pantalla de inicio cuando toque tomar medidas.
+        </Text>
 
         {/* Guardar */}
         <TouchableOpacity
@@ -493,6 +530,13 @@ const styles = StyleSheet.create({
   checkboxSelected: {
     backgroundColor: '#B11226',
     borderColor: '#B11226',
+  },
+  measurementHint: {
+    fontSize: 12,
+    color: '#5A5A5A',
+    marginTop: 8,
+    marginHorizontal: 2,
+    fontStyle: 'italic',
   },
   modalDoneBtn: {
     marginHorizontal: 20,

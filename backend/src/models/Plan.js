@@ -15,6 +15,13 @@ const daySchema = new mongoose.Schema({
   ],
 }, { _id: false });
 
+// Each time the days configuration changes while the plan is active,
+// a snapshot is appended so adherence stats remain historically accurate.
+const dayHistoryEntrySchema = new mongoose.Schema({
+  effectiveFrom: { type: Date, required: true },
+  days: { type: [daySchema], default: [] },
+}, { _id: false });
+
 const planSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -47,6 +54,17 @@ const planSchema = new mongoose.Schema({
   },
   days: {
     type: [daySchema],
+    default: [],
+  },
+  measurementDay: {
+    type: Number,
+    default: null,
+    min: 1,
+    max: 7, // 1=Lunes … 7=Domingo
+  },
+  // Versioned history of day configurations (appended on each change)
+  dayHistory: {
+    type: [dayHistoryEntrySchema],
     default: [],
   },
 }, {

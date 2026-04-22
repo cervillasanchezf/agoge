@@ -11,6 +11,9 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
+  Animated,
+  PanResponder,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -135,6 +138,7 @@ export default function NewTrainningScreen({ navigation, route }) {
     return notes;
   });
   const [loading, setLoading] = useState(false);
+  const [nameError, setNameError] = useState(false);
   const [tiempoTarget, setTiempoTarget] = useState(null);
   const [exMenuVisible, setExMenuVisible] = useState(false);
   const [exMenuId, setExMenuId] = useState(null);
@@ -143,14 +147,147 @@ export default function NewTrainningScreen({ navigation, route }) {
   const [supersetPickerForId, setSupersetPickerForId] = useState(null);
   const [supersetPickerSelected, setSupersetPickerSelected] = useState([]);
   const supersetGroupCounter = useRef(0);
-  const [reorderVisible, setReorderVisible] = useState(false);
-  const [reorderList, setReorderList] = useState([]);
+
+  // ─── Drag & Drop ────────────────────────────────────────────────────────────
+  const exercisesRef = useRef(exercises);
+  useEffect(() => { exercisesRef.current = exercises; }, [exercises]);
+
+  const [activeDragId, setActiveDragId] = useState(null);
+  const activeDragIdRef = useRef(null);
+  const [dropTargetIdx, setDropTargetIdx] = useState(null);
+  const dropTargetIdxRef = useRef(null);
+
+  const ghostY = useRef(new Animated.Value(0)).current;
+  const ghostInitY = useRef(0);
+  const cardViewRefs = useRef({});
+  const cardHeightsRef = useRef({});
+  const boundaryMids = useRef([]);
+  const panRespCache = useRef({});
+  const scrollViewRef = useRef(null);
+  const scrollOffsetRef = useRef(0);
+  const autoScrollRef = useRef(null);
+  const currentMoveYRef = useRef(0);
+
+  const SCROLL_ZONE = 120; // px desde el borde que activa el auto-scroll
+  const SCROLL_SPEED = 8;  // px por tick
+  const SCROLL_INTERVAL = 16; // ms (~60fps)
+
+  const startAutoScroll = () => {
+    if (autoScrollRef.current) return;
+    autoScrollRef.current = setInterval(() => {
+      const screenH = Dimensions.get('window').height;
+      const my = currentMoveYRef.current;
+      let delta = 0;
+      if (my > screenH - SCROLL_ZONE) {
+        delta = SCROLL_SPEED * ((my - (screenH - SCROLL_ZONE)) / SCROLL_ZONE + 1);
+      } else if (my < SCROLL_ZONE) {
+        delta = -SCROLL_SPEED * ((SCROLL_ZONE - my) / SCROLL_ZONE + 1);
+      }
+      if (delta !== 0 && scrollViewRef.current) {
+        const newOffset = Math.max(0, scrollOffsetRef.current + delta);
+        scrollViewRef.current.scrollTo({ y: newOffset, animated: false });
+        scrollOffsetRef.current = newOffset;
+        // Los cards se mueven en pantalla: actualiza los midpoints de referencia
+        boundaryMids.current = boundaryMids.current.map(y => y - delta);
+      }
+    }, SCROLL_INTERVAL);
+  };
+
+  const stopAutoScroll = () => {
+    if (autoScrollRef.current) {
+      clearInterval(autoScrollRef.current);
+      autoScrollRef.current = null;
+    }
+  };
+
+  const buildBoundaries = (draggedId, draggedPageY) => {
+    const exList = exercisesRef.current;
+    const draggedIdx = exList.findIndex(e => e._id === draggedId);
+    const GAP = 10;
+    const heights = exList.map(ex => cardHeightsRef.current[ex._id] || 80);
+    const absYs = Array(exList.length);
+    absYs[draggedIdx] = draggedPageY;
+    for (let i = draggedIdx - 1; i >= 0; i--) {
+      absYs[i] = absYs[i + 1] - heights[i] - GAP;
+    }
+    for (let i = draggedIdx + 1; i < exList.length; i++) {
+      absYs[i] = absYs[i - 1] + heights[i - 1] + GAP;
+    }
+    boundaryMids.current = absYs.map((y, i) => y + heights[i] / 2);
+  };
+
+  const getDropIndex = (dy) => {
+    const draggedId = activeDragIdRef.current;
+    const draggedH = cardHeightsRef.current[draggedId] || 80;
+    const draggedMid = ghostInitY.current + dy + draggedH / 2;
+    const mids = boundaryMids.current;
+    for (let i = 0; i < mids.length; i++) {
+      if (draggedMid < mids[i] + 20) return i;
+    }
+    return exercisesRef.current.length;
+  };
+
+  const getPanResponder = (id) => {
+    if (!panRespCache.current[id]) {
+      panRespCache.current[id] = PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: () => {
+          const viewRef = cardViewRefs.current[id];
+          if (!viewRef) return;
+          viewRef.measure((fx, fy, w, h, px, py) => {
+            ghostInitY.current = py;
+            ghostY.setValue(0);
+            buildBoundaries(id, py);
+            activeDragIdRef.current = id;
+            setActiveDragId(id);
+            const idx = exercisesRef.current.findIndex(e => e._id === id);
+            dropTargetIdxRef.current = idx;
+            setDropTargetIdx(idx);
+          });
+        },
+        onPanResponderMove: (evt, gs) => {
+          currentMoveYRef.current = evt.nativeEvent.pageY;
+          ghostY.setValue(gs.dy);
+          startAutoScroll();
+          const newIdx = getDropIndex(gs.dy);
+          if (newIdx !== dropTargetIdxRef.current) {
+            dropTargetIdxRef.current = newIdx;
+            setDropTargetIdx(newIdx);
+          }
+        },
+        onPanResponderRelease: (_, gs) => {
+          stopAutoScroll();
+          const exList = exercisesRef.current;
+          const fromIdx = exList.findIndex(e => e._id === id);
+          const toIdx = dropTargetIdxRef.current ?? fromIdx;
+          activeDragIdRef.current = null;
+          setActiveDragId(null);
+          setDropTargetIdx(null);
+          ghostY.setValue(0);
+          if (fromIdx !== toIdx) {
+            setExercises(prev => {
+              const next = [...prev];
+              const [item] = next.splice(fromIdx, 1);
+              next.splice(toIdx, 0, item);
+              return next;
+            });
+          }
+        },
+        onPanResponderTerminate: () => {
+          stopAutoScroll();
+          activeDragIdRef.current = null;
+          setActiveDragId(null);
+          setDropTargetIdx(null);
+          ghostY.setValue(0);
+        },
+      });
+    }
+    return panRespCache.current[id];
+  };
+  // ────────────────────────────────────────────────────────────────────────────
 
   const handleAddExercise = () => {
-    if (!trainingName.trim()) {
-      Alert.alert('Atención', 'Escribe primero un nombre para el entrenamiento');
-      return;
-    }
     navigation.navigate('ExercisePicker', {
       selectedExercises: exercises,
       onSelect: (selected) => {
@@ -228,25 +365,6 @@ export default function NewTrainningScreen({ navigation, route }) {
         });
       },
     });
-  };
-
-  const handleMoveExercise = (id, direction) => {
-    setExercises(prev => {
-      const idx = prev.findIndex(e => e._id === id);
-      if (direction === 'up' && idx === 0) return prev;
-      if (direction === 'down' && idx === prev.length - 1) return prev;
-      const next = [...prev];
-      const swap = direction === 'up' ? idx - 1 : idx + 1;
-      [next[idx], next[swap]] = [next[swap], next[idx]];
-      return next;
-    });
-  };
-
-  const handleMoveInReorder = (list, idx, direction) => {
-    const next = [...list];
-    const swap = direction === 'up' ? idx - 1 : idx + 1;
-    [next[idx], next[swap]] = [next[swap], next[idx]];
-    return next;
   };
 
   const toggleSupersetSelection = (id) => {
@@ -337,9 +455,10 @@ export default function NewTrainningScreen({ navigation, route }) {
 
   const handleSaveTraining = async () => {
     if (!trainingName.trim()) {
-      Alert.alert('Error', 'Por favor, ingresa un nombre para el entrenamiento');
+      setNameError(true);
       return;
     }
+    setNameError(false);
     if (exercises.length === 0) {
       Alert.alert('Error', 'Debes añadir al menos un ejercicio');
       return;
@@ -555,17 +674,27 @@ export default function NewTrainningScreen({ navigation, route }) {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
-        <ScrollView style={styles.scrollView} keyboardShouldPersistTaps="handled">
+        <ScrollView
+            ref={scrollViewRef}
+            style={styles.scrollView}
+            keyboardShouldPersistTaps="handled"
+            scrollEnabled={!activeDragId}
+            onScroll={e => { scrollOffsetRef.current = e.nativeEvent.contentOffset.y; }}
+            scrollEventThrottle={16}
+          >
           <View style={styles.content}>
             <View style={styles.section}>
               <Text style={styles.label}>Nombre del Entrenamiento</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, nameError && styles.inputError]}
                 placeholder="Ej: Rutina de Fuerza"
                 value={trainingName}
-                onChangeText={setTrainingName}
+                onChangeText={v => { setTrainingName(v); if (v.trim()) setNameError(false); }}
                 placeholderTextColor="#6A6A6A"
               />
+              {nameError && (
+                <Text style={styles.inputErrorText}>El nombre es obligatorio para guardar</Text>
+              )}
             </View>
 
             <View style={styles.section}>
@@ -586,11 +715,28 @@ export default function NewTrainningScreen({ navigation, route }) {
               ) : (
                 <View style={styles.exercisesList}>
                   {exercises.map((exercise, index) => (
-                    <View key={exercise._id}>
-                      <View style={[styles.exerciseCard, supersets[exercise._id] && styles.exerciseCardSuperset]}>
+                    <View
+                      key={exercise._id}
+                      ref={r => { cardViewRefs.current[exercise._id] = r; }}
+                      onLayout={e => { cardHeightsRef.current[exercise._id] = e.nativeEvent.layout.height; }}
+                    >
+                      {dropTargetIdx === index && activeDragId && activeDragId !== exercise._id && (
+                        <View style={styles.dropIndicator} />
+                      )}
+                      <View style={[
+                        styles.exerciseCard,
+                        supersets[exercise._id] && styles.exerciseCardSuperset,
+                        activeDragId === exercise._id && styles.exerciseCardDragging,
+                      ]}>
                         {/* Cabecera del ejercicio */}
                         <View style={styles.exerciseHeader}>
                           <View style={styles.exerciseHeaderLeft}>
+                            <View
+                              {...getPanResponder(exercise._id).panHandlers}
+                              style={styles.dragHandle}
+                            >
+                              <Ionicons name="reorder-three" size={22} color="#6A6A6A" />
+                            </View>
                             <Text style={styles.exerciseOrder}>{index + 1}</Text>
                             <View style={{ flex: 1 }}>
                               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -672,6 +818,9 @@ export default function NewTrainningScreen({ navigation, route }) {
                       )}
                     </View>
                   ))}
+                  {dropTargetIdx === exercises.length && activeDragId && (
+                    <View style={styles.dropIndicator} />
+                  )}
                 </View>
               )}
 
@@ -694,6 +843,37 @@ export default function NewTrainningScreen({ navigation, route }) {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {activeDragId !== null && (() => {
+        const draggedEx = exercises.find(e => e._id === activeDragId);
+        return draggedEx ? (
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.dragGhost,
+              {
+                top: ghostInitY.current,
+                transform: [{ translateY: ghostY }],
+              },
+            ]}
+          >
+            <View style={[styles.exerciseCard, styles.exerciseCardGhost]}>
+              <View style={styles.exerciseHeader}>
+                <View style={styles.exerciseHeaderLeft}>
+                  <Ionicons name="reorder-three" size={22} color="#B11226" />
+                  <Text style={styles.exerciseOrder}>
+                    {exercises.findIndex(e => e._id === activeDragId) + 1}
+                  </Text>
+                  <Text style={styles.exerciseName} numberOfLines={1}>
+                    {getExerciseName(draggedEx)}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </Animated.View>
+        ) : null;
+      })()}
+
       <Modal
         visible={exMenuVisible}
         transparent
@@ -706,18 +886,6 @@ export default function NewTrainningScreen({ navigation, route }) {
           activeOpacity={1}
         />
         <View style={[styles.exDropdown, { top: exMenuPos.y + 8 }]}>
-          <TouchableOpacity
-            style={styles.exDropdownItem}
-            onPress={() => {
-              setExMenuVisible(false);
-              setReorderList([...exercises]);
-              setReorderVisible(true);
-            }}
-          >
-            <Ionicons name="swap-vertical-outline" size={16} color="#9A9A9A" />
-            <Text style={styles.exDropdownItemText}>Reordenar</Text>
-          </TouchableOpacity>
-          <View style={styles.exDropdownDivider} />
           {supersets[exMenuId] ? (
             <TouchableOpacity
               style={styles.exDropdownItem}
@@ -777,55 +945,6 @@ export default function NewTrainningScreen({ navigation, route }) {
         />
       )}
 
-      <Modal
-        visible={reorderVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setReorderVisible(false)}
-      >
-        <View style={styles.reorderOverlay}>
-          <TouchableOpacity style={StyleSheet.absoluteFillObject} onPress={() => setReorderVisible(false)} activeOpacity={1} />
-          <View style={styles.reorderSheet}>
-            <View style={styles.reorderHandle} />
-            <Text style={styles.reorderTitle}>Reordenar ejercicios</Text>
-            <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
-              {reorderList.map((ex, idx) => (
-                <View key={ex._id} style={styles.reorderItem}>
-                  <Text style={styles.reorderItemNum}>{idx + 1}</Text>
-                  <Text style={styles.reorderItemName} numberOfLines={1}>{getExerciseName(ex)}</Text>
-                  <View style={styles.reorderArrows}>
-                    <TouchableOpacity
-                      disabled={idx === 0}
-                      onPress={() => setReorderList(prev => handleMoveInReorder(prev, idx, 'up'))}
-                      style={[styles.reorderArrowBtn, idx === 0 && { opacity: 0.25 }]}
-                    >
-                      <Ionicons name="chevron-up" size={20} color="#8B0000" />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      disabled={idx === reorderList.length - 1}
-                      onPress={() => setReorderList(prev => handleMoveInReorder(prev, idx, 'down'))}
-                      style={[styles.reorderArrowBtn, idx === reorderList.length - 1 && { opacity: 0.25 }]}
-                    >
-                      <Ionicons name="chevron-down" size={20} color="#8B0000" />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ))}
-            </ScrollView>
-            <View style={styles.reorderActions}>
-              <TouchableOpacity style={styles.reorderCancelBtn} onPress={() => setReorderVisible(false)}>
-                <Text style={styles.reorderCancelText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.reorderConfirmBtn}
-                onPress={() => { setExercises(reorderList); setReorderVisible(false); }}
-              >
-                <Text style={styles.reorderConfirmText}>Confirmar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -852,6 +971,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#333333',
     color: '#EAEAEA',
+  },
+  inputError: {
+    borderColor: '#B11226',
+  },
+  inputErrorText: {
+    color: '#B11226',
+    fontSize: 12,
+    marginTop: 6,
   },
   emptyExercises: {
     backgroundColor: '#1F1F1F',
@@ -1201,91 +1328,36 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
   },
 
-  // Reorder modal
-  reorderOverlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.7)',
-  },
-  reorderSheet: {
-    backgroundColor: '#1F1F1F',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 12,
-    paddingHorizontal: 20,
-    paddingBottom: 30,
-  },
-  reorderHandle: {
-    width: 40, height: 4, borderRadius: 2, backgroundColor: '#333333',
-    alignSelf: 'center', marginBottom: 16,
-  },
-  reorderTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#EAEAEA',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  reorderItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#252525',
-    gap: 10,
-  },
-  reorderItemNum: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#8B0000',
-    color: '#EAEAEA',
-    fontSize: 12,
-    fontWeight: '700',
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  reorderItemName: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#9A9A9A',
-  },
-  reorderArrows: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  reorderArrowBtn: {
-    padding: 6,
-  },
-  reorderActions: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 20,
-  },
-  reorderCancelBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#333333',
+  // Drag & Drop
+  dragHandle: {
+    paddingHorizontal: 4,
+    paddingVertical: 8,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  reorderCancelText: {
-    fontSize: 15,
-    color: '#9A9A9A',
-    fontWeight: '600',
+  exerciseCardDragging: {
+    opacity: 0.15,
   },
-  reorderConfirmBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
-    backgroundColor: '#8B0000',
-    alignItems: 'center',
+  exerciseCardGhost: {
+    borderColor: '#B11226',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.6,
+    shadowRadius: 12,
+    elevation: 12,
   },
-  reorderConfirmText: {
-    fontSize: 15,
-    color: '#EAEAEA',
-    fontWeight: '700',
+  dragGhost: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    zIndex: 999,
+    elevation: 999,
+  },
+  dropIndicator: {
+    height: 3,
+    backgroundColor: '#B11226',
+    borderRadius: 2,
+    marginBottom: 6,
+    marginHorizontal: 4,
   },
 });

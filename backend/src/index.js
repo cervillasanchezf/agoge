@@ -35,6 +35,19 @@ app.get('/', (req, res) => {
   res.json({ message: 'API de Agoge funcionando correctamente' });
 });
 
+// Handler 404 — ruta no encontrada
+app.use((req, res) => {
+  res.status(404).json({ message: `Ruta no encontrada: ${req.method} ${req.originalUrl}` });
+});
+
+// Handler global de errores — cualquier error no capturado
+app.use((err, req, res, next) => {
+  console.error(`[ERROR] ${req.method} ${req.originalUrl}:`, err.stack || err.message);
+  res.status(err.status || 500).json({
+    message: err.message || 'Error interno del servidor',
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en puerto ${PORT}`);
 });

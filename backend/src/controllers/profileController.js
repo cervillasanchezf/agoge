@@ -22,11 +22,15 @@ exports.updateProfile = async (req, res) => {
     }
 
     // Actualizar campos
-    if (profileImage) user.profileImage = profileImage;
-    if (height) user.height = height;
-    if (weight) user.weight = weight;
-    if (goal) user.goal = goal;
-    user.profileCompleted = true;
+    if (profileImage !== undefined) user.profileImage = profileImage;
+    if (height !== undefined)       user.height       = height;
+    if (weight !== undefined)       user.weight       = weight;
+    if (goal !== undefined)         user.goal         = goal;
+
+    // Solo marcar perfil completo si los tres campos obligatorios están presentes
+    if (user.height && user.weight && user.goal) {
+      user.profileCompleted = true;
+    }
 
     await user.save();
 
