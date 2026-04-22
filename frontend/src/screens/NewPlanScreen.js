@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,139 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { planService, trainingService } from '../services/api';
+
+const ITEM_H = 44;
+const MONTHS_ES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+];
+const THIS_YEAR = new Date().getFullYear();
+const PICKER_YEARS = Array.from({ length: 7 }, (_, i) => THIS_YEAR - 1 + i);
+const PICKER_DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
+
+function formatDate(date) {
+  const d = date.getDate().toString().padStart(2, '0');
+  const m = (date.getMonth() + 1).toString().padStart(2, '0');
+  return `${d}/${m}/${date.getFullYear()}`;
+}
+
+function DrumColumn({ items, selectedIndex, onSelect, pad = false, scrollTo }) {
+  const ref = useRef(null);
+
+  // Re-scroll whenever scrollTo changes (modal opens with a new openCount)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      ref.current?.scrollTo({ y: selectedIndex * ITEM_H, animated: false });
+    }, 100);
+    return () => clearTimeout(t);
+  }, [scrollTo]);
+
+  const handleEnd = (e) => {
+    const idx = Math.round(e.nativeEvent.contentOffset.y / ITEM_H);
+    onSelect(Math.max(0, Math.min(idx, items.length - 1)));
+  };
+
+  return (
+    <View style={{ height: ITEM_H * 5, flex: 1, overflow: 'hidden' }}>
+      <ScrollView
+        ref={ref}
+        showsVerticalScrollIndicator={false}
+        snapToInterval={ITEM_H}
+        decelerationRate="fast"
+        onMomentumScrollEnd={handleEnd}
+        contentContainerStyle={{ paddingTop: ITEM_H * 2, paddingBottom: ITEM_H * 2 }}
+      >
+        {items.map((item, i) => {
+          const label = pad ? String(item).padStart(2, '0') : String(item);
+          return (
+            <TouchableOpacity
+              key={i}
+              style={{ height: ITEM_H, alignItems: 'center', justifyContent: 'center' }}
+              onPress={() => {
+                ref.current?.scrollTo({ y: i * ITEM_H, animated: true });
+                onSelect(i);
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 17,
+                  color: i === selectedIndex ? '#EAEAEA' : '#4A4A4A',
+                  fontWeight: i === selectedIndex ? '700' : '400',
+                }}
+              >
+                {label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+      {/* Highlight overlay rendered after ScrollView so it appears on top */}
+      <View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          top: ITEM_H * 2,
+          left: 4,
+          right: 4,
+          height: ITEM_H,
+          backgroundColor: 'rgba(255,255,255,0.06)',
+          borderRadius: 8,
+          borderWidth: 1,
+          borderColor: '#3A3A3A',
+        }}
+      />
+    </View>
+  );
+}
+
+function DatePickerModal({ visible, date, onConfirm, onClose }) {
+  const [dayIdx, setDayIdx] = useState(date.getDate() - 1);
+  const [monthIdx, setMonthIdx] = useState(date.getMonth());
+  const [yearIdx, setYearIdx] = useState(() => {
+    const yi = PICKER_YEARS.indexOf(date.getFullYear());
+    return yi >= 0 ? yi : 1; // index 1 = current year in PICKER_YEARS
+  });
+  // Increment each time the modal opens so DrumColumn useEffect re-fires
+  const [openCount, setOpenCount] = useState(0);
+
+  useEffect(() => {
+    if (visible) {
+      setDayIdx(date.getDate() - 1);
+      setMonthIdx(date.getMonth());
+      const yi = PICKER_YEARS.indexOf(date.getFullYear());
+      setYearIdx(yi >= 0 ? yi : 1);
+      setOpenCount((c) => c + 1);
+    }
+  }, [visible]);
+
+  const handleConfirm = () => {
+    const y = PICKER_YEARS[yearIdx];
+    const maxD = new Date(y, monthIdx + 1, 0).getDate();
+    const d = Math.min(dayIdx + 1, maxD);
+    onConfirm(new Date(y, monthIdx, d));
+    onClose();
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableOpacity style={styles.modalOverlay} onPress={onClose} activeOpacity={1} />
+      <View style={styles.modalSheet}>
+        <View style={styles.modalHandle} />
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>Fecha de inicio</Text>
+        </View>
+        <View style={{ flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8 }}>
+          <DrumColumn items={PICKER_DAYS} selectedIndex={dayIdx} onSelect={setDayIdx} pad scrollTo={openCount} />
+          <DrumColumn items={MONTHS_ES} selectedIndex={monthIdx} onSelect={setMonthIdx} scrollTo={openCount} />
+          <DrumColumn items={PICKER_YEARS} selectedIndex={yearIdx} onSelect={setYearIdx} scrollTo={openCount} />
+        </View>
+        <TouchableOpacity style={styles.modalDoneBtn} onPress={handleConfirm}>
+          <Text style={styles.modalDoneBtnText}>Confirmar</Text>
+        </TouchableOpacity>
+      </View>
+    </Modal>
+  );
+}
 
 const DAYS = [
   { num: 1, label: 'Lunes' },
@@ -47,6 +180,10 @@ export default function NewPlanScreen({ navigation, route }) {
   const [loadingTrainings, setLoadingTrainings] = useState(true);
   const [pickerDay, setPickerDay] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [startDate, setStartDate] = useState(() =>
+    existing?.startDate ? new Date(existing.startDate) : new Date()
+  );
+  const [datePickerVisible, setDatePickerVisible] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -91,6 +228,7 @@ export default function NewPlanScreen({ navigation, route }) {
       const payload = {
         name: name.trim(),
         weeks,
+        startDate: startDate.toISOString(),
         measurementDay: measurementDay ?? null,
         days: Object.entries(dayMap)
           .filter(([, ts]) => ts.length > 0)
@@ -152,6 +290,18 @@ export default function NewPlanScreen({ navigation, route }) {
             <Ionicons name="add" size={20} color="#EAEAEA" />
           </TouchableOpacity>
         </View>
+
+        {/* Fecha de inicio */}
+        <Text style={styles.label}>Fecha de inicio</Text>
+        <TouchableOpacity
+          style={styles.dateRow}
+          onPress={() => setDatePickerVisible(true)}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="calendar-outline" size={18} color="#6A6A6A" />
+          <Text style={styles.dateText}>{formatDate(startDate)}</Text>
+          <Ionicons name="chevron-forward" size={16} color="#4A4A4A" />
+        </TouchableOpacity>
 
         {/* Días */}
         <Text style={styles.label}>Días</Text>
@@ -241,6 +391,13 @@ export default function NewPlanScreen({ navigation, route }) {
           )}
         </TouchableOpacity>
       </ScrollView>
+
+      <DatePickerModal
+        visible={datePickerVisible}
+        date={startDate}
+        onConfirm={setStartDate}
+        onClose={() => setDatePickerVisible(false)}
+      />
 
       {/* Day picker modal */}
       <Modal
@@ -530,6 +687,23 @@ const styles = StyleSheet.create({
   checkboxSelected: {
     backgroundColor: '#B11226',
     borderColor: '#B11226',
+  },
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1A1A1A',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 10,
+  },
+  dateText: {
+    flex: 1,
+    fontSize: 16,
+    color: '#EAEAEA',
+    fontWeight: '500',
   },
   measurementHint: {
     fontSize: 12,

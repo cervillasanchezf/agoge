@@ -163,6 +163,7 @@ export default function ActiveSessionScreen({ route, navigation }) {
   const timerRef          = useRef(null);
   const savingRef         = useRef(false);
   const exerciseDataRef   = useRef([]);
+  const prevSessionRef    = useRef(null);
   const startTimestampRef = useRef(restoredSession?.startTimestamp ?? Date.now());
   const appStateRef       = useRef(AppState.currentState);
 
@@ -244,6 +245,7 @@ export default function ActiveSessionScreen({ route, navigation }) {
       setTraining(trainingData);
 
       const lastSession = lastSessionResult?.data || null;
+      prevSessionRef.current = lastSession;
       const lastExMap = {};
       if (lastSession?.exercises) {
         lastSession.exercises.forEach((ex) => {
@@ -542,9 +544,12 @@ export default function ActiveSessionScreen({ route, navigation }) {
 
       await sessionService.createSession(payload);
       discardSession();
-      Alert.alert('¡Genial!', 'Sesión guardada correctamente', [
-        { text: 'OK', onPress: () => navigation.goBack() },
-      ]);
+      navigation.replace('PostSession', {
+        trainingName,
+        duration: sessionDuration,
+        exerciseData,
+        prevSession: prevSessionRef.current,
+      });
     } catch (err) {
       setSaving(false);
       savingRef.current = false;

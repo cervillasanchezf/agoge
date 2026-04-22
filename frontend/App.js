@@ -15,6 +15,7 @@ import ProfileScreen from './src/screens/ProfileScreen';
 import ExercisePickerScreen from './src/screens/ExercisePickerScreen';
 import ActiveSessionScreen from './src/screens/ActiveSessionScreen';
 import TrainingSummaryScreen from './src/screens/TrainingSummaryScreen';
+import PostSessionScreen from './src/screens/PostSessionScreen';
 import HistorialScreen from './src/screens/HistorialScreen';
 import SessionDetailScreen from './src/screens/SessionDetailScreen';
 import MeasurementsScreen from './src/screens/MeasurementsScreen';
@@ -69,6 +70,11 @@ function TrainningStack() {
       <Stack.Screen
         name="ActiveSession"
         component={ActiveSessionScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="PostSession"
+        component={PostSessionScreen}
         options={{ headerShown: false }}
       />
       <Stack.Screen
@@ -388,6 +394,12 @@ function MainTabs() {
       <Tab.Screen
         name="ProfileTab"
         component={ProfileStack}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            e.preventDefault();
+            navigation.navigate('ProfileTab', { screen: 'ProfileMain' });
+          },
+        })}
         options={{
           headerShown: false,
           tabBarLabel: 'Perfil',
