@@ -18,7 +18,7 @@ import { useAuth } from '../context/AuthContext';
 import { trainingService } from '../services/api';
 import { getExerciseName, CATEGORY_LABELS, MUSCLE_LABELS } from '../config/translations';
 
-const DEFAULT_SET = { kg: '', reps: '', repsTo: '', rir: '' };
+const DEFAULT_SET = { kg: '', reps: '', repsTo: '', rpe: '' };
 const DEFAULT_CARDIO_SET = { km: '', h: 0, m: 0, s: 0 };
 const initExerciseConfig = () => ({ repMode: 'reps', sets: [{ ...DEFAULT_SET }] });
 const initCardioConfig = () => ({ repMode: 'cardio', sets: [{ ...DEFAULT_CARDIO_SET }] });
@@ -455,7 +455,7 @@ export default function NewTrainningScreen({ navigation, route }) {
             </Text>
             <Ionicons name="chevron-down" size={11} color="#6366f1" style={{ marginLeft: 3 }} />
           </TouchableOpacity>
-          <Text style={[styles.setsHeaderCell, styles.colRir]}>RIR</Text>
+          <Text style={[styles.setsHeaderCell, styles.colRpe]}>RPE</Text>
           <View style={styles.colDel} />
         </View>
 
@@ -517,11 +517,11 @@ export default function NewTrainningScreen({ navigation, route }) {
               />
             )}
 
-            {/* RIR */}
+            {/* RPE */}
             <TextInput
-              style={[styles.setsInputCell, styles.colRir]}
-              value={set.rir}
-              onChangeText={v => updateSet(exercise._id, idx, 'rir', v)}
+              style={[styles.setsInputCell, styles.colRpe]}
+              value={set.rpe}
+              onChangeText={v => updateSet(exercise._id, idx, 'rpe', v)}
               keyboardType="numeric"
               placeholder="—"
               placeholderTextColor="#6A6A6A"
@@ -921,7 +921,7 @@ const styles = StyleSheet.create({
   colKg: { width: 60 },
   colReps: { width: 60 },
   colRepsRange: { width: 110 },
-  colRir: { width: 46 },
+  colRpe: { width: 46 },
   colKm: { width: 70 },
   colTiempo: { width: 90 },
   setsHeaderCell: {

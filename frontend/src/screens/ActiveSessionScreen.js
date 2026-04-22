@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
+  AppState,
   View,
   Text,
   TextInput,
@@ -137,12 +138,12 @@ function buildInitialSets(templateSets, lastSets, repMode) {
       weight_default:  String(tmpl.kg  ?? ''),
       reps:            '',
       reps_default:    repsDisplay,
-      rir:             '',
-      rir_default:     String(tmpl.rir ?? ''),
+      rpe:             '',
+      rpe_default:     String(tmpl.rpe ?? ''),
       completed:       false,
       prev_weight: last?.weight ?? null,
       prev_reps:   last?.reps   ?? null,
-      prev_rir:    last?.rir    ?? null,
+      prev_rpe:    last?.rpe    ?? null,
     };
   });
 }
@@ -150,6 +151,7 @@ function buildInitialSets(templateSets, lastSets, repMode) {
 export default function ActiveSessionScreen({ route, navigation }) {
   const { trainingId, trainingName, scheduledDate } = route.params;
   const { session: activeSession, saveSession: saveToContext, discardSession } = useActiveSession();
+  const restoredSession = activeSession?.trainingId === trainingId ? activeSession : null;
 
   const [training, setTraining]         = useState(null);
   const [exerciseData, setExerciseData] = useState([]);
@@ -161,18 +163,25 @@ export default function ActiveSessionScreen({ route, navigation }) {
   const timerRef          = useRef(null);
   const savingRef         = useRef(false);
   const exerciseDataRef   = useRef([]);
-  const elapsedSecondsRef = useRef(0);
+  const startTimestampRef = useRef(restoredSession?.startTimestamp ?? Date.now());
+  const appStateRef       = useRef(AppState.currentState);
 
   // Keep refs in sync with state so cleanup/unmount always has latest values
   useEffect(() => { exerciseDataRef.current   = exerciseData;   }, [exerciseData]);
-  useEffect(() => { elapsedSecondsRef.current = elapsedSeconds; }, [elapsedSeconds]);
+
+  const syncElapsedTime = () => {
+    const elapsed = Math.max(0, Math.round((Date.now() - startTimestampRef.current) / 1000));
+    setElapsedSeconds(elapsed);
+    return elapsed;
+  };
 
   useEffect(() => {
-    const isRestoring = activeSession?.trainingId === trainingId;
+    const isRestoring = restoredSession != null;
     if (isRestoring) {
       // Restore exercise data and recompute elapsed time from stored timestamp
-      setExerciseData(activeSession.exerciseData);
-      setElapsedSeconds(Math.round((Date.now() - activeSession.startTimestamp) / 1000));
+      startTimestampRef.current = restoredSession.startTimestamp;
+      setExerciseData(restoredSession.exerciseData);
+      syncElapsedTime();
       setLoading(false);
       // Load training metadata and rebuild snapshot
       trainingService.getTrainingById(trainingId).then(r => {
@@ -183,11 +192,34 @@ export default function ActiveSessionScreen({ route, navigation }) {
         };
       }).catch(() => {});
     } else {
+      startTimestampRef.current = Date.now();
       loadSession();
     }
-    timerRef.current = setInterval(() => setElapsedSeconds((s) => s + 1), 1000);
+
+    timerRef.current = setInterval(syncElapsedTime, 1000);
+
+    const appStateSubscription = AppState.addEventListener('change', (nextAppState) => {
+      const wasActive = appStateRef.current === 'active';
+      appStateRef.current = nextAppState;
+
+      if (nextAppState === 'active') {
+        syncElapsedTime();
+        return;
+      }
+
+      if (wasActive && exerciseDataRef.current.length > 0 && !savingRef.current) {
+        saveToContext({
+          trainingId,
+          trainingName,
+          exerciseData: exerciseDataRef.current,
+          startTimestamp: startTimestampRef.current,
+        });
+      }
+    });
+
     return () => {
       clearInterval(timerRef.current);
+      appStateSubscription.remove();
       // Save session to context on unmount (back press, tab switch, etc.)
       // unless the user explicitly finished and saved to the server.
       if (!savingRef.current && exerciseDataRef.current.length > 0) {
@@ -195,7 +227,7 @@ export default function ActiveSessionScreen({ route, navigation }) {
           trainingId,
           trainingName,
           exerciseData: exerciseDataRef.current,
-          elapsedSeconds: elapsedSecondsRef.current,
+          startTimestamp: startTimestampRef.current,
         });
       }
     };
@@ -245,9 +277,10 @@ export default function ActiveSessionScreen({ route, navigation }) {
   };
 
   const formatTime = (secs) => {
-    const m = Math.floor(secs / 60).toString().padStart(2, '0');
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60).toString().padStart(2, '0');
     const s = (secs % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
+    return h > 0 ? `${h}:${m}:${s}` : `${m}:${s}`;
   };
 
   const updateSet = (exIndex, setIndex, fieldOrObj, value) => {
@@ -255,7 +288,19 @@ export default function ActiveSessionScreen({ route, navigation }) {
       const updated = [...prev];
       const sets = [...updated[exIndex].sets];
       const updates = typeof fieldOrObj === 'object' ? fieldOrObj : { [fieldOrObj]: value };
-      sets[setIndex] = { ...sets[setIndex], ...updates };
+      const merged = { ...sets[setIndex], ...updates };
+
+      // Auto-marcar el check cuando los campos clave están rellenos
+      if (!merged.completed) {
+        const repMode = updated[exIndex].repMode;
+        const autoComplete =
+          repMode === 'cardio'
+            ? merged.km !== ''
+            : merged.weight !== '' && merged.reps !== '';
+        if (autoComplete) merged.completed = true;
+      }
+
+      sets[setIndex] = merged;
       updated[exIndex] = { ...updated[exIndex], sets };
       return updated;
     });
@@ -268,13 +313,38 @@ export default function ActiveSessionScreen({ route, navigation }) {
       const set = sets[setIndex];
       const completing = !set.completed;
 
-      // Al completar, si algún campo está vacío usa su valor por defecto
-      const filled = completing ? {
-        weight: set.weight || set.weight_default || '',
-        reps:   set.reps   || set.reps_default   || '',
-        rir:    set.rir    || set.rir_default     || '',
-        km:     set.km     || set.km_default      || '',
-      } : {};
+      let filled = {};
+      if (completing) {
+        const repMode = updated[exIndex].repMode;
+
+        // Prioridad: valor escrito por el usuario → registro sesión anterior → plantilla
+        const weight = set.weight
+          || (set.prev_weight != null ? String(set.prev_weight) : '')
+          || set.weight_default
+          || '';
+
+        // Para range sin registro previo se usa el límite superior (p.ej. "8-12" → "12")
+        let repsDefault = set.reps_default || '';
+        if (repMode === 'range' && !set.prev_reps && repsDefault.includes('-')) {
+          repsDefault = repsDefault.split('-').pop();
+        }
+        const reps = set.reps
+          || (set.prev_reps != null ? String(set.prev_reps) : '')
+          || repsDefault
+          || '';
+
+        const rpe = set.rpe
+          || (set.prev_rpe != null ? String(set.prev_rpe) : '')
+          || set.rpe_default
+          || '';
+
+        const km = set.km
+          || (set.prev_km != null ? String(set.prev_km) : '')
+          || set.km_default
+          || '';
+
+        filled = { weight, reps, rpe, km };
+      }
 
       sets[setIndex] = { ...set, ...filled, completed: completing };
       updated[exIndex] = { ...updated[exIndex], sets };
@@ -290,10 +360,10 @@ export default function ActiveSessionScreen({ route, navigation }) {
       const effectiveKm     = lastSet?.km     || lastSet?.km_default     || '';
       const effectiveWeight = lastSet?.weight || lastSet?.weight_default || '';
       const effectiveReps   = lastSet?.reps   || lastSet?.reps_default   || '';
-      const effectiveRir    = lastSet?.rir    || lastSet?.rir_default    || '';
+      const effectiveRpe    = lastSet?.rpe    || lastSet?.rpe_default    || '';
       const newSet   = item.repMode === 'cardio'
         ? { km: '', km_default: effectiveKm, h: lastSet?.h ?? 0, m: lastSet?.m ?? 0, s: lastSet?.s ?? 0, completed: false, prev_km: null, prev_h: null, prev_m: null, prev_s: null }
-        : { weight: '', weight_default: effectiveWeight, reps: '', reps_default: effectiveReps, rir: '', rir_default: effectiveRir, completed: false, prev_weight: null, prev_reps: null, prev_rir: null };
+        : { weight: '', weight_default: effectiveWeight, reps: '', reps_default: effectiveReps, rpe: '', rpe_default: effectiveRpe, completed: false, prev_weight: null, prev_reps: null, prev_rpe: null };
       updated[exIndex] = { ...item, sets: [...item.sets, newSet] };
       return updated;
     });
@@ -313,6 +383,16 @@ export default function ActiveSessionScreen({ route, navigation }) {
     setExerciseData((prev) => prev.filter((_, i) => i !== exIndex));
   };
 
+  const moveExercise = (exIndex, direction) => {
+    setExerciseData((prev) => {
+      const updated = [...prev];
+      const targetIndex = direction === 'up' ? exIndex - 1 : exIndex + 1;
+      if (targetIndex < 0 || targetIndex >= updated.length) return prev;
+      [updated[exIndex], updated[targetIndex]] = [updated[targetIndex], updated[exIndex]];
+      return updated;
+    });
+  };
+
   const replaceExercise = (exIndex, newExercise) => {
     setExerciseData((prev) => {
       const updated = [...prev];
@@ -321,7 +401,7 @@ export default function ActiveSessionScreen({ route, navigation }) {
       const newSets = Array.from({ length: old.sets.length }, () =>
         repMode === 'cardio'
           ? { km: '', km_default: '', h: 0, m: 0, s: 0, completed: false, prev_km: null, prev_h: null, prev_m: null, prev_s: null }
-          : { weight: '', weight_default: '', reps: '', reps_default: '', rir: '', rir_default: '', completed: false, prev_weight: null, prev_reps: null, prev_rir: null }
+          : { weight: '', weight_default: '', reps: '', reps_default: '', rpe: '', rpe_default: '', completed: false, prev_weight: null, prev_reps: null, prev_rpe: null }
       );
       updated[exIndex] = { exercise: newExercise, repMode, note: old.note, sets: newSets };
       return updated;
@@ -405,6 +485,7 @@ export default function ActiveSessionScreen({ route, navigation }) {
       setSaving(true);
       savingRef.current = true;
       clearInterval(timerRef.current);
+      const sessionDuration = syncElapsedTime();
 
       if (updateTemplate) {
         const templatePayload = {
@@ -420,7 +501,7 @@ export default function ActiveSessionScreen({ route, navigation }) {
               return {
                 kg:  parseFloat(s.weight_default) || 0,
                 reps: parseInt(s.reps_default)    || 0,
-                rir:  parseInt(s.rir_default)     || 0,
+                rpe:  parseInt(s.rpe_default)     || 0,
               };
             }),
           })),
@@ -430,7 +511,7 @@ export default function ActiveSessionScreen({ route, navigation }) {
 
       const payload = {
         trainingId,
-        duration: elapsedSeconds,
+        duration: sessionDuration,
         ...(scheduledDate && { date: new Date(`${scheduledDate}T12:00:00`).toISOString() }),
         exercises: exerciseData.map((item, idx) => ({
           exerciseId: item.exercise?._id ?? item.exercise,
@@ -447,11 +528,11 @@ export default function ActiveSessionScreen({ route, navigation }) {
                 completed: s.completed && userEdited,
               };
             }
-            const userEdited = s.weight !== '' || s.reps !== '' || s.rir !== '';
+            const userEdited = s.weight !== '' || s.reps !== '' || s.rpe !== '';
             return {
               weight:    userEdited ? parseFloat(s.weight) || 0 : 0,
               reps:      userEdited ? parseInt(s.reps)     || 0 : 0,
-              rir:       userEdited ? parseInt(s.rir)      || 0 : 0,
+              rpe:       userEdited ? parseInt(s.rpe)      || 0 : 0,
               completed: s.completed && userEdited,
             };
           }),
@@ -508,7 +589,7 @@ export default function ActiveSessionScreen({ route, navigation }) {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={0}
       >
         <FlatList
@@ -516,6 +597,8 @@ export default function ActiveSessionScreen({ route, navigation }) {
           keyExtractor={(_, i) => String(i)}
           contentContainerStyle={styles.listContent}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
           ListFooterComponent={
             <TouchableOpacity style={styles.addExerciseBtn} onPress={handleAddExercise}>
               <Ionicons name="add-circle-outline" size={20} color="#8B0000" />
@@ -525,11 +608,14 @@ export default function ActiveSessionScreen({ route, navigation }) {
           renderItem={({ item, index: exIndex }) => (            <ExerciseBlock
               item={item}
               exIndex={exIndex}
+              totalExercises={exerciseData.length}
               updateSet={updateSet}
               toggleComplete={toggleComplete}
               addSet={addSet}
               removeSet={removeSet}
               removeExercise={removeExercise}
+              onMoveUp={exIndex > 0 ? () => moveExercise(exIndex, 'up') : null}
+              onMoveDown={exIndex < exerciseData.length - 1 ? () => moveExercise(exIndex, 'down') : null}
               onReplacePress={() => handleReplaceExerciseInSession(exIndex)}
               onOpenTiempo={(setIndex) => setTiempoTarget({ exIndex, setIndex })}
               note={item.note}
@@ -552,7 +638,7 @@ export default function ActiveSessionScreen({ route, navigation }) {
   );
 }
 
-function ExerciseBlock({ item, exIndex, updateSet, toggleComplete, addSet, removeSet, removeExercise, onReplacePress, onOpenTiempo, note }) {
+function ExerciseBlock({ item, exIndex, totalExercises, updateSet, toggleComplete, addSet, removeSet, removeExercise, onMoveUp, onMoveDown, onReplacePress, onOpenTiempo, note }) {
   const exercise = item.exercise;
   const repMode  = item.repMode ?? 'reps';
   const primaryMuscle = exercise?.primaryMuscles?.[0];
@@ -608,6 +694,30 @@ function ExerciseBlock({ item, exIndex, updateSet, toggleComplete, addSet, remov
           activeOpacity={1}
         />
         <View style={styles.exMenu}>
+          {onMoveUp && (
+            <>
+              <TouchableOpacity
+                style={styles.exMenuItem}
+                onPress={() => { setMenuVisible(false); onMoveUp(); }}
+              >
+                <Ionicons name="arrow-up-outline" size={16} color="#9A9A9A" />
+                <Text style={styles.exMenuItemText}>Mover arriba</Text>
+              </TouchableOpacity>
+              <View style={styles.exMenuDivider} />
+            </>
+          )}
+          {onMoveDown && (
+            <>
+              <TouchableOpacity
+                style={styles.exMenuItem}
+                onPress={() => { setMenuVisible(false); onMoveDown(); }}
+              >
+                <Ionicons name="arrow-down-outline" size={16} color="#9A9A9A" />
+                <Text style={styles.exMenuItemText}>Mover abajo</Text>
+              </TouchableOpacity>
+              <View style={styles.exMenuDivider} />
+            </>
+          )}
           <TouchableOpacity
             style={styles.exMenuItem}
             onPress={() => { setMenuVisible(false); if (onReplacePress) onReplacePress(); }}
@@ -638,7 +748,7 @@ function ExerciseBlock({ item, exIndex, updateSet, toggleComplete, addSet, remov
           <Text style={[styles.colLabel, styles.colPrev]}>ANTERIOR</Text>
           <Text style={[styles.colLabel, styles.colKg]}>KG</Text>
           <Text style={[styles.colLabel, styles.colReps]}>REPS</Text>
-          <Text style={[styles.colLabel, styles.colRir]}>RIR</Text>
+          <Text style={[styles.colLabel, styles.colRpe]}>RPE</Text>
           <Text style={[styles.colLabel, styles.colDone]}></Text>
         </View>
       )}
@@ -680,7 +790,7 @@ function SetRow({ set, setIndex, exIndex, updateSet, toggleComplete, removeSet }
   let prevLabel = '—';
   if (set.prev_weight != null && set.prev_reps != null) {
     prevLabel = `${set.prev_weight}kg × ${set.prev_reps}`;
-    if (set.prev_rir != null) prevLabel += ` RIR${set.prev_rir}`;
+    if (set.prev_rpe != null) prevLabel += ` RPE${set.prev_rpe}`;
   }
 
   return (
@@ -707,11 +817,11 @@ function SetRow({ set, setIndex, exIndex, updateSet, toggleComplete, removeSet }
           placeholderTextColor="#6A6A6A"
         />
         <TextInput
-          style={[styles.colRir, styles.input]}
-          value={set.rir}
-          onChangeText={(v) => updateSet(exIndex, setIndex, 'rir', v)}
+          style={[styles.colRpe, styles.input]}
+          value={set.rpe}
+          onChangeText={(v) => updateSet(exIndex, setIndex, 'rpe', v)}
           keyboardType="number-pad"
-          placeholder={set.rir_default || '—'}
+          placeholder={set.rpe_default || '—'}
           placeholderTextColor="#6A6A6A"
         />
         <TouchableOpacity style={styles.colDone} onPress={() => toggleComplete(exIndex, setIndex)}>
@@ -879,7 +989,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   finishBtnText: { color: '#EAEAEA', fontWeight: '700', fontSize: 14 },
-  listContent: { padding: 16, gap: 16, paddingBottom: 40 },
+  listContent: { padding: 16, gap: 16, paddingBottom: 120 },
   exCard: {
     backgroundColor: '#1F1F1F',
     borderRadius: 12,
@@ -907,7 +1017,7 @@ const styles = StyleSheet.create({
   colKg:       { width: 56, textAlign: 'center' },
   colReps:     { width: 52, textAlign: 'center' },
   colRepsRange:{ width: 96, textAlign: 'center' },
-  colRir:      { width: 44, textAlign: 'center' },
+  colRpe:      { width: 44, textAlign: 'center' },
   colDone:     { width: 32, alignItems: 'center' },
   // Columnas cardio
   colKm:    { width: 60, textAlign: 'center' },

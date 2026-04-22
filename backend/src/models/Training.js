@@ -7,7 +7,7 @@ const setSchema = new mongoose.Schema({
   kg:     { type: String, default: '' },
   reps:   { type: String, default: '' },
   repsTo: { type: String, default: '' }, // solo para repMode 'range'
-  rir:    { type: String, default: '' },
+  rpe:    { type: String, default: '' },
   // Ejercicios de cardio
   km:     { type: String, default: '' },
   h:      { type: Number, default: 0 },

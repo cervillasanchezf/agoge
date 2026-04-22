@@ -14,6 +14,7 @@ import NewTrainningScreen from './src/screens/NewTrainningScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import ExercisePickerScreen from './src/screens/ExercisePickerScreen';
 import ActiveSessionScreen from './src/screens/ActiveSessionScreen';
+import TrainingSummaryScreen from './src/screens/TrainingSummaryScreen';
 import HistorialScreen from './src/screens/HistorialScreen';
 import SessionDetailScreen from './src/screens/SessionDetailScreen';
 import MeasurementsScreen from './src/screens/MeasurementsScreen';
@@ -59,6 +60,11 @@ function TrainningStack() {
         name="ExercisePicker"
         component={ExercisePickerScreen}
         options={{ title: 'Añadir Ejercicio' }}
+      />
+      <Stack.Screen
+        name="TrainingSummary"
+        component={TrainingSummaryScreen}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="ActiveSession"
@@ -165,6 +171,11 @@ function HomeStack() {
         name="HypertrophyStats"
         component={HypertrophyStatsScreen}
         options={{ title: 'Fuerza & Hipertrofia' }}
+      />
+      <Stack.Screen
+        name="HomeSessionDetail"
+        component={SessionDetailScreen}
+        options={{ title: 'Detalle de sesión' }}
       />
     </Stack.Navigator>
   );

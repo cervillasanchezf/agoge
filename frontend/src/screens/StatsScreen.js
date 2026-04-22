@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { calcExerciseHI, secondaryActivation } from '../utils/hypertrophyMetrics';
 
 // ─── Muscle group mapping ────────────────────────────────────────────────────
 // Maps Exercise.primaryMuscles strings → Spanish canonical group
@@ -110,8 +111,9 @@ function fmtVolume(kg) {
 }
 
 const PERIODS = [
-  { key: '1w', label: 'Semana' },
-  { key: '4w', label: '4 semanas' },
+  { key: '1w',    label: 'Semana' },
+  { key: '4w',    label: '4 semanas' },
+  { key: '3m',    label: '3 meses' },
   { key: 'cycle', label: 'Ciclo' },
 ];
 
@@ -120,29 +122,39 @@ export default function StatsScreen({ route, navigation }) {
 
   const [period, setPeriod] = useState('4w');
 
+  const effectivePeriod = (period === 'cycle' && !activePlan) ? '4w'
+    : (period === '3m' && !!activePlan) ? '4w'
+    : period;
+
   // ─── Filter sessions by period ──────────────────────────────────────────────
   const filteredSessions = useMemo(() => {
     const now = new Date();
-    if (period === '1w') {
+    if (effectivePeriod === '1w') {
       const cutoff = new Date(now);
       const jsDay = cutoff.getDay();
       cutoff.setDate(cutoff.getDate() - (jsDay === 0 ? 6 : jsDay - 1));
       cutoff.setHours(0, 0, 0, 0);
       return sessions.filter(s => new Date(s.date) >= cutoff);
     }
-    if (period === '4w') {
+    if (effectivePeriod === '4w') {
       const cutoff = new Date(now);
       cutoff.setDate(cutoff.getDate() - 27);
       cutoff.setHours(0, 0, 0, 0);
       return sessions.filter(s => new Date(s.date) >= cutoff);
     }
-    if (period === 'cycle' && activePlan?.startDate) {
+    if (effectivePeriod === '3m') {
+      const cutoff = new Date(now);
+      cutoff.setDate(cutoff.getDate() - 89);
+      cutoff.setHours(0, 0, 0, 0);
+      return sessions.filter(s => new Date(s.date) >= cutoff);
+    }
+    if (effectivePeriod === 'cycle' && activePlan?.startDate) {
       const cutoff = new Date(activePlan.startDate);
       cutoff.setHours(0, 0, 0, 0);
       return sessions.filter(s => new Date(s.date) >= cutoff);
     }
     return sessions;
-  }, [sessions, period, activePlan]);
+  }, [sessions, effectivePeriod, activePlan]);
 
   // ─── KPIs ───────────────────────────────────────────────────────────────────
   const totalSessions = filteredSessions.length;
@@ -153,37 +165,51 @@ export default function StatsScreen({ route, navigation }) {
     return Math.round(total / filteredSessions.length / 60);
   }, [filteredSessions]);
 
-  // ─── Series per muscle group ─────────────────────────────────────────────────
+  // ─── Series por grupo muscular (CAPA 1: series efectivas) ──────────────────
+  // Primary muscles:   activation = 1.0
+  // Secondary muscles: activation = 0.5 (compound) | 0.3 (isolation)
   const muscleSetData = useMemo(() => {
     const map = {};
     filteredSessions.forEach(s => {
       (s.exercises || []).forEach(ex => {
-        const muscles = ex.exerciseId?.primaryMuscles || [];
         const completedSets = (ex.sets || []).filter(set => set.completed).length;
         if (completedSets === 0) return;
-        muscles.forEach(m => {
+        const secFactor = secondaryActivation(ex.exerciseId?.mechanic);
+        (ex.exerciseId?.primaryMuscles || []).forEach(m => {
           const group = MUSCLE_MAP[m.toLowerCase()];
           if (!group) return;
           map[group] = (map[group] || 0) + completedSets;
+        });
+        (ex.exerciseId?.secondaryMuscles || []).forEach(m => {
+          const group = MUSCLE_MAP[m.toLowerCase()];
+          if (!group) return;
+          map[group] = (map[group] || 0) + completedSets * secFactor;
         });
       });
     });
 
     return Object.entries(MUSCLE_RANGES)
-      .map(([group, range]) => ({ group, sets: map[group] || 0, ...range }))
+      .map(([group, range]) => ({ group, sets: Math.round((map[group] || 0) * 10) / 10, ...range }))
       .sort((a, b) => b.sets - a.sets);
   }, [filteredSessions]);
 
   // ─── Push / Pull / Legs ──────────────────────────────────────────────────────
+  // Push/Pull: usa el campo force del ejercicio (push | pull | static)
+  // Legs: clasificación por músculo (force no distingue piernas)
   const pplData = useMemo(() => {
     let push = 0, pull = 0, legs = 0;
     filteredSessions.forEach(s => {
-      const allMuscles = (s.exercises || []).flatMap(
-        ex => ex.exerciseId?.primaryMuscles || []
-      );
-      const { isPush, isPull, isLegs } = classifySession(allMuscles);
-      if (isPush) push++;
-      if (isPull) pull++;
+      let hasPush = false, hasPull = false;
+      const allMuscles = [];
+      (s.exercises || []).forEach(ex => {
+        const force = ex.exerciseId?.force?.toLowerCase();
+        if (force === 'push') hasPush = true;
+        if (force === 'pull') hasPull = true;
+        (ex.exerciseId?.primaryMuscles || []).forEach(m => allMuscles.push(m));
+      });
+      const { isLegs } = classifySession(allMuscles);
+      if (hasPush) push++;
+      if (hasPull) pull++;
       if (isLegs) legs++;
     });
     return { push, pull, legs, total: push + pull + legs || 1 };
@@ -216,6 +242,7 @@ export default function StatsScreen({ route, navigation }) {
     }
 
     const done = sessions.filter(s => new Date(s.date) >= start && new Date(s.date) <= now).length;
+    if (planned === 0 && done === 0) return null;
     return { done, planned: Math.max(planned, done), pct: planned > 0 ? Math.round((done / planned) * 100) : 100 };
   }, [activePlan, sessions]);
 
@@ -225,13 +252,18 @@ export default function StatsScreen({ route, navigation }) {
     return withSets.length > 0 ? withSets[0].group : null;
   }, [muscleSetData]);
 
-  const dominantPPL = useMemo(() => {
-    const { push, pull, legs } = pplData;
-    if (push === 0 && pull === 0 && legs === 0) return null;
-    if (push >= pull && push >= legs) return { label: 'Push', color: '#B11226' };
-    if (pull >= push && pull >= legs) return { label: 'Pull', color: '#C9A44C' };
-    return { label: 'Piernas', color: '#4A7FA5' };
-  }, [pplData]);
+  // ─── CAPA 2: avg HI de la sesión ─────────────────────────────────────────────
+  const sessionAvgHI = useMemo(() => {
+    const hiValues = [];
+    filteredSessions.forEach(s => {
+      (s.exercises || []).forEach(ex => {
+        const hi = calcExerciseHI(ex);
+        if (hi > 0) hiValues.push(hi);
+      });
+    });
+    if (!hiValues.length) return null;
+    return hiValues.reduce((a, v) => a + v, 0) / hiValues.length;
+  }, [filteredSessions]);
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
@@ -269,7 +301,10 @@ export default function StatsScreen({ route, navigation }) {
 
         {/* Period selector */}
         <View style={styles.periodRow}>
-          {PERIODS.map(p => (
+          {PERIODS.filter(p =>
+            (p.key !== 'cycle' || !!activePlan) &&
+            (p.key !== '3m'    || !activePlan)
+          ).map(p => (
             <TouchableOpacity
               key={p.key}
               style={[styles.periodBtn, period === p.key && styles.periodBtnActive]}
@@ -303,11 +338,11 @@ export default function StatsScreen({ route, navigation }) {
               </View>
               <View style={styles.hypertrophyDivider} />
               <View style={styles.hypertrophyMetric}>
-                <Ionicons name="swap-horizontal-outline" size={20} color="#C9A44C" />
-                <Text style={[styles.hypertrophyMetricValue, dominantPPL && { color: dominantPPL.color }]}>
-                  {dominantPPL?.label ?? '—'}
+                <Ionicons name="flash-outline" size={20} color="#C9A44C" />
+                <Text style={styles.hypertrophyMetricValue}>
+                  {sessionAvgHI != null ? sessionAvgHI.toFixed(1) : '—'}
                 </Text>
-                <Text style={styles.hypertrophyMetricLabel}>Tipo dom.</Text>
+                <Text style={styles.hypertrophyMetricLabel}>HI medio</Text>
               </View>
             </View>
             <TouchableOpacity

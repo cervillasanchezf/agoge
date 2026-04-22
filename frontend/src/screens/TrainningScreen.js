@@ -79,7 +79,7 @@ export default function TrainningScreen({ navigation }) {
   const renderItem = ({ item }) => (
     <TouchableOpacity
       style={styles.card}
-      onPress={() => navigation.navigate('ActiveSession', { trainingId: item._id, trainingName: item.name })}
+      onPress={() => navigation.navigate('TrainingSummary', { trainingId: item._id, trainingName: item.name })}
       activeOpacity={0.8}
     >
       <View style={styles.cardBody}>

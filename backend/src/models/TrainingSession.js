@@ -36,7 +36,7 @@ const trainingSessionSchema = new mongoose.Schema({
           reps:      { type: Number, default: 0 },
           repsTo:    { type: Number, default: 0 }, // para repMode 'range'
           weight:    { type: Number, default: 0 }, // kg
-          rir:       { type: Number, default: 0 },
+          rpe:       { type: Number, default: 0 },
           completed: { type: Boolean, default: false },
           // Cardio
           km: { type: Number, default: 0 },

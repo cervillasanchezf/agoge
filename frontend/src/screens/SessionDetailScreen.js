@@ -164,7 +164,7 @@ export default function SessionDetailScreen({ route, navigation }) {
                   <>
                     <Text style={[styles.colLabel, styles.colKg]}>KG</Text>
                     <Text style={[styles.colLabel, styles.colReps]}>REPS</Text>
-                    <Text style={[styles.colLabel, styles.colRir]}>RIR</Text>
+                    <Text style={[styles.colLabel, styles.colRpe]}>RPE</Text>
                   </>
                 )}
                 <Text style={[styles.colLabel, styles.colDone]}></Text>
@@ -187,7 +187,7 @@ export default function SessionDetailScreen({ route, navigation }) {
                     <>
                       <Text style={[styles.colKg, styles.cellText]}>{s.weight > 0 ? s.weight : '—'}</Text>
                       <Text style={[styles.colReps, styles.cellText]}>{s.reps > 0 ? s.reps : '—'}</Text>
-                      <Text style={[styles.colRir, styles.cellText]}>{s.rir > 0 ? s.rir : '—'}</Text>
+                      <Text style={[styles.colRpe, styles.cellText]}>{s.rpe > 0 ? s.rpe : '—'}</Text>
                     </>
                   )}
                   <View style={styles.colDone}>
@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
   colSet:  { width: 36, textAlign: 'center' },
   colKg:   { width: 60, textAlign: 'center' },
   colReps: { width: 60, textAlign: 'center' },
-  colRir:  { width: 48, textAlign: 'center' },
+  colRpe:  { width: 48, textAlign: 'center' },
   colKm:   { width: 64, textAlign: 'center' },
   colDone: { width: 30, alignItems: 'center' },
   setRow: {

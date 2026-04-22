@@ -43,15 +43,29 @@ function jsToPlanDay(jsDay) {
   return jsDay === 0 ? 7 : jsDay;
 }
 
-function calcStreak(dateSet) {
-  let streak = 0;
-  const d = new Date();
-  d.setHours(12, 0, 0, 0);
-  while (dateSet.has(toKey(d))) {
-    streak++;
-    d.setDate(d.getDate() - 1);
-  }
-  return streak;
+function calcWeeklyCardioHours(sessions) {
+  let totalSeconds = 0;
+  sessions.forEach(s => {
+    (s.exercises || []).forEach(ex => {
+      if (ex.repMode === 'cardio') {
+        (ex.sets || []).forEach(set => {
+          if (set.completed) {
+            totalSeconds += (set.h || 0) * 3600 + (set.m || 0) * 60 + (set.s || 0);
+          }
+        });
+      }
+    });
+  });
+  return totalSeconds / 3600;
+}
+
+function fmtCardioHours(hours) {
+  if (hours === 0) return '0 min';
+  const totalMin = Math.round(hours * 60);
+  if (totalMin < 60) return `${totalMin} min`;
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return m === 0 ? `${h} h` : `${h}h ${m}m`;
 }
 
 function calcVolume(sessions) {
@@ -186,11 +200,6 @@ export default function HomeScreen({ navigation }) {
     return map;
   }, [sessions]);
 
-  const sessionDateSet = useMemo(
-    () => new Set(Object.keys(sessionsByDate)),
-    [sessionsByDate],
-  );
-
   const weekDays = useMemo(() => {
     const mon = getMonday(today);
     return Array.from({ length: 7 }, (_, i) => {
@@ -209,7 +218,7 @@ export default function HomeScreen({ navigation }) {
     });
   }, [sessions, weekDays]);
 
-  const streak = useMemo(() => calcStreak(sessionDateSet), [sessionDateSet]);
+  const weeklyCardioHours = useMemo(() => calcWeeklyCardioHours(weekSessions), [weekSessions]);
   const weeklyVolume = useMemo(() => calcVolume(weekSessions), [weekSessions]);
 
   // Map from plan dayOfWeek (1=Mon…7=Sun) -> plan day object
@@ -263,23 +272,32 @@ export default function HomeScreen({ navigation }) {
     [calYear, calMonth],
   );
 
+  // Plan date bounds for calendar navigation
+  const planBounds = useMemo(() => {
+    if (!activePlan?.startDate || !activePlan?.weeks) return null;
+    const start = new Date(activePlan.startDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + activePlan.weeks * 7 - 1);
+    end.setHours(23, 59, 59, 999);
+    return { start, end };
+  }, [activePlan]);
+
   //---- Month nav -------------
   function prevMonth() {
-    if (calMonth === 0) {
-      setCalYear(y => y - 1);
-      setCalMonth(11);
-    } else {
-      setCalMonth(m => m - 1);
-    }
+    let newYear = calYear;
+    let newMonth = calMonth - 1;
+    if (newMonth < 0) { newYear -= 1; newMonth = 11; }
+    setCalYear(newYear);
+    setCalMonth(newMonth);
   }
 
   function nextMonth() {
-    if (calMonth === 11) {
-      setCalYear(y => y + 1);
-      setCalMonth(0);
-    } else {
-      setCalMonth(m => m + 1);
-    }
+    let newYear = calYear;
+    let newMonth = calMonth + 1;
+    if (newMonth > 11) { newYear += 1; newMonth = 0; }
+    setCalYear(newYear);
+    setCalMonth(newMonth);
   }
 
   function openCalendar() {
@@ -477,7 +495,7 @@ export default function HomeScreen({ navigation }) {
                         onPress={() => {
                           const t = todayTrainings.trainings[todayDone.length];
                           navigation.navigate('TrainningTab', {
-                            screen: 'ActiveSession',
+                            screen: 'TrainingSummary',
                             params: { trainingId: t._id, trainingName: t.name },
                           });
                         }}
@@ -506,7 +524,7 @@ export default function HomeScreen({ navigation }) {
                       onPress={() => {
                         const t = todayTrainings.trainings[0];
                         navigation.navigate('TrainningTab', {
-                          screen: 'ActiveSession',
+                          screen: 'TrainingSummary',
                           params: { trainingId: t._id, trainingName: t.name },
                         });
                       }}
@@ -519,7 +537,7 @@ export default function HomeScreen({ navigation }) {
             </View>
           ) : (
             <View style={styles.card}>
-              <Text style={styles.restTitle}>Descanso Hoy</Text>
+              <Text style={styles.restTitle}>Hoy toca descanso</Text>
               {nextPlanDay && (
                 <Text style={styles.nextText}>
                   {'Próximo: '}
@@ -542,9 +560,9 @@ export default function HomeScreen({ navigation }) {
           </View>
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
-              <Ionicons name="flame-outline" size={22} color="#B11226" />
-              <Text style={styles.statValue}>{streak}</Text>
-              <Text style={styles.statLabel}>{'Racha\ndías'}</Text>
+              <Ionicons name="bicycle-outline" size={22} color="#B11226" />
+              <Text style={styles.statValue}>{fmtCardioHours(weeklyCardioHours)}</Text>
+              <Text style={styles.statLabel}>{'Cardio\nsemana'}</Text>
             </View>
             <View style={styles.statCard}>
               <Ionicons name="checkmark-circle-outline" size={22} color="#C9A44C" />
@@ -641,26 +659,48 @@ export default function HomeScreen({ navigation }) {
 
           <ScrollView showsVerticalScrollIndicator={false}>
             {/* Month navigation */}
-            <View style={styles.monthNav}>
-              <TouchableOpacity
-                onPress={prevMonth}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              >
-                <Ionicons name="chevron-back" size={22} color="#EAEAEA" />
-              </TouchableOpacity>
-              <Text style={styles.monthTitle}>
-                {MONTHS_ES[calMonth]} {calYear}
-              </Text>
-              <TouchableOpacity
-                onPress={nextMonth}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              >
-                <Ionicons name="chevron-forward" size={22} color="#EAEAEA" />
-              </TouchableOpacity>
-            </View>
+            {(() => {
+              let weekRangeLabel = null;
+              if (planBounds && activePlan?.weeks) {
+                const firstOfMonth = new Date(calYear, calMonth, 1);
+                const lastOfMonth = new Date(calYear, calMonth + 1, 0);
+                const wFirst = Math.floor((firstOfMonth - planBounds.start) / (7 * 24 * 3600 * 1000)) + 1;
+                const wLast = Math.floor((lastOfMonth - planBounds.start) / (7 * 24 * 3600 * 1000)) + 1;
+                const wFrom = Math.max(1, wFirst);
+                const wTo = Math.min(activePlan.weeks, wLast);
+                if (wFrom <= activePlan.weeks && wTo >= 1) {
+                  weekRangeLabel = wFrom === wTo
+                    ? `Semana ${wFrom} de ${activePlan.weeks}`
+                    : `Semanas ${wFrom}–${wTo} de ${activePlan.weeks}`;
+                }
+              }
+              return (
+                <View style={styles.monthNav}>
+                  <TouchableOpacity
+                    onPress={prevMonth}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  >
+                    <Ionicons name="chevron-back" size={22} color="#EAEAEA" />
+                  </TouchableOpacity>
+                  <View style={{ alignItems: 'center' }}>
+                    <Text style={styles.monthTitle}>{MONTHS_ES[calMonth]} {calYear}</Text>
+                    {weekRangeLabel && (
+                      <Text style={styles.calWeekRangeLabel}>{weekRangeLabel}</Text>
+                    )}
+                  </View>
+                  <TouchableOpacity
+                    onPress={nextMonth}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  >
+                    <Ionicons name="chevron-forward" size={22} color="#EAEAEA" />
+                  </TouchableOpacity>
+                </View>
+              );
+            })()}
 
             {/* Week day headers */}
             <View style={styles.calWeekRow}>
+              <View style={{ width: 30 }} />
               {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(l => (
                 <Text key={l} style={styles.calWeekLabel}>
                   {l}
@@ -670,11 +710,23 @@ export default function HomeScreen({ navigation }) {
 
             {/* Days grid */}
             <View style={styles.calGrid}>
-              {Array.from({ length: calendarGrid.length / 7 }, (_, row) => (
-                <View key={row} style={styles.calRow}>
-                  {calendarGrid
-                    .slice(row * 7, row * 7 + 7)
-                    .map((day, col) => {
+              {Array.from({ length: calendarGrid.length / 7 }, (_, row) => {
+                const rowCells = calendarGrid.slice(row * 7, row * 7 + 7);
+                const firstDay = rowCells.find(d => d !== null);
+                let weekNum = null;
+                if (firstDay && planBounds && activePlan?.weeks) {
+                  const firstDate = new Date(calYear, calMonth, firstDay);
+                  const weekIdx = Math.floor((firstDate - planBounds.start) / (7 * 24 * 3600 * 1000));
+                  if (weekIdx >= 0 && weekIdx < activePlan.weeks) weekNum = weekIdx + 1;
+                }
+                return (
+                  <View key={row} style={styles.calRow}>
+                    <View style={styles.calWeekNumCol}>
+                      {weekNum !== null && (
+                        <Text style={styles.calWeekNumText}>S{weekNum}</Text>
+                      )}
+                    </View>
+                    {rowCells.map((day, col) => {
                       if (day === null) {
                         return <View key={col} style={styles.calCell} />;
                       }
@@ -684,6 +736,9 @@ export default function HomeScreen({ navigation }) {
                       const cellDate = new Date(`${cellKey}T12:00:00`);
                       const hasPlanned = !!planDayMap[jsToPlanDay(cellDate.getDay())];
                       const isSelected = cellKey === selectedDayKey;
+                      const isOutOfPlan = !!planBounds && (cellDate < planBounds.start || cellDate > planBounds.end);
+                      // Out-of-plan days are only interactive if they have a completed session
+                      const isInteractive = !isOutOfPlan || hasSess;
                       return (
                         <TouchableOpacity
                           key={col}
@@ -693,9 +748,10 @@ export default function HomeScreen({ navigation }) {
                             isSelected && styles.calCellSelected,
                           ]}
                           onPress={() =>
-                            setSelectedDayKey(isSelected ? null : cellKey)
+                            isInteractive && setSelectedDayKey(isSelected ? null : cellKey)
                           }
-                          activeOpacity={0.7}
+                          activeOpacity={isInteractive ? 0.7 : 1}
+                          disabled={!isInteractive}
                         >
                           <View style={styles.calCellInner}>
                             <Text
@@ -707,16 +763,16 @@ export default function HomeScreen({ navigation }) {
                             >
                               {day}
                             </Text>
-                            {(hasSess || hasPlanned) && (
+                            {(hasSess || (hasPlanned && !isOutOfPlan)) && (
                               <View style={styles.calDotsRow}>
-                                {hasPlanned && (
+                                {hasPlanned && !isOutOfPlan && (
                                   <View style={[
                                     styles.calDot,
                                     { backgroundColor: hasSess ? '#C9A44C' : '#B11226' },
                                     (isToday || isSelected) && { backgroundColor: '#EAEAEA' },
                                   ]} />
                                 )}
-                                {hasSess && !hasPlanned && (
+                                {hasSess && (isOutOfPlan || !hasPlanned) && (
                                   <View style={[
                                     styles.calDot,
                                     { backgroundColor: '#C9A44C' },
@@ -729,8 +785,9 @@ export default function HomeScreen({ navigation }) {
                         </TouchableOpacity>
                       );
                     })}
-                </View>
-              ))}
+                  </View>
+                );
+              })}
             </View>
 
             {/* Selected day details */}
@@ -759,7 +816,7 @@ export default function HomeScreen({ navigation }) {
                             onPress={() => {
                               setShowCalendar(false);
                               navigation.navigate('TrainningTab', {
-                                screen: 'ActiveSession',
+                                screen: 'TrainingSummary',
                                 params: {
                                   trainingId: t._id,
                                   trainingName: t.name,
@@ -781,7 +838,15 @@ export default function HomeScreen({ navigation }) {
                   <View style={styles.dayPanelSection}>
                     <Text style={styles.dayPanelSectionLabel}>COMPLETADO</Text>
                     {selectedDaySessions.map((s, i) => (
-                      <View key={i} style={styles.sessionRow}>
+                      <TouchableOpacity
+                        key={i}
+                        style={styles.sessionRow}
+                        onPress={() => {
+                          setShowCalendar(false);
+                          navigation.navigate('HomeSessionDetail', { session: s });
+                        }}
+                        activeOpacity={0.7}
+                      >
                         <Ionicons name="barbell-outline" size={16} color="#C9A44C" />
                         <View style={{ marginLeft: 10, flex: 1 }}>
                           <Text style={styles.sessionRowName}>
@@ -792,14 +857,14 @@ export default function HomeScreen({ navigation }) {
                             {(s.exercises || []).length} ejercicios
                           </Text>
                         </View>
+                        <Ionicons name="chevron-forward" size={16} color="#555" />
                         <TouchableOpacity
-                          style={styles.editDateBtn}
-                          onPress={() => { setShowCalendar(false); openDatePicker(s); }}
+                          style={[styles.editDateBtn, { marginLeft: 4 }]}
+                          onPress={(e) => { e.stopPropagation(); setShowCalendar(false); openDatePicker(s); }}
                         >
                           <Ionicons name="calendar-outline" size={14} color="#C9A44C" />
-                          <Text style={styles.editDateBtnText}>Fecha</Text>
                         </TouchableOpacity>
-                      </View>
+                      </TouchableOpacity>
                     ))}
                   </View>
                 )}
@@ -848,7 +913,7 @@ export default function HomeScreen({ navigation }) {
                       onPress={() => {
                         setDaySheet(null);
                         navigation.navigate('TrainningTab', {
-                          screen: 'ActiveSession',
+                          screen: 'TrainingSummary',
                           params: {
                             trainingId: t._id,
                             trainingName: t.name,
@@ -870,7 +935,15 @@ export default function HomeScreen({ navigation }) {
             <View style={styles.sheetSection}>
               <Text style={styles.sheetSectionLabel}>COMPLETADO</Text>
               {daySheet.sessions.map((s, i) => (
-                <View key={i} style={styles.sheetSessionCard}>
+                <TouchableOpacity
+                  key={i}
+                  style={styles.sheetSessionCard}
+                  onPress={() => {
+                    setDaySheet(null);
+                    navigation.navigate('HomeSessionDetail', { session: s });
+                  }}
+                  activeOpacity={0.7}
+                >
                   <View style={{ flex: 1 }}>
                     <Text style={styles.sheetSessionName}>
                       {s.trainingId?.name || 'Entrenamiento'}
@@ -879,21 +952,21 @@ export default function HomeScreen({ navigation }) {
                       {Math.floor((s.duration || 0) / 60)} min · {(s.exercises || []).length} ejercicios
                     </Text>
                   </View>
+                  <Ionicons name="chevron-forward" size={16} color="#555" style={{ marginRight: 4 }} />
                   <TouchableOpacity
                     style={styles.editDateBtn}
-                    onPress={() => openDatePicker(s)}
+                    onPress={(e) => { e.stopPropagation(); openDatePicker(s); }}
                   >
                     <Ionicons name="calendar-outline" size={14} color="#C9A44C" />
-                    <Text style={styles.editDateBtnText}>Fecha</Text>
                   </TouchableOpacity>
-                </View>
+                </TouchableOpacity>
               ))}
             </View>
           )}
 
           {/* Rest day – no plan, no session */}
           {!daySheet?.planDay && !daySheet?.sessions?.length && (
-            <Text style={styles.sheetRestText}>Día de descansoHoy</Text>
+            <Text style={styles.sheetRestText}>Sin entrenamiento planificado</Text>
           )}
 
           <View style={{ height: 24 }} />
@@ -1188,6 +1261,20 @@ const styles = StyleSheet.create({
   calCellNum:         { fontSize: 14, color: '#EAEAEA' },
   calCellTodayNum:    { color: '#B11226', fontWeight: '700' },
   calCellSelectedNum: { color: '#EAEAEA', fontWeight: '700' },
+  calCellOutOfPlan:   { opacity: 0.2 },
+  calCellOutOfPlanNum:{ color: '#555' },
+
+  // Week range label under month title
+  calWeekRangeLabel:  { fontSize: 11, color: '#C9A44C', marginTop: 2, fontWeight: '600', letterSpacing: 0.3 },
+
+  // Week number column
+  calWeekNumCol: {
+    width: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calWeekNumText:     { fontSize: 9, color: '#555', fontWeight: '600' },
+
   calDot: {
     width: 4,
     height: 4,

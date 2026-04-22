@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Polyline, Path, Circle, Line, Text as SvgText, Defs, LinearGradient, Stop } from 'react-native-svg';
+import { calcExerciseHI, secondaryActivation } from '../utils/hypertrophyMetrics';
 
 // ─── Muscle group mapping ─────────────────────────────────────────────────────
 const MUSCLE_MAP = {
@@ -115,6 +116,7 @@ function fmtVolume(kg) {
 const PERIODS = [
   { key: '1w',    label: 'Semana' },
   { key: '4w',    label: '4 semanas' },
+  { key: '3m',    label: '3 meses' },
   { key: 'cycle', label: 'Ciclo' },
 ];
 
@@ -123,7 +125,7 @@ const CHART_MODES = [
   { key: 'training', label: 'Entreno' },
   { key: 'exercise', label: 'Ejercicio' },
   { key: 'muscle',   label: 'Músculo' },
-  { key: '1rm',      label: '1RM est.' },
+  { key: 'hi',       label: 'HI' },
 ];
 
 export default function HypertrophyStatsScreen({ route }) {
@@ -131,6 +133,10 @@ export default function HypertrophyStatsScreen({ route }) {
   const { width } = useWindowDimensions();
 
   const [period, setPeriod] = useState('4w');
+
+  const effectivePeriod = (period === 'cycle' && !activePlan) ? '4w'
+    : (period === '3m' && !!activePlan) ? '4w'
+    : period;
   const [chartMode, setChartMode] = useState('total');
   const [selectedTraining, setSelectedTraining] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);   // exercise or muscle
@@ -143,26 +149,32 @@ export default function HypertrophyStatsScreen({ route }) {
   // ── Chart sessions (period-filtered) ──────────────────────────────────────
   const chartSessions = useMemo(() => {
     const now = new Date();
-    if (period === '1w') {
+    if (effectivePeriod === '1w') {
       const cutoff = new Date(now);
       const jsDay = cutoff.getDay();
       cutoff.setDate(cutoff.getDate() - (jsDay === 0 ? 6 : jsDay - 1));
       cutoff.setHours(0, 0, 0, 0);
       return sessions.filter(s => new Date(s.date) >= cutoff);
     }
-    if (period === '4w') {
+    if (effectivePeriod === '4w') {
       const cutoff = new Date(now);
       cutoff.setDate(cutoff.getDate() - 27);
       cutoff.setHours(0, 0, 0, 0);
       return sessions.filter(s => new Date(s.date) >= cutoff);
     }
-    if (period === 'cycle' && activePlan?.startDate) {
+    if (effectivePeriod === '3m') {
+      const cutoff = new Date(now);
+      cutoff.setDate(cutoff.getDate() - 89);
+      cutoff.setHours(0, 0, 0, 0);
+      return sessions.filter(s => new Date(s.date) >= cutoff);
+    }
+    if (effectivePeriod === 'cycle' && activePlan?.startDate) {
       const cutoff = new Date(activePlan.startDate);
       cutoff.setHours(0, 0, 0, 0);
       return sessions.filter(s => new Date(s.date) >= cutoff);
     }
     return sessions;
-  }, [sessions, period, activePlan]);
+  }, [sessions, effectivePeriod, activePlan]);
 
   const weekMap = useMemo(() => {
     const map = {};
@@ -219,7 +231,7 @@ export default function HypertrophyStatsScreen({ route }) {
     if (chartMode === 'training') {
       setSelectedTraining(trainingOptions[0] ?? null);
       setSelectedItem(null);
-    } else if (chartMode === 'exercise' || chartMode === '1rm') {
+    } else if (chartMode === 'exercise') {
       const t = trainingOptions[0] ?? null;
       setSelectedTraining(t);
       // exercise reset handled by the training-change effect below
@@ -230,9 +242,9 @@ export default function HypertrophyStatsScreen({ route }) {
     }
   }, [chartMode]);
 
-  // Reset selected exercise when training changes in exercise/1rm modes
+  // Reset selected exercise when training changes in exercise mode
   useEffect(() => {
-    if (chartMode === 'exercise' || chartMode === '1rm') {
+    if (chartMode === 'exercise') {
       setSelectedItem(filteredExerciseOptions[0] ?? null);
     }
   }, [selectedTraining, chartMode]);
@@ -266,49 +278,50 @@ export default function HypertrophyStatsScreen({ route }) {
                 set.completed && set.weight > 0 && set.reps > 0 ? t + set.weight * set.reps : t, 0);
           });
         });
-      } else if (chartMode === '1rm' && selectedItem) {
-        const src = selectedTraining ? wkSess.filter(s => s.trainingId?.name === selectedTraining) : wkSess;
-        src.forEach(s => {
+      } else if (chartMode === 'hi') {
+        const hiValues = [];
+        wkSess.forEach(s => {
           (s.exercises || []).forEach(ex => {
-            const name = ex.exerciseId?.name_es || ex.exerciseId?.name;
-            if (name === selectedItem) {
-              (ex.sets || []).forEach(set => {
-                if (set.completed && set.weight > 0 && set.reps > 0) {
-                  const e1rm = set.weight * (1 + set.reps / 30);
-                  if (e1rm > val) val = e1rm;
-                }
-              });
-            }
+            const hi = calcExerciseHI(ex);
+            if (hi > 0) hiValues.push(hi);
           });
         });
-        val = Math.round(val);
+        val = hiValues.length > 0
+          ? Math.round((hiValues.reduce((a, v) => a + v, 0) / hiValues.length) * 100) / 100
+          : 0;
       }
 
       return { wk, val };
     });
   }, [chartMode, selectedTraining, selectedItem, weekKeys, weekMap]);
 
-  const fmtVal = (v) => chartMode === '1rm' ? `${v} kg` : fmtVolume(v);
+  const fmtVal = (v) => chartMode === 'hi' ? v.toFixed(2) : fmtVolume(v);
   const maxChartVal = Math.max(...chartData.map(d => d.val), 0);
 
-  // ── Plan-based muscle data ─────────────────────────────────────────────────
+  // ── Plan-based muscle data (CAPA 1: series efectivas) ───────────────────────
+  // Primary muscles: activation = 1.0
+  // Secondary muscles: activation = 0.5 (compound) | 0.3 (isolation)
   const planMuscleSetData = useMemo(() => {
     const map = {};
     (activePlan?.days || []).forEach(day => {
       (day.trainings || []).forEach(training => {
         (training.exercises || []).forEach(ex => {
-          const muscles = ex.exerciseId?.primaryMuscles || [];
           const setCount = (ex.sets || []).length;
           if (!setCount) return;
-          muscles.forEach(m => {
+          const secFactor = secondaryActivation(ex.exerciseId?.mechanic);
+          (ex.exerciseId?.primaryMuscles || []).forEach(m => {
             const group = MUSCLE_MAP[m?.toLowerCase()];
             if (group) map[group] = (map[group] || 0) + setCount;
+          });
+          (ex.exerciseId?.secondaryMuscles || []).forEach(m => {
+            const group = MUSCLE_MAP[m?.toLowerCase()];
+            if (group) map[group] = (map[group] || 0) + setCount * secFactor;
           });
         });
       });
     });
     return Object.entries(MUSCLE_RANGES)
-      .map(([group, range]) => ({ group, sets: map[group] || 0, ...range }))
+      .map(([group, range]) => ({ group, sets: Math.round((map[group] || 0) * 10) / 10, ...range }))
       .sort((a, b) => b.sets - a.sets);
   }, [activePlan]);
 
@@ -318,20 +331,78 @@ export default function HypertrophyStatsScreen({ route }) {
     ), [activePlan]);
 
   // ── Plan-based PPL data ────────────────────────────────────────────────────
+  // Push/Pull: usa el campo force del ejercicio; Piernas: por músculo
   const planPPLData = useMemo(() => {
     let push = 0, pull = 0, legs = 0;
     (activePlan?.days || []).forEach(day => {
-      const allMuscles = (day.trainings || []).flatMap(t =>
-        (t.exercises || []).flatMap(ex => ex.exerciseId?.primaryMuscles || [])
-      );
-      if (!allMuscles.length) return;
-      const { isPush, isPull, isLegs } = classifySession(allMuscles);
-      if (isPush) push++;
-      if (isPull) pull++;
+      let hasPush = false, hasPull = false;
+      const allMuscles = [];
+      (day.trainings || []).forEach(t => {
+        (t.exercises || []).forEach(ex => {
+          const force = ex.exerciseId?.force?.toLowerCase();
+          if (force === 'push') hasPush = true;
+          if (force === 'pull') hasPull = true;
+          (ex.exerciseId?.primaryMuscles || []).forEach(m => allMuscles.push(m));
+        });
+      });
+      if (!allMuscles.length && !hasPush && !hasPull) return;
+      const { isLegs } = classifySession(allMuscles);
+      if (hasPush) push++;
+      if (hasPull) pull++;
       if (isLegs) legs++;
     });
     return { push, pull, legs, total: push + pull + legs || 1 };
   }, [activePlan]);
+
+  // ── Session HI metrics (CAPA 2) ────────────────────────────────────────
+  const sessionHIData = useMemo(() => {
+    const muscleMap = {};
+    let totalHI = 0, exerciseCount = 0;
+
+    chartSessions.forEach(session => {
+      (session.exercises || []).forEach(ex => {
+        const hi = calcExerciseHI(ex);
+        if (hi === 0) return;
+        exerciseCount++;
+        totalHI += hi;
+        const secFactor = secondaryActivation(ex.exerciseId?.mechanic);
+        const addMuscle = (m, activation) => {
+          const group = MUSCLE_MAP[m?.toLowerCase()];
+          if (!group) return;
+          if (!muscleMap[group]) muscleMap[group] = { hiWeighted: 0, activation: 0 };
+          muscleMap[group].hiWeighted += hi * activation;
+          muscleMap[group].activation += activation;
+        };
+        (ex.exerciseId?.primaryMuscles || []).forEach(m => addMuscle(m, 1.0));
+        (ex.exerciseId?.secondaryMuscles || []).forEach(m => addMuscle(m, secFactor));
+      });
+    });
+
+    const avgHI = exerciseCount > 0 ? totalHI / exerciseCount : 0;
+    const muscles = Object.entries(muscleMap)
+      .map(([group, { hiWeighted, activation }]) => ({
+        group,
+        avg_HI: activation > 0 ? hiWeighted / activation : 0,
+      }))
+      .sort((a, b) => b.avg_HI - a.avg_HI);
+
+    return { avgHI, muscles };
+  }, [chartSessions]);
+
+  // ── Force balance (CAPA 1 + force field) ────────────────────────────
+  const forceBalance = useMemo(() => {
+    let push = 0, pull = 0;
+    chartSessions.forEach(s => {
+      (s.exercises || []).forEach(ex => {
+        const completed = (ex.sets || []).filter(set => set.completed).length;
+        if (!completed) return;
+        const force = ex.exerciseId?.force?.toLowerCase();
+        if (force === 'push') push += completed;
+        else if (force === 'pull') pull += completed;
+      });
+    });
+    return { push, pull, total: push + pull || 1 };
+  }, [chartSessions]);
 
   // ── Chart SVG helpers ──────────────────────────────────────────────────────
   const CHART_H = 180;
@@ -402,7 +473,10 @@ export default function HypertrophyStatsScreen({ route }) {
 
         {/* Period selector */}
         <View style={styles.periodRow}>
-          {PERIODS.map(p => (
+          {PERIODS.filter(p =>
+            (p.key !== 'cycle' || !!activePlan) &&
+            (p.key !== '3m'    || !activePlan)
+          ).map(p => (
             <TouchableOpacity
               key={p.key}
               style={[styles.periodBtn, period === p.key && styles.periodBtnActive]}
@@ -471,7 +545,7 @@ export default function HypertrophyStatsScreen({ route }) {
             </TouchableOpacity>
           )}
 
-          {(chartMode === 'exercise' || chartMode === '1rm') && (
+          {chartMode === 'exercise' && (
             <View style={styles.dualTriggerRow}>
               <TouchableOpacity
                 style={[styles.pickerTrigger, styles.pickerTriggerHalf]}
@@ -528,8 +602,8 @@ export default function HypertrophyStatsScreen({ route }) {
                       fill="#6A6A6A"
                       textAnchor="end"
                     >
-                      {chartMode === '1rm'
-                        ? `${Math.round(v)}`
+                      {chartMode === 'hi'
+                        ? v.toFixed(1)
                         : v >= 1000 ? `${(v / 1000).toFixed(0)}k` : `${Math.round(v)}`
                       }
                     </SvgText>
@@ -583,6 +657,55 @@ export default function HypertrophyStatsScreen({ route }) {
               </Svg>
             )}
           </View>
+        </View>
+
+        {/* ── Índice de Hipertrofia (CAPA 2) ── */}
+        <View style={styles.section}>
+          <View style={styles.sectionTitleRow}>
+            <Text style={styles.sectionTitle}>Índice de Hipertrofia</Text>
+          </View>
+
+          {/* avg HI KPI */}
+          <View style={[styles.card, { alignItems: 'center', marginBottom: 10 }]}>
+            <Text style={styles.hiKpiValue}>
+              {sessionHIData.avgHI > 0 ? sessionHIData.avgHI.toFixed(2) : '—'}
+            </Text>
+            <Text style={styles.hiKpiLabel}>HI medio (período)</Text>
+          </View>
+
+          {/* Per-muscle avg HI */}
+          {sessionHIData.muscles.length > 0 && (
+            <View style={styles.card}>
+              {sessionHIData.muscles.map(({ group, avg_HI }) => {
+                const maxHI = sessionHIData.muscles[0]?.avg_HI || 1;
+                const barW = Math.min((avg_HI / maxHI) * 100, 100);
+                const barColor = avg_HI >= maxHI * 0.75
+                  ? '#C9A44C'
+                  : avg_HI >= maxHI * 0.4
+                    ? '#B11226'
+                    : '#5A0000';
+                return (
+                  <View key={group} style={styles.muscleRow}>
+                    <Text style={styles.muscleLabel}>{group}</Text>
+                    <View style={styles.muscleBarBg}>
+                      <View style={[styles.muscleBarFill, { width: `${barW}%`, backgroundColor: barColor }]} />
+                    </View>
+                    <Text style={[styles.muscleSetCount, { color: barColor }]}>
+                      {avg_HI.toFixed(1)}
+                    </Text>
+                  </View>
+                );
+              })}
+              <View style={styles.muscleRangeHint}>
+                <Text style={styles.muscleRangeHintText}>HI promedio ponderado por activación muscular</Text>
+              </View>
+            </View>
+          )}
+          {sessionHIData.muscles.length === 0 && (
+            <View style={styles.card}>
+              <Text style={styles.emptyText}>Sin datos en el período seleccionado.</Text>
+            </View>
+          )}
         </View>
 
         {/* ── Series por grupo muscular (from plan) ── */}
@@ -645,42 +768,6 @@ export default function HypertrophyStatsScreen({ route }) {
                   </Text>
                 </View>
               </>
-            )}
-          </View>
-        </View>
-
-        {/* ── Push / Pull / Piernas (from plan) ── */}
-        <View style={styles.section}>
-          <View style={styles.sectionTitleRow}>
-            <Text style={styles.sectionTitle}>Distribución Push / Pull / Piernas</Text>
-            {activePlan && (
-              <View style={styles.planBadge}>
-                <Text style={styles.planBadgeText}>Plan</Text>
-              </View>
-            )}
-          </View>
-          <View style={styles.card}>
-            {[
-              { key: 'push', label: 'Push',    value: planPPLData.push, color: '#B11226' },
-              { key: 'pull', label: 'Pull',    value: planPPLData.pull, color: '#C9A44C' },
-              { key: 'legs', label: 'Piernas', value: planPPLData.legs, color: '#4A7FA5' },
-            ].map(item => {
-              const pct = Math.round((item.value / planPPLData.total) * 100);
-              return (
-                <View key={item.key} style={styles.pplRow}>
-                  <Text style={styles.pplLabel}>{item.label}</Text>
-                  <View style={styles.pplBarBg}>
-                    <View style={[styles.pplBarFill, { width: `${pct}%`, backgroundColor: item.color }]} />
-                  </View>
-                  <Text style={[styles.pplCount, { color: item.color }]}>{item.value}</Text>
-                </View>
-              );
-            })}
-            {!activePlan && (
-              <Text style={styles.emptyText}>Sin planificación activa.</Text>
-            )}
-            {activePlan && !hasPlanExercises && (
-              <Text style={styles.emptyText}>La planificación no tiene ejercicios configurados.</Text>
             )}
           </View>
         </View>
@@ -900,4 +987,10 @@ const styles = StyleSheet.create({
   modalItemText:       { fontSize: 14, color: '#BDBDBD' },
   modalItemTextActive: { color: '#C9A44C', fontWeight: '700' },
   modalItemCheck:      { fontSize: 14, color: '#C9A44C' },
+
+  // HI section
+  hiKpiValue:     { fontSize: 28, fontWeight: '700', color: '#C9A44C' },
+  hiKpiLabel:     { fontSize: 10, color: '#9A9A9A', textAlign: 'center', marginTop: 2 },
+  hiKpiDivider:   { width: 1, backgroundColor: '#2E2E2E', alignSelf: 'stretch' },
+  hiBalanceHint:  { fontSize: 10, color: '#555', marginTop: 4 },
 });
