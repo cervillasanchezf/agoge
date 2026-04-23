@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo, memo } from 'react';
 import {
   View,
   Text,
@@ -59,6 +59,52 @@ function calcSessionStats(session) {
 
   return { totalVolume, completedSets };
 }
+
+// Memoized card — recalculates stats only when the session object changes
+const SessionCard = memo(({ item, onPress, onDelete }) => {
+  const { totalVolume, completedSets } = useMemo(() => calcSessionStats(item), [item]);
+  const trainingName = item.trainingId?.name || 'Entrenamiento';
+
+  return (
+    <TouchableOpacity
+      style={styles.card}
+      onPress={() => onPress(item)}
+      activeOpacity={0.8}
+    >
+      <View style={styles.cardTop}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.cardTitle} numberOfLines={1}>{trainingName}</Text>
+          <Text style={styles.cardDate}>{formatDate(item.date)}</Text>
+        </View>
+        <TouchableOpacity
+          onPress={() => onDelete(item)}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="trash-outline" size={18} color="#FF3B3B" />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.statsRow}>
+        <View style={styles.statItem}>
+          <Ionicons name="time-outline" size={14} color="#B11226" />
+          <Text style={styles.statValue}>{formatDuration(item.duration)}</Text>
+        </View>
+        <View style={styles.statDivider} />
+        <View style={styles.statItem}>
+          <Ionicons name="checkmark-circle-outline" size={14} color="#22c55e" />
+          <Text style={styles.statValue}>{completedSets} series</Text>
+        </View>
+        <View style={styles.statDivider} />
+        <View style={styles.statItem}>
+          <Ionicons name="barbell-outline" size={14} color="#C9A44C" />
+          <Text style={styles.statValue}>
+            {totalVolume > 0 ? `${totalVolume.toLocaleString('es-ES')} kg` : '—'}
+          </Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+});
 
 export default function HistorialScreen({ navigation }) {
   const [sessions, setSessions] = useState([]);
@@ -125,50 +171,13 @@ export default function HistorialScreen({ navigation }) {
     );
   };
 
-  const renderItem = ({ item }) => {
-    const { totalVolume, completedSets } = calcSessionStats(item);
-    const trainingName = item.trainingId?.name || 'Entrenamiento';
-
-    return (
-      <TouchableOpacity
-        style={styles.card}
-        onPress={() => navigation.navigate('SessionDetail', { session: item })}
-        activeOpacity={0.8}
-      >
-        <View style={styles.cardTop}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.cardTitle} numberOfLines={1}>{trainingName}</Text>
-            <Text style={styles.cardDate}>{formatDate(item.date)}</Text>
-          </View>
-          <TouchableOpacity
-            onPress={() => handleDelete(item)}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="trash-outline" size={18} color="#FF3B3B" />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.statsRow}>
-          <View style={styles.statItem}>
-            <Ionicons name="time-outline" size={14} color="#B11226" />
-            <Text style={styles.statValue}>{formatDuration(item.duration)}</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Ionicons name="checkmark-circle-outline" size={14} color="#22c55e" />
-            <Text style={styles.statValue}>{completedSets} series</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Ionicons name="barbell-outline" size={14} color="#C9A44C" />
-            <Text style={styles.statValue}>
-              {totalVolume > 0 ? `${totalVolume.toLocaleString('es-ES')} kg` : '—'}
-            </Text>
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  };
+  const renderItem = useCallback(({ item }) => (
+    <SessionCard
+      item={item}
+      onPress={(s) => navigation.navigate('SessionDetail', { session: s })}
+      onDelete={handleDelete}
+    />
+  ), [handleDelete, navigation]);
 
   if (loading) {
     return (

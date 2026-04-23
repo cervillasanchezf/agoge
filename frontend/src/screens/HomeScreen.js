@@ -235,12 +235,34 @@ export default function HomeScreen({ navigation }) {
   const weeklyCardioHours = useMemo(() => calcWeeklyCardioHours(weekSessions), [weekSessions]);
   const weeklyVolume = useMemo(() => calcVolume(weekSessions), [weekSessions]);
 
+  // Set of trainingId strings completed during the current week (for strip missed-day logic)
+  const weekDoneTrainingIds = useMemo(() => {
+    const s = new Set();
+    weekSessions.forEach(sess => {
+      if (sess.trainingId?._id) s.add(String(sess.trainingId._id));
+    });
+    return s;
+  }, [weekSessions]);
+
+  // Map: Monday key of any week -> Set of trainingId strings done that week (for monthly calendar)
+  const weekTrainingIdMap = useMemo(() => {
+    const map = {};
+    sessions.forEach(s => {
+      if (!s.trainingId?._id) return;
+      const mon = getMonday(new Date(s.date));
+      const wk = toKey(mon);
+      if (!map[wk]) map[wk] = new Set();
+      map[wk].add(String(s.trainingId._id));
+    });
+    return map;
+  }, [sessions]);
+
   // Map from plan dayOfWeek (1=Mon…7=Sun) -> plan day object
   const planDayMap = useMemo(() => {
     if (!activePlan) return {};
     const map = {};
     (activePlan.days || []).forEach(d => {
-      if (d.trainings?.length > 0) map[d.dayOfWeek] = d;
+      if ((d.trainings || []).filter(Boolean).length > 0) map[d.dayOfWeek] = d;
     });
     return map;
   }, [activePlan]);
@@ -343,11 +365,13 @@ export default function HomeScreen({ navigation }) {
 
   function openDaySheet(d) {
     const key = toKey(d);
-    const plannedSet = getPlannedDaysSet(d);
-    const planDay = plannedSet.has(jsToPlanDay(d.getDay()))
-      ? (planDayMap[jsToPlanDay(d.getDay())] || { dayOfWeek: jsToPlanDay(d.getDay()), trainings: [] })
-      : null;
+    let planDay = planDayMap[jsToPlanDay(d.getDay())] || null;
     const daySessions = sessionsByDate[key] || [];
+    // If this day has no sessions of its own but its training was done elsewhere this week → hide PLANIFICADO
+    if (planDay && !daySessions.length) {
+      const covered = planDay.trainings.some(t => weekDoneTrainingIds.has(String(t._id)));
+      if (covered) planDay = null;
+    }
     const label = `${WEEKDAYS_ES[d.getDay()]}, ${d.getDate()} de ${MONTHS_GEN[d.getMonth()]}`;
     setDaySheet({ key, label, planDay, sessions: daySessions, date: d });
   }
@@ -379,11 +403,15 @@ export default function HomeScreen({ navigation }) {
   const selectedDayPlanDay = useMemo(() => {
     if (!selectedDayKey || !activePlan) return null;
     const d = new Date(`${selectedDayKey}T12:00:00`);
-    const plannedSet = getPlannedDaysSet(d);
-    return plannedSet.has(jsToPlanDay(d.getDay()))
-      ? (planDayMap[jsToPlanDay(d.getDay())] || { dayOfWeek: jsToPlanDay(d.getDay()), trainings: [] })
-      : null;
-  }, [selectedDayKey, activePlan, planDayMap, getPlannedDaysSet]);
+    const planDay = planDayMap[jsToPlanDay(d.getDay())] || null;
+    if (!planDay) return null;
+    const daySessions = sessionsByDate[selectedDayKey] || [];
+    if (daySessions.length) return planDay; // session done on this exact day → show PLANIFICADO
+    // Check if training was done on another day of the same week
+    const weekDoneIds = weekTrainingIdMap[toKey(getMonday(d))] || new Set();
+    const covered = planDay.trainings.some(t => weekDoneIds.has(String(t._id)));
+    return covered ? null : planDay;
+  }, [selectedDayKey, activePlan, planDayMap, sessionsByDate, weekTrainingIdMap]);
 
   const selectedDayIsMeasurementDay = useMemo(() => {
     if (!selectedDayKey || !activePlan?.measurementDay || !planBounds) return false;
@@ -433,7 +461,7 @@ export default function HomeScreen({ navigation }) {
           <View style={styles.endBanner}>
             <Ionicons name="flag-outline" size={16} color="#C9A44C" />
             <Text style={styles.endBannerText}>
-              Última semana del mesociclo "{activePlan.name}". ¡Aprieta fuerte!
+              Última semana de la planificación "{activePlan.name}". ¡Aprieta fuerte!
             </Text>
           </View>
         )}
@@ -464,12 +492,16 @@ export default function HomeScreen({ navigation }) {
               const planDay = planDayMap[jsToPlanDay(d.getDay())];
               const hasPlanned = !!planDay;
               const isPast = key <= todayKey;
-              // bar: gold if session done, dark red if planned+past+not done, nothing otherwise
+              // training fulfilled elsewhere this week (done on a different day)
+              const trainingCoveredElsewhere = hasPlanned && !hasSess
+                ? planDay.trainings.some(t => weekDoneTrainingIds.has(String(t._id)))
+                : false;
+              // bar: gold if session done, dark red if planned+past+missed+not compensated, nothing otherwise
               const barColor = hasSess
                 ? '#C9A44C'
-                : hasPlanned && isPast && key !== todayKey
+                : hasPlanned && isPast && key !== todayKey && !trainingCoveredElsewhere
                   ? '#5A0000'
-                  : hasPlanned
+                  : hasPlanned && !trainingCoveredElsewhere
                     ? '#3A1010'
                     : null;
               return (
@@ -505,7 +537,7 @@ export default function HomeScreen({ navigation }) {
               />
               <Text style={styles.cardEmptyTitle}>Sin planificación activa</Text>
               <Text style={styles.cardEmptyDesc}>
-                Crea un mesociclo para ver aquí tu entrenamiento del día.
+                Crea una planificación para ver aquí tu entrenamiento del día.
               </Text>
               <TouchableOpacity
                 style={styles.primaryBtn}
@@ -643,21 +675,33 @@ export default function HomeScreen({ navigation }) {
             <Text style={styles.sectionTitle}>Estadísticas</Text>
           </View>
           <View style={styles.statsRow}>
-            <View style={styles.statCard}>
+            <TouchableOpacity
+              style={styles.statCard}
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('HomeStats', { sessions, activePlan })}
+            >
               <Ionicons name="bicycle-outline" size={22} color="#B11226" />
               <Text style={styles.statValue}>{fmtCardioHours(weeklyCardioHours)}</Text>
               <Text style={styles.statLabel}>{'Cardio\nsemana'}</Text>
-            </View>
-            <View style={styles.statCard}>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.statCard}
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('HomeStats', { sessions, activePlan })}
+            >
               <Ionicons name="checkmark-circle-outline" size={22} color="#C9A44C" />
               <Text style={styles.statValue}>{weekSessions.length}</Text>
               <Text style={styles.statLabel}>{'Sesiones\nsemana'}</Text>
-            </View>
-            <View style={styles.statCard}>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.statCard}
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('HomeStats', { sessions, activePlan })}
+            >
               <Ionicons name="barbell-outline" size={22} color="#9A9A9A" />
               <Text style={styles.statValue}>{fmtVolume(weeklyVolume)}</Text>
               <Text style={styles.statLabel}>{'Volumen\nsemana'}</Text>
-            </View>
+            </TouchableOpacity>
           </View>
           <TouchableOpacity
             style={styles.statsAdvBtn}
@@ -675,10 +719,10 @@ export default function HomeScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* Mesociclo activo */}
+        {/* Planificación activa */}
         {activePlan && planProgress && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Mesociclo activo</Text>
+            <Text style={styles.sectionTitle}>Planificación activa</Text>
             <TouchableOpacity
               style={styles.card}
               activeOpacity={0.8}
@@ -813,11 +857,16 @@ export default function HomeScreen({ navigation }) {
                       const isToday = cellKey === todayKey;
                       const hasSess = !!sessionsByDate[cellKey]?.length;
                       const cellDate = new Date(`${cellKey}T12:00:00`);
-                      const hasPlanned = getPlannedDaysSet(cellDate).has(jsToPlanDay(cellDate.getDay()));
+                      const hasPlanned = !!planDayMap[jsToPlanDay(cellDate.getDay())];
                       const isSelected = cellKey === selectedDayKey;
                       const isOutOfPlan = !!planBounds && (cellDate < planBounds.start || cellDate > planBounds.end);
                       const isMeasDay = !isOutOfPlan && !!(activePlan?.measurementDay && jsToPlanDay(cellDate.getDay()) === activePlan.measurementDay);
                       const hasMeasurement = !!measurementsByDate[cellKey];
+                      // Check if this planned day's training was fulfilled on another day of the same week
+                      const cellPlanDay = planDayMap[jsToPlanDay(cellDate.getDay())];
+                      const cellWeekDoneIds = weekTrainingIdMap[toKey(getMonday(cellDate))] || new Set();
+                      const calTrainingCoveredElsewhere = hasPlanned && !hasSess && !isOutOfPlan && !!cellPlanDay
+                        && cellPlanDay.trainings.some(t => cellWeekDoneIds.has(String(t._id)));
                       // Out-of-plan days are only interactive if they have a completed session
                       const isInteractive = !isOutOfPlan || hasSess;
                       return (
@@ -844,9 +893,9 @@ export default function HomeScreen({ navigation }) {
                             >
                               {day}
                             </Text>
-                            {(hasSess || (hasPlanned && !isOutOfPlan) || isMeasDay) && (
+                            {(hasSess || (hasPlanned && !isOutOfPlan && !calTrainingCoveredElsewhere) || isMeasDay) && (
                               <View style={styles.calDotsRow}>
-                                {hasPlanned && !isOutOfPlan && (
+                                {hasPlanned && !isOutOfPlan && !calTrainingCoveredElsewhere && (
                                   <View style={[
                                     styles.calDot,
                                     { backgroundColor: hasSess ? '#C9A44C' : '#B11226' },
@@ -1329,7 +1378,7 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 20, fontWeight: '700', color: '#EAEAEA', marginVertical: 4 },
   statLabel: { fontSize: 11, color: '#9A9A9A', textAlign: 'center' },
 
-  // Mesociclo
+  // Planificación
   planName: { fontSize: 16, fontWeight: '700', color: '#EAEAEA', flex: 1, marginRight: 8 },
   activeBadge: {
     backgroundColor: '#1A0000',

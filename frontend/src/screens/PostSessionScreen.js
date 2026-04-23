@@ -22,21 +22,9 @@ function formatDuration(secs) {
   return `${s}s`;
 }
 
-/** Build a map { exerciseId → maxWeight } from a previous session object. */
-function buildPrevMaxMap(prevSession) {
-  if (!prevSession?.exercises) return {};
-  const map = {};
-  prevSession.exercises.forEach((ex) => {
-    const id = String(ex.exerciseId?._id ?? ex.exerciseId ?? '');
-    if (!id) return;
-    let maxW = 0;
-    ex.sets?.forEach((s) => {
-      const w = parseFloat(s.weight) || 0;
-      if (w > maxW) maxW = w;
-    });
-    map[id] = maxW;
-  });
-  return map;
+/** Epley 1RM estimate: weight × (1 + reps / 30) */
+function calc1RM(weight, reps) {
+  return weight * (1 + reps / 30);
 }
 
 /** Compute total volume and completed sets from a previous session object. */
@@ -84,18 +72,18 @@ function DeltaBadge({ current, previous }) {
 // ─── Pantalla principal ───────────────────────────────────────────────────────
 
 export default function PostSessionScreen({ route, navigation }) {
-  const { trainingName, duration, exerciseData, prevSession } = route.params;
+  const { trainingName, duration, exerciseData, prevSession, histPrMap = {} } = route.params;
 
-  const prevMaxMap = useMemo(() => buildPrevMaxMap(prevSession), [prevSession]);
-  const prevStats  = useMemo(() => calcPrevStats(prevSession),   [prevSession]);
+  const prevStats = useMemo(() => calcPrevStats(prevSession), [prevSession]);
 
   const { totalVolume, completedSets, prs } = useMemo(() => {
-    let totalVolume  = 0;
+    let totalVolume   = 0;
     let completedSets = 0;
     const prs = [];
 
     exerciseData.forEach((item) => {
-      let maxCurrentWeight = 0;
+      // Best set by 1RM
+      let bestSet = null; // { weight, reps, orm }
 
       item.sets.forEach((s) => {
         if (s.completed) {
@@ -104,26 +92,34 @@ export default function PostSessionScreen({ route, navigation }) {
             const w = parseFloat(s.weight) || 0;
             const r = parseInt(s.reps)    || 0;
             totalVolume += w * r;
-            if (w > maxCurrentWeight) maxCurrentWeight = w;
+            if (w > 0) {
+              const orm = calc1RM(w, r);
+              if (!bestSet || orm > bestSet.orm) {
+                bestSet = { weight: w, reps: r, orm };
+              }
+            }
           }
         }
       });
 
-      if (item.repMode !== 'cardio' && maxCurrentWeight > 0) {
-        const exId   = String(item.exercise?._id ?? item.exercise ?? '');
-        const prevMax = prevMaxMap[exId] ?? 0;
-        if (maxCurrentWeight > prevMax) {
+      if (item.repMode !== 'cardio' && bestSet) {
+        const exId    = String(item.exercise?._id ?? item.exercise ?? '');
+        const prevEntry = histPrMap[exId]; // { max1RM, weight, reps } | undefined
+        const prevMax1RM = prevEntry?.max1RM ?? 0;
+        if (bestSet.orm > prevMax1RM) {
           prs.push({
             name:       getExerciseName(item.exercise),
-            weight:     maxCurrentWeight,
-            prevWeight: prevMax > 0 ? prevMax : null,
+            bestWeight: bestSet.weight,
+            bestReps:   bestSet.reps,
+            current1RM: bestSet.orm,
+            prev1RM:    prevMax1RM,
           });
         }
       }
     });
 
     return { totalVolume, completedSets, prs };
-  }, [exerciseData, prevMaxMap]);
+  }, [exerciseData, histPrMap]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -176,15 +172,20 @@ export default function PostSessionScreen({ route, navigation }) {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.prName}>{pr.name}</Text>
-                  {pr.prevWeight != null ? (
+                  <Text style={styles.prBestSet}>
+                    {pr.bestWeight} kg × {pr.bestReps} rep{pr.bestReps !== 1 ? 's' : ''}
+                  </Text>
+                  {pr.prev1RM > 0 ? (
                     <Text style={styles.prCompare}>
-                      {pr.prevWeight} kg{' '}
-                      <Ionicons name="arrow-forward" size={11} color="#9A9A9A" />
-                      {'  '}
-                      <Text style={styles.prWeightNew}>{pr.weight} kg</Text>
+                      1RM est. ~{Math.round(pr.current1RM)} kg{'  '}
+                      <Text style={styles.prDeltaUp}>
+                        (+{Math.round(pr.current1RM - pr.prev1RM)} kg vs récord)
+                      </Text>
                     </Text>
                   ) : (
-                    <Text style={styles.prFirst}>Primer registro de peso</Text>
+                    <Text style={styles.prFirst}>
+                      1RM est. ~{Math.round(pr.current1RM)} kg · Primer registro
+                    </Text>
                   )}
                 </View>
                 <Ionicons name="arrow-up-circle" size={22} color="#22c55e" />
@@ -390,12 +391,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#EAEAEA',
   },
+  prBestSet: {
+    fontSize: 13,
+    color: '#EAEAEA',
+    fontWeight: '700',
+    marginTop: 2,
+  },
   prCompare: {
     fontSize: 12,
     color: '#9A9A9A',
     marginTop: 2,
   },
-  prWeightNew: {
+  prDeltaUp: {
     color: '#22c55e',
     fontWeight: '700',
   },

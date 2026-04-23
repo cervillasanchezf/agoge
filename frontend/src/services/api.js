@@ -1,5 +1,6 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { API_URL } from '../config/config';
 
 const api = axios.create({
@@ -14,12 +15,62 @@ export const setTokenExpiredCallback = (cb) => { onSessionExpired = cb; };
 // Interceptor: adjunta el access token a cada petición
 api.interceptors.request.use(
   async (config) => {
-    const token = await AsyncStorage.getItem('token');
+    const token = await SecureStore.getItemAsync('token');
     if (token) config.headers.Authorization = `Bearer ${token}`;
     return config;
   },
   (error) => Promise.reject(error)
 );
+
+// ─── Token expiry helpers ─────────────────────────────────────────────────────
+
+/**
+ * Decode the JWT payload without a library.
+ * Returns the parsed payload or null on any error.
+ */
+function parseJwtPayload(token) {
+  try {
+    const segment = token.split('.')[1];
+    const base64 = segment.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+    return JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Returns true if the stored access token is missing, expired, or will expire
+ * within `bufferSeconds` seconds (default 30).
+ */
+export const isAccessTokenExpiredOrExpiringSoon = async (bufferSeconds = 30) => {
+  try {
+    const token = await SecureStore.getItemAsync('token');
+    if (!token) return true;
+    const payload = parseJwtPayload(token);
+    if (!payload?.exp) return true;
+    return payload.exp * 1000 < Date.now() + bufferSeconds * 1000;
+  } catch {
+    return true;
+  }
+};
+
+/**
+ * Proactively refresh the access token using the stored refresh token.
+ * Updates AsyncStorage and the default header on success.
+ * Throws on failure so the caller can decide what to do.
+ */
+export const attemptProactiveRefresh = async () => {
+  const refreshToken = await SecureStore.getItemAsync('refreshToken');
+  if (!refreshToken) throw new Error('No refresh token available');
+  const { data } = await axios.post(`${API_URL}/auth/refresh`, { refreshToken });
+  const newToken = data.data.token;
+  await SecureStore.setItemAsync('token', newToken);
+  api.defaults.headers.common.Authorization = `Bearer ${newToken}`;
+  return newToken;
+};
+
+// ─── Concurrent-refresh queue ─────────────────────────────────────────────────
 
 // Flag para evitar bucles infinitos si el refresh también falla
 let isRefreshing = false;
@@ -56,11 +107,11 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const refreshToken = await AsyncStorage.getItem('refreshToken');
+        const refreshToken = await SecureStore.getItemAsync('refreshToken');
         if (!refreshToken) {
           processQueue(error, null);
-          await AsyncStorage.removeItem('token');
-          await AsyncStorage.removeItem('refreshToken');
+          await SecureStore.deleteItemAsync('token');
+          await SecureStore.deleteItemAsync('refreshToken');
           await AsyncStorage.removeItem('user');
           if (onSessionExpired) onSessionExpired();
           return Promise.reject(error);
@@ -69,7 +120,7 @@ api.interceptors.response.use(
         const { data } = await axios.post(`${API_URL}/auth/refresh`, { refreshToken });
         const newToken = data.data.token;
 
-        await AsyncStorage.setItem('token', newToken);
+        await SecureStore.setItemAsync('token', newToken);
         api.defaults.headers.common.Authorization = `Bearer ${newToken}`;
         processQueue(null, newToken);
 
@@ -81,8 +132,8 @@ api.interceptors.response.use(
         // Network errors (no internet, timeout) should NOT log the user out.
         const isServerRejection = refreshError.response?.status >= 400 && refreshError.response?.status < 500;
         if (isServerRejection) {
-          await AsyncStorage.removeItem('token');
-          await AsyncStorage.removeItem('refreshToken');
+          await SecureStore.deleteItemAsync('token');
+          await SecureStore.deleteItemAsync('refreshToken');
           await AsyncStorage.removeItem('user');
           if (onSessionExpired) onSessionExpired();
         }
@@ -175,6 +226,11 @@ export const sessionService = {
   // Obtiene la última sesión de una plantilla para pre-cargar valores
   getLastSession: async (trainingId) => {
     const response = await api.get(`/training-sessions/last/${trainingId}`);
+    return response.data;
+  },
+
+  getExerciseMaxes: async (trainingId) => {
+    const response = await api.get(`/training-sessions/exercise-maxes/${trainingId}`);
     return response.data;
   },
 

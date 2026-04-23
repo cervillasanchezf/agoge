@@ -37,13 +37,14 @@ app.get('/', (req, res) => {
 
 // Handler 404 — ruta no encontrada
 app.use((req, res) => {
-  res.status(404).json({ message: `Ruta no encontrada: ${req.method} ${req.originalUrl}` });
+  res.status(404).json({ success: false, message: `Ruta no encontrada: ${req.method} ${req.originalUrl}` });
 });
 
 // Handler global de errores — cualquier error no capturado
 app.use((err, req, res, next) => {
   console.error(`[ERROR] ${req.method} ${req.originalUrl}:`, err.stack || err.message);
   res.status(err.status || 500).json({
+    success: false,
     message: err.message || 'Error interno del servidor',
   });
 });

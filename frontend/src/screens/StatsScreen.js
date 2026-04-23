@@ -223,34 +223,19 @@ export default function StatsScreen({ route, navigation }) {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
 
+    // count planned sessions from start to today
+    let planned = 0;
+    const planDaysWithTraining = new Set(
+      (activePlan.days || [])
+        .filter(d => (d.trainings || []).filter(Boolean).length > 0)
+        .map(d => d.dayOfWeek)
+    );
+
     function jsToPlanDay(jsDay) { return jsDay === 0 ? 7 : jsDay; }
 
-    // Build a sorted version history. Fall back to current days if no history exists
-    // (e.g. plans created before this feature was added).
-    const history = [...(activePlan.dayHistory || [])]
-      .map(h => ({ effectiveFrom: new Date(h.effectiveFrom), days: h.days }))
-      .sort((a, b) => a.effectiveFrom - b.effectiveFrom);
-    if (history.length === 0) {
-      history.push({ effectiveFrom: start, days: activePlan.days });
-    }
-
-    // For a given date, returns the Set of planned dayOfWeek numbers
-    function getPlannedDaysSet(date) {
-      let activeDays = history[0].days;
-      for (const entry of history) {
-        if (entry.effectiveFrom <= date) activeDays = entry.days;
-        else break;
-      }
-      return new Set(
-        (activeDays || []).filter(d => d.trainings?.length > 0).map(d => d.dayOfWeek)
-      );
-    }
-
-    // Count planned training days from plan start to today using the historic config
-    let planned = 0;
     const cursor = new Date(start);
     while (cursor <= now) {
-      if (getPlannedDaysSet(new Date(cursor)).has(jsToPlanDay(cursor.getDay()))) {
+      if (planDaysWithTraining.has(jsToPlanDay(cursor.getDay()))) {
         planned++;
       }
       cursor.setDate(cursor.getDate() + 1);

@@ -152,6 +152,41 @@ exports.updateSession = async (req, res) => {
 };
 
 // @desc    Eliminar una sesión
+// @desc    Obtener el máximo 1RM histórico por ejercicio para una rutina (todas las sesiones)
+// @route   GET /api/training-sessions/exercise-maxes/:trainingId
+// @access  Private
+exports.getExerciseMaxes = async (req, res) => {
+  try {
+    const sessions = await TrainingSession.find({
+      userId: req.userId,
+      trainingId: req.params.trainingId,
+    }).select('exercises');
+
+    // exerciseId (string) → { max1RM, weight, reps }
+    const exMap = {};
+    sessions.forEach((session) => {
+      session.exercises.forEach((ex) => {
+        const id = String(ex.exerciseId);
+        (ex.sets || []).forEach((s) => {
+          if (!s.completed) return;
+          const w = parseFloat(s.weight) || 0;
+          const r = parseInt(s.reps) || 0;
+          if (w === 0) return;
+          const orm = w * (1 + r / 30); // Epley
+          if (!exMap[id] || orm > exMap[id].max1RM) {
+            exMap[id] = { max1RM: orm, weight: w, reps: r };
+          }
+        });
+      });
+    });
+
+    res.json({ success: true, data: exMap });
+  } catch (error) {
+    console.error('Error al obtener máximos por ejercicio:', error);
+    res.status(500).json({ success: false, message: 'Error al obtener máximos por ejercicio' });
+  }
+};
+
 // @route   DELETE /api/training-sessions/:id
 // @access  Private
 exports.deleteSession = async (req, res) => {

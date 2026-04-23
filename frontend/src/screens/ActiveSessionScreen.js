@@ -164,6 +164,7 @@ export default function ActiveSessionScreen({ route, navigation }) {
   const savingRef         = useRef(false);
   const exerciseDataRef   = useRef([]);
   const prevSessionRef    = useRef(null);
+  const histPrMapRef      = useRef({});
   const startTimestampRef = useRef(restoredSession?.startTimestamp ?? Date.now());
   const appStateRef       = useRef(AppState.currentState);
 
@@ -237,15 +238,17 @@ export default function ActiveSessionScreen({ route, navigation }) {
   const loadSession = async () => {
     try {
       setLoading(true);
-      const [trainingResult, lastSessionResult] = await Promise.all([
+      const [trainingResult, lastSessionResult, histMaxesResult] = await Promise.all([
         trainingService.getTrainingById(trainingId),
         sessionService.getLastSession(trainingId).catch(() => null),
+        sessionService.getExerciseMaxes(trainingId).catch(() => null),
       ]);
       const trainingData = trainingResult.data;
       setTraining(trainingData);
 
       const lastSession = lastSessionResult?.data || null;
       prevSessionRef.current = lastSession;
+      histPrMapRef.current = histMaxesResult?.data || {};
       const lastExMap = {};
       if (lastSession?.exercises) {
         lastSession.exercises.forEach((ex) => {
@@ -549,6 +552,7 @@ export default function ActiveSessionScreen({ route, navigation }) {
         duration: sessionDuration,
         exerciseData,
         prevSession: prevSessionRef.current,
+        histPrMap: histPrMapRef.current,
       });
     } catch (err) {
       setSaving(false);

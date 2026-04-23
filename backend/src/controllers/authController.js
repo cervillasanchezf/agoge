@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const { validationResult } = require('express-validator');
 const User = require('../models/User');
 
@@ -42,7 +43,7 @@ exports.register = async (req, res) => {
     const token = generateAccessToken(user._id);
     const refreshToken = generateRefreshToken(user._id);
 
-    user.refreshToken = refreshToken;
+    user.refreshToken = await bcrypt.hash(refreshToken, 10);
     await user.save();
 
     res.status(201).json({
@@ -81,7 +82,7 @@ exports.login = async (req, res) => {
     const token = generateAccessToken(user._id);
     const refreshToken = generateRefreshToken(user._id);
 
-    user.refreshToken = refreshToken;
+    user.refreshToken = await bcrypt.hash(refreshToken, 10);
     await user.save();
 
     res.status(200).json({
@@ -118,7 +119,11 @@ exports.refresh = async (req, res) => {
 
     // Verificar que el token coincide con el guardado en BD
     const user = await User.findById(decoded.id);
-    if (!user || user.refreshToken !== refreshToken) {
+    if (!user || !user.refreshToken) {
+      return res.status(401).json({ success: false, message: 'Sesión no válida' });
+    }
+    const isValid = await bcrypt.compare(refreshToken, user.refreshToken);
+    if (!isValid) {
       return res.status(401).json({ success: false, message: 'Sesión no válida' });
     }
 
@@ -139,7 +144,12 @@ exports.logout = async (req, res) => {
   try {
     const { refreshToken } = req.body;
     if (refreshToken) {
-      await User.findOneAndUpdate({ refreshToken }, { refreshToken: null });
+      // Decode (without verifying expiry) to get the user ID and null out their stored token
+      let decoded;
+      try { decoded = jwt.decode(refreshToken); } catch { /* ignore */ }
+      if (decoded?.id) {
+        await User.findByIdAndUpdate(decoded.id, { refreshToken: null });
+      }
     }
     res.json({ success: true, message: 'Sesión cerrada' });
   } catch (error) {

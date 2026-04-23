@@ -100,7 +100,7 @@ export default function PlanScreen({ navigation }) {
 
   const handleFinish = (plan) => {
     Alert.alert(
-      'Finalizar mesociclo',
+      'Finalizar planificación',
       `¿Finalizar "${plan.name}"? Se archivará y podrás consultarlo en el historial.`,
       [
         { text: 'Cancelar', style: 'cancel' },
@@ -246,7 +246,7 @@ export default function PlanScreen({ navigation }) {
                       onPress={() => handleFinish(activePlan)}
                     >
                       <Ionicons name="checkmark-circle-outline" size={14} color="#EAEAEA" />
-                      <Text style={styles.finishBtnText}>Finalizar mesociclo</Text>
+                      <Text style={styles.finishBtnText}>Finalizar planificación</Text>
                     </TouchableOpacity>
                   </View>
                 </View>

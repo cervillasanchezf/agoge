@@ -1,6 +1,14 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { authService, profileService, setTokenExpiredCallback } from '../services/api';
+import * as SecureStore from 'expo-secure-store';
+import {
+  authService,
+  profileService,
+  setTokenExpiredCallback,
+  isAccessTokenExpiredOrExpiringSoon,
+  attemptProactiveRefresh,
+} from '../services/api';
 
 const AuthContext = createContext({});
 
@@ -12,16 +20,65 @@ export const AuthProvider = ({ children }) => {
     loadStorageData();
     // Registrar callback para cuando el token expire
     setTokenExpiredCallback(() => setUser(null));
+
+    // Proactively refresh the access token whenever the app returns to foreground.
+    // This avoids the burst of 401s that occur when all HomeScreen requests fire
+    // simultaneously with an expired token after >1 h in the background.
+    const handleAppStateChange = async (nextState) => {
+      if (nextState === 'active') {
+        try {
+          const storedUser = await AsyncStorage.getItem('user');
+          if (!storedUser) return; // Not logged in – nothing to refresh
+          const needsRefresh = await isAccessTokenExpiredOrExpiringSoon();
+          if (needsRefresh) {
+            await attemptProactiveRefresh();
+          }
+        } catch (err) {
+          // If the server explicitly rejected the refresh token (4xx), log out.
+          // Network errors (no connectivity on resume) are swallowed – the
+          // reactive 401 interceptor in api.js will handle them.
+          const isServerRejection =
+            err.response?.status >= 400 && err.response?.status < 500;
+          if (isServerRejection) {
+            await AsyncStorage.removeItem('user');
+            await SecureStore.deleteItemAsync('token');
+            await SecureStore.deleteItemAsync('refreshToken');
+            setUser(null);
+          }
+        }
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
   }, []);
 
   const loadStorageData = async () => {
     try {
       const storedUser = await AsyncStorage.getItem('user');
-      const token = await AsyncStorage.getItem('token');
+      const token = await SecureStore.getItemAsync('token');
 
       if (storedUser && token) {
-        // Restore session immediately — the API interceptor handles 401s and
-        // refreshes the access token lazily when a real request fails.
+        // Proactively refresh if the access token is expired or expiring soon.
+        // This prevents the burst of 401s on the first HomeScreen data load.
+        const needsRefresh = await isAccessTokenExpiredOrExpiringSoon();
+        if (needsRefresh) {
+          try {
+            await attemptProactiveRefresh();
+          } catch (err) {
+            const isServerRejection =
+              err.response?.status >= 400 && err.response?.status < 500;
+            if (isServerRejection) {
+              // Refresh token is invalid – don't restore the session.
+              await AsyncStorage.removeItem('user');
+              await SecureStore.deleteItemAsync('token');
+              await SecureStore.deleteItemAsync('refreshToken');
+              return;
+            }
+            // Network error on startup: restore session anyway.
+            // The reactive interceptor will handle 401s when requests fire.
+          }
+        }
         setUser(JSON.parse(storedUser));
       }
     } catch (error) {
@@ -38,8 +95,8 @@ export const AuthProvider = ({ children }) => {
       if (response.success) {
         const userData = response.data;
         await AsyncStorage.setItem('user', JSON.stringify(userData));
-        await AsyncStorage.setItem('token', userData.token);
-        await AsyncStorage.setItem('refreshToken', userData.refreshToken);
+        await SecureStore.setItemAsync('token', userData.token);
+        await SecureStore.setItemAsync('refreshToken', userData.refreshToken);
         setUser(userData);
         return { success: true };
       }
@@ -61,8 +118,8 @@ export const AuthProvider = ({ children }) => {
       if (response.success) {
         const userData = response.data;
         await AsyncStorage.setItem('user', JSON.stringify(userData));
-        await AsyncStorage.setItem('token', userData.token);
-        await AsyncStorage.setItem('refreshToken', userData.refreshToken);
+        await SecureStore.setItemAsync('token', userData.token);
+        await SecureStore.setItemAsync('refreshToken', userData.refreshToken);
         setUser(userData);
         return { success: true };
       }
@@ -100,14 +157,14 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      const refreshToken = await AsyncStorage.getItem('refreshToken');
+      const refreshToken = await SecureStore.getItemAsync('refreshToken');
       if (refreshToken) {
         // Invalidar el refresh token en el servidor (fire & forget)
         authService.logout(refreshToken).catch(() => {});
       }
       await AsyncStorage.removeItem('user');
-      await AsyncStorage.removeItem('token');
-      await AsyncStorage.removeItem('refreshToken');
+      await SecureStore.deleteItemAsync('token');
+      await SecureStore.deleteItemAsync('refreshToken');
       setUser(null);
     } catch (error) {
       console.error('Error al cerrar sesión:', error);
