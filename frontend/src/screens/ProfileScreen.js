@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
+import { COLORS } from '../config/theme';
 
 export default function ProfileScreen({ navigation }) {
   const { user, logout } = useAuth();
@@ -96,7 +97,7 @@ export default function ProfileScreen({ navigation }) {
               onPress={() => { setMenuVisible(false); logout(); }}
             >
               <Ionicons name="log-out-outline" size={16} color="#FF3B3B" />
-              <Text style={[styles.dropdownText, { color: '#FF3B3B' }]}>Cerrar sesión</Text>
+              <Text style={[styles.dropdownText, { color: COLORS.danger }]}>Cerrar sesión</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -108,7 +109,7 @@ export default function ProfileScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0D0D0D',
+    backgroundColor: COLORS.background,
   },
   content: {
     flex: 1,
@@ -126,7 +127,7 @@ const styles = StyleSheet.create({
     marginTop: 28,
   },
   gridItem: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderRadius: 12,
     paddingVertical: 16,
     paddingHorizontal: 14,
@@ -147,14 +148,14 @@ const styles = StyleSheet.create({
   gridLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
   },
   dotsButton: {
     marginLeft: 'auto',
     padding: 6,
   },
   avatarWrapper: {
-    shadowColor: '#B11226',
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -165,20 +166,20 @@ const styles = StyleSheet.create({
     height: 72,
     borderRadius: 36,
     borderWidth: 2,
-    borderColor: '#B11226',
+    borderColor: COLORS.primary,
   },
   avatarFallback: {
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: '#B11226',
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   name: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
     flexShrink: 1,
   },
   modalOverlay: {
@@ -186,7 +187,7 @@ const styles = StyleSheet.create({
   },
   dropdown: {
     position: 'absolute',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#2E2E2E',
@@ -208,7 +209,7 @@ const styles = StyleSheet.create({
   dropdownText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
   },
   dropdownDivider: {
     height: 1,

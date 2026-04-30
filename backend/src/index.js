@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const dotenv = require('dotenv');
+const rateLimit = require('express-rate-limit');
 const connectDB = require('./config/database');
 const authRoutes = require('./routes/auth');
 const profileRoutes = require('./routes/profile');
@@ -21,6 +23,19 @@ connectDB();
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Servir avatares de perfil subidos
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+// Rate limiting global: 200 peticiones por IP por minuto
+const globalLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Demasiadas peticiones. Intenta de nuevo en un minuto.' },
+});
+app.use('/api/', globalLimiter);
 
 // Rutas
 app.use('/api/auth', authRoutes);

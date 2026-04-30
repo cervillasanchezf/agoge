@@ -1,14 +1,16 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { calcExerciseHI, secondaryActivation } from '../utils/hypertrophyMetrics';
+import { useFocusEffect } from '@react-navigation/native';
+import { sessionService, planService } from '../services/api';
 
 // ─── Muscle group mapping ────────────────────────────────────────────────────
 // Maps Exercise.primaryMuscles strings → Spanish canonical group
@@ -111,50 +113,66 @@ function fmtVolume(kg) {
 }
 
 const PERIODS = [
-  { key: '1w',    label: 'Semana' },
-  { key: '4w',    label: '4 semanas' },
-  { key: '3m',    label: '3 meses' },
+  { key: '1w', label: 'Semana' },
+  { key: '4w', label: '4 semanas' },
   { key: 'cycle', label: 'Ciclo' },
 ];
 
 export default function StatsScreen({ route, navigation }) {
-  const { sessions = [], activePlan = null } = route.params || {};
+  const [sessions, setSessions] = useState(route.params?.sessions ?? []);
+  const [activePlan, setActivePlan] = useState(route.params?.activePlan ?? null);
+  const [loading, setLoading] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      const load = async () => {
+        setLoading(true);
+        try {
+          const [sessRes, planRes] = await Promise.all([
+            sessionService.getAllSessions({ populate: true }),
+            planService.getPlans(),
+          ]);
+          if (cancelled) return;
+          setSessions(sessRes?.data ?? sessRes ?? []);
+          const plans = planRes?.data ?? planRes ?? [];
+          setActivePlan(plans.find(p => p.active) ?? null);
+        } catch (e) {
+          // silently keep previous data
+        } finally {
+          if (!cancelled) setLoading(false);
+        }
+      };
+      load();
+      return () => { cancelled = true; };
+    }, [])
+  );
 
   const [period, setPeriod] = useState('4w');
-
-  const effectivePeriod = (period === 'cycle' && !activePlan) ? '4w'
-    : (period === '3m' && !!activePlan) ? '4w'
-    : period;
 
   // ─── Filter sessions by period ──────────────────────────────────────────────
   const filteredSessions = useMemo(() => {
     const now = new Date();
-    if (effectivePeriod === '1w') {
+    if (period === '1w') {
       const cutoff = new Date(now);
       const jsDay = cutoff.getDay();
       cutoff.setDate(cutoff.getDate() - (jsDay === 0 ? 6 : jsDay - 1));
       cutoff.setHours(0, 0, 0, 0);
       return sessions.filter(s => new Date(s.date) >= cutoff);
     }
-    if (effectivePeriod === '4w') {
+    if (period === '4w') {
       const cutoff = new Date(now);
       cutoff.setDate(cutoff.getDate() - 27);
       cutoff.setHours(0, 0, 0, 0);
       return sessions.filter(s => new Date(s.date) >= cutoff);
     }
-    if (effectivePeriod === '3m') {
-      const cutoff = new Date(now);
-      cutoff.setDate(cutoff.getDate() - 89);
-      cutoff.setHours(0, 0, 0, 0);
-      return sessions.filter(s => new Date(s.date) >= cutoff);
-    }
-    if (effectivePeriod === 'cycle' && activePlan?.startDate) {
+    if (period === 'cycle' && activePlan?.startDate) {
       const cutoff = new Date(activePlan.startDate);
       cutoff.setHours(0, 0, 0, 0);
       return sessions.filter(s => new Date(s.date) >= cutoff);
     }
     return sessions;
-  }, [sessions, effectivePeriod, activePlan]);
+  }, [sessions, period, activePlan]);
 
   // ─── KPIs ───────────────────────────────────────────────────────────────────
   const totalSessions = filteredSessions.length;
@@ -165,51 +183,37 @@ export default function StatsScreen({ route, navigation }) {
     return Math.round(total / filteredSessions.length / 60);
   }, [filteredSessions]);
 
-  // ─── Series por grupo muscular (CAPA 1: series efectivas) ──────────────────
-  // Primary muscles:   activation = 1.0
-  // Secondary muscles: activation = 0.5 (compound) | 0.3 (isolation)
+  // ─── Series per muscle group ─────────────────────────────────────────────────
   const muscleSetData = useMemo(() => {
     const map = {};
     filteredSessions.forEach(s => {
       (s.exercises || []).forEach(ex => {
+        const muscles = ex.exerciseId?.primaryMuscles || [];
         const completedSets = (ex.sets || []).filter(set => set.completed).length;
         if (completedSets === 0) return;
-        const secFactor = secondaryActivation(ex.exerciseId?.mechanic);
-        (ex.exerciseId?.primaryMuscles || []).forEach(m => {
+        muscles.forEach(m => {
           const group = MUSCLE_MAP[m.toLowerCase()];
           if (!group) return;
           map[group] = (map[group] || 0) + completedSets;
-        });
-        (ex.exerciseId?.secondaryMuscles || []).forEach(m => {
-          const group = MUSCLE_MAP[m.toLowerCase()];
-          if (!group) return;
-          map[group] = (map[group] || 0) + completedSets * secFactor;
         });
       });
     });
 
     return Object.entries(MUSCLE_RANGES)
-      .map(([group, range]) => ({ group, sets: Math.round((map[group] || 0) * 10) / 10, ...range }))
+      .map(([group, range]) => ({ group, sets: map[group] || 0, ...range }))
       .sort((a, b) => b.sets - a.sets);
   }, [filteredSessions]);
 
   // ─── Push / Pull / Legs ──────────────────────────────────────────────────────
-  // Push/Pull: usa el campo force del ejercicio (push | pull | static)
-  // Legs: clasificación por músculo (force no distingue piernas)
   const pplData = useMemo(() => {
     let push = 0, pull = 0, legs = 0;
     filteredSessions.forEach(s => {
-      let hasPush = false, hasPull = false;
-      const allMuscles = [];
-      (s.exercises || []).forEach(ex => {
-        const force = ex.exerciseId?.force?.toLowerCase();
-        if (force === 'push') hasPush = true;
-        if (force === 'pull') hasPull = true;
-        (ex.exerciseId?.primaryMuscles || []).forEach(m => allMuscles.push(m));
-      });
-      const { isLegs } = classifySession(allMuscles);
-      if (hasPush) push++;
-      if (hasPull) pull++;
+      const allMuscles = (s.exercises || []).flatMap(
+        ex => ex.exerciseId?.primaryMuscles || []
+      );
+      const { isPush, isPull, isLegs } = classifySession(allMuscles);
+      if (isPush) push++;
+      if (isPull) pull++;
       if (isLegs) legs++;
     });
     return { push, pull, legs, total: push + pull + legs || 1 };
@@ -222,9 +226,12 @@ export default function StatsScreen({ route, navigation }) {
     start.setHours(0, 0, 0, 0);
     const now = new Date();
     now.setHours(0, 0, 0, 0);
+    // Exclude today from the denominator: the day is still in progress,
+    // so counting it now would make it look like a missed session prematurely.
+    const cutoff = new Date(now);
+    cutoff.setDate(cutoff.getDate() - 1);
 
-    // count planned sessions from start to today
-    let planned = 0;
+    // Filter out null refs (deleted trainings populated as null by Mongoose)
     const planDaysWithTraining = new Set(
       (activePlan.days || [])
         .filter(d => (d.trainings || []).filter(Boolean).length > 0)
@@ -233,14 +240,16 @@ export default function StatsScreen({ route, navigation }) {
 
     function jsToPlanDay(jsDay) { return jsDay === 0 ? 7 : jsDay; }
 
+    let planned = 0;
     const cursor = new Date(start);
-    while (cursor <= now) {
+    while (cursor <= cutoff) {
       if (planDaysWithTraining.has(jsToPlanDay(cursor.getDay()))) {
         planned++;
       }
       cursor.setDate(cursor.getDate() + 1);
     }
 
+    // done includes sessions completed today (registered in real time)
     const done = sessions.filter(s => new Date(s.date) >= start && new Date(s.date) <= now).length;
     if (planned === 0 && done === 0) return null;
     return { done, planned: Math.max(planned, done), pct: planned > 0 ? Math.round((done / planned) * 100) : 100 };
@@ -252,21 +261,23 @@ export default function StatsScreen({ route, navigation }) {
     return withSets.length > 0 ? withSets[0].group : null;
   }, [muscleSetData]);
 
-  // ─── CAPA 2: avg HI de la sesión ─────────────────────────────────────────────
-  const sessionAvgHI = useMemo(() => {
-    const hiValues = [];
-    filteredSessions.forEach(s => {
-      (s.exercises || []).forEach(ex => {
-        const hi = calcExerciseHI(ex);
-        if (hi > 0) hiValues.push(hi);
-      });
-    });
-    if (!hiValues.length) return null;
-    return hiValues.reduce((a, v) => a + v, 0) / hiValues.length;
-  }, [filteredSessions]);
+  const dominantPPL = useMemo(() => {
+    const { push, pull, legs } = pplData;
+    if (push === 0 && pull === 0 && legs === 0) return null;
+    if (push >= pull && push >= legs) return { label: 'Push', color: '#B11226' };
+    if (pull >= push && pull >= legs) return { label: 'Pull', color: '#C9A44C' };
+    return { label: 'Piernas', color: '#4A7FA5' };
+  }, [pplData]);
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
+      {loading && (
+        <ActivityIndicator
+          size="small"
+          color="#C9A44C"
+          style={{ position: 'absolute', top: 12, right: 16, zIndex: 10 }}
+        />
+      )}
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
         {/* ── Adherencia al plan ── */}
@@ -301,10 +312,7 @@ export default function StatsScreen({ route, navigation }) {
 
         {/* Period selector */}
         <View style={styles.periodRow}>
-          {PERIODS.filter(p =>
-            (p.key !== 'cycle' || !!activePlan) &&
-            (p.key !== '3m'    || !activePlan)
-          ).map(p => (
+          {PERIODS.map(p => (
             <TouchableOpacity
               key={p.key}
               style={[styles.periodBtn, period === p.key && styles.periodBtnActive]}
@@ -338,11 +346,11 @@ export default function StatsScreen({ route, navigation }) {
               </View>
               <View style={styles.hypertrophyDivider} />
               <View style={styles.hypertrophyMetric}>
-                <Ionicons name="flash-outline" size={20} color="#C9A44C" />
-                <Text style={styles.hypertrophyMetricValue}>
-                  {sessionAvgHI != null ? sessionAvgHI.toFixed(1) : '—'}
+                <Ionicons name="swap-horizontal-outline" size={20} color="#C9A44C" />
+                <Text style={[styles.hypertrophyMetricValue, dominantPPL && { color: dominantPPL.color }]}>
+                  {dominantPPL?.label ?? '—'}
                 </Text>
-                <Text style={styles.hypertrophyMetricLabel}>HI medio</Text>
+                <Text style={styles.hypertrophyMetricLabel}>Tipo dom.</Text>
               </View>
             </View>
             <TouchableOpacity

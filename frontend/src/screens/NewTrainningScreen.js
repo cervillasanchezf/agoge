@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { trainingService } from '../services/api';
 import { getExerciseName, CATEGORY_LABELS, MUSCLE_LABELS } from '../config/translations';
+import { COLORS } from '../config/theme';
 
 const DEFAULT_SET = { kg: '', reps: '', repsTo: '', rpe: '' };
 const DEFAULT_CARDIO_SET = { km: '', h: 0, m: 0, s: 0 };
@@ -530,7 +531,7 @@ export default function NewTrainningScreen({ navigation, route }) {
               style={[styles.setsInputCell, styles.colTiempo, { alignItems: 'center', justifyContent: 'center' }]}
               onPress={() => setTiempoTarget({ exerciseId: exercise._id, setIdx: idx })}
             >
-              <Text style={[styles.setsTimeTxt, (set.h === 0 && set.m === 0 && set.s === 0) && { color: '#6A6A6A' }]}>
+              <Text style={[styles.setsTimeTxt, (set.h === 0 && set.m === 0 && set.s === 0) && { color: COLORS.textMuted }]}>
                 {(set.h === 0 && set.m === 0 && set.s === 0)
                   ? '—'
                   : `${String(set.h).padStart(2, '0')}:${String(set.m).padStart(2, '0')}:${String(set.s).padStart(2, '0')}`}
@@ -900,7 +901,7 @@ export default function NewTrainningScreen({ navigation, route }) {
               }}
             >
               <Ionicons name="git-merge-outline" size={16} color="#CC3333" />
-              <Text style={[styles.exDropdownItemText, { color: '#CC3333' }]}>Eliminar Superserie</Text>
+              <Text style={[styles.exDropdownItemText, { color: COLORS.danger }]}>Eliminar Superserie</Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
@@ -929,7 +930,7 @@ export default function NewTrainningScreen({ navigation, route }) {
             onPress={() => { setExMenuVisible(false); handleRemoveExercise(exMenuId); }}
           >
             <Ionicons name="trash-outline" size={16} color="#CC3333" />
-            <Text style={[styles.exDropdownItemText, { color: '#CC3333' }]}>Eliminar Ejercicio</Text>
+            <Text style={[styles.exDropdownItemText, { color: COLORS.danger }]}>Eliminar Ejercicio</Text>
           </TouchableOpacity>
         </View>
       </Modal>
@@ -950,7 +951,7 @@ export default function NewTrainningScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0D0D0D' },
+  container: { flex: 1, backgroundColor: COLORS.background },
   keyboardView: { flex: 1 },
   scrollView: { flex: 1 },
   content: { padding: 20, paddingBottom: 20 },
@@ -961,46 +962,46 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 15,
   },
-  label: { fontSize: 18, fontWeight: 'bold', color: '#EAEAEA', marginBottom: 10 },
-  exerciseCount: { fontSize: 14, color: '#8B0000', fontWeight: '600' },
+  label: { fontSize: 18, fontWeight: 'bold', color: COLORS.textPrimary, marginBottom: 10 },
+  exerciseCount: { fontSize: 14, color: COLORS.primaryDark, fontWeight: '600' },
   input: {
-    backgroundColor: '#1F1F1F',
+    backgroundColor: COLORS.surface,
     borderRadius: 10,
     padding: 15,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: '#333333',
-    color: '#EAEAEA',
+    borderColor: COLORS.border,
+    color: COLORS.textPrimary,
   },
   inputError: {
-    borderColor: '#B11226',
+    borderColor: COLORS.primary,
   },
   inputErrorText: {
-    color: '#B11226',
+    color: COLORS.primary,
     fontSize: 12,
     marginTop: 6,
   },
   emptyExercises: {
-    backgroundColor: '#1F1F1F',
+    backgroundColor: COLORS.surface,
     borderRadius: 10,
     padding: 30,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: COLORS.border,
     borderStyle: 'dashed',
     marginBottom: 15,
   },
-  emptyText: { fontSize: 16, color: '#6A6A6A', marginBottom: 5 },
+  emptyText: { fontSize: 16, color: COLORS.textMuted, marginBottom: 5 },
   emptySubtext: { fontSize: 14, color: '#4A4A4A', textAlign: 'center' },
   exercisesList: { marginBottom: 15 },
 
   // Card de ejercicio
   exerciseCard: {
-    backgroundColor: '#1F1F1F',
+    backgroundColor: COLORS.surface,
     borderRadius: 10,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: COLORS.border,
   },
   exerciseHeader: {
     flexDirection: 'row',
@@ -1018,20 +1019,20 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#8B0000',
-    color: '#EAEAEA',
+    backgroundColor: COLORS.primaryDark,
+    color: COLORS.textPrimary,
     fontSize: 12,
     fontWeight: '700',
     textAlign: 'center',
     lineHeight: 24,
   },
-  exerciseName: { fontSize: 15, color: '#EAEAEA', fontWeight: '600' },
-  exerciseMeta: { fontSize: 12, color: '#6A6A6A', marginTop: 2 },
+  exerciseName: { fontSize: 15, color: COLORS.textPrimary, fontWeight: '600' },
+  exerciseMeta: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
 
   // Tabla de series
   setsTable: {
     borderTopWidth: 1,
-    borderTopColor: '#252525',
+    borderTopColor: COLORS.surfaceDeep,
     paddingHorizontal: 14,
     paddingBottom: 6,
   },
@@ -1040,7 +1041,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#252525',
+    borderBottomColor: COLORS.surfaceDeep,
     justifyContent: 'space-between',
   },
   // Anchos de columna
@@ -1054,7 +1055,7 @@ const styles = StyleSheet.create({
   setsHeaderCell: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#6A6A6A',
+    color: COLORS.textMuted,
     letterSpacing: 0.5,
     textAlign: 'center',
   },
@@ -1066,7 +1067,7 @@ const styles = StyleSheet.create({
   setsHeaderCellBtnText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#8B0000',
+    color: COLORS.primaryDark,
     letterSpacing: 0.5,
   },
   setsRow: {
@@ -1074,7 +1075,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 5,
     borderBottomWidth: 1,
-    borderBottomColor: '#1A1A1A',
+    borderBottomColor: COLORS.surface,
     justifyContent: 'space-between',
   },
   setsSerieCell: {
@@ -1084,16 +1085,16 @@ const styles = StyleSheet.create({
   setsSerieText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#8B0000',
+    color: COLORS.primaryDark,
     textAlign: 'center',
   },
   setsInputCell: {
     height: 34,
     borderRadius: 6,
-    backgroundColor: '#181818',
+    backgroundColor: COLORS.surfaceAlt,
     fontSize: 14,
     fontWeight: '600',
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
     textAlign: 'center',
   },
   setsRangeCell: {
@@ -1106,15 +1107,15 @@ const styles = StyleSheet.create({
     width: 44,
     height: 34,
     borderRadius: 6,
-    backgroundColor: '#181818',
+    backgroundColor: COLORS.surfaceAlt,
     fontSize: 14,
     fontWeight: '600',
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
     textAlign: 'center',
   },
   setsRangeSep: {
     fontSize: 13,
-    color: '#6A6A6A',
+    color: COLORS.textMuted,
     fontWeight: '600',
     paddingHorizontal: 2,
   },
@@ -1128,7 +1129,7 @@ const styles = StyleSheet.create({
   },
   addSetBtnText: {
     fontSize: 13,
-    color: '#8B0000',
+    color: COLORS.primaryDark,
     fontWeight: '600',
   },
   colDel: {
@@ -1142,7 +1143,7 @@ const styles = StyleSheet.create({
   exerciseNoteInput: {
     marginTop: 4,
     fontSize: 12,
-    color: '#9A9A9A',
+    color: COLORS.textSecondary,
     paddingHorizontal: 0,
     paddingVertical: 2,
     minHeight: 18,
@@ -1153,61 +1154,61 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#1F1F1F',
+    backgroundColor: COLORS.surface,
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 15,
     borderWidth: 1.5,
-    borderColor: '#8B0000',
+    borderColor: COLORS.primaryDark,
   },
-  addExerciseButtonText: { color: '#8B0000', fontSize: 14, fontWeight: '600' },
+  addExerciseButtonText: { color: COLORS.primaryDark, fontSize: 14, fontWeight: '600' },
 
   saveButton: {
     marginTop: 16,
-    backgroundColor: '#8B0000',
+    backgroundColor: COLORS.primaryDark,
     borderRadius: 10,
     paddingVertical: 12,
     paddingHorizontal: 18,
     alignItems: 'center',
-    shadowColor: '#8B0000',
+    shadowColor: COLORS.primaryDark,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.4,
     shadowRadius: 3,
     elevation: 4,
   },
   saveButtonDisabled: { opacity: 0.6 },
-  saveButtonText: { color: '#EAEAEA', fontSize: 16, fontWeight: '700' },
+  saveButtonText: { color: COLORS.textPrimary, fontSize: 16, fontWeight: '700' },
 
   // Cardio table
-  setsTimeTxt: { fontSize: 13, fontWeight: '600', color: '#EAEAEA', textAlign: 'center' },
+  setsTimeTxt: { fontSize: 13, fontWeight: '600', color: COLORS.textPrimary, textAlign: 'center' },
 
   // Drum time picker
   drumSheet: {
-    backgroundColor: '#1F1F1F',
+    backgroundColor: COLORS.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: 12,
     paddingBottom: 30,
   },
   drumHandle: {
-    width: 40, height: 4, borderRadius: 2, backgroundColor: '#333333',
+    width: 40, height: 4, borderRadius: 2, backgroundColor: COLORS.border,
     alignSelf: 'center', marginBottom: 16,
   },
   drumTitle: {
     textAlign: 'center', fontSize: 16, fontWeight: '700',
-    color: '#EAEAEA', marginBottom: 12,
+    color: COLORS.textPrimary, marginBottom: 12,
   },
   drumLabel: {
-    fontSize: 11, fontWeight: '700', color: '#6A6A6A',
+    fontSize: 11, fontWeight: '700', color: COLORS.textMuted,
     letterSpacing: 0.5, marginBottom: 4, textAlign: 'center',
   },
   drumItem: { fontSize: 22, color: '#4A4A4A', fontWeight: '500' },
-  drumItemSelected: { fontSize: 26, color: '#EAEAEA', fontWeight: '700' },
+  drumItemSelected: { fontSize: 26, color: COLORS.textPrimary, fontWeight: '700' },
   drumConfirmBtn: {
     marginHorizontal: 20, marginTop: 8,
-    backgroundColor: '#8B0000', borderRadius: 10, padding: 16, alignItems: 'center',
+    backgroundColor: COLORS.primaryDark, borderRadius: 10, padding: 16, alignItems: 'center',
   },
-  drumConfirmText: { color: '#EAEAEA', fontSize: 16, fontWeight: '700' },
+  drumConfirmText: { color: COLORS.textPrimary, fontSize: 16, fontWeight: '700' },
 
   // Superset badge
   supersetBadge: {
@@ -1218,17 +1219,17 @@ const styles = StyleSheet.create({
   },
   supersetBadgeText: {
     fontSize: 10,
-    color: '#8B0000',
+    color: COLORS.primaryDark,
     fontWeight: '700',
     letterSpacing: 0.3,
   },
   exerciseCardSuperset: {
-    borderColor: '#8B0000',
+    borderColor: COLORS.primaryDark,
   },
 
   // Superset picker
   supersetPicker: {
-    backgroundColor: '#1F1F1F',
+    backgroundColor: COLORS.surface,
     borderRadius: 10,
     marginBottom: 10,
     borderWidth: 1,
@@ -1238,7 +1239,7 @@ const styles = StyleSheet.create({
   supersetPickerTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
     marginBottom: 10,
   },
   supersetPickerItem: {
@@ -1247,11 +1248,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     gap: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#252525',
+    borderBottomColor: COLORS.surfaceDeep,
   },
   supersetPickerItemText: {
     fontSize: 14,
-    color: '#9A9A9A',
+    color: COLORS.textSecondary,
     flex: 1,
   },
   supersetCheckbox: {
@@ -1259,13 +1260,13 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 4,
     borderWidth: 2,
-    borderColor: '#333333',
+    borderColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   supersetCheckboxChecked: {
-    backgroundColor: '#8B0000',
-    borderColor: '#8B0000',
+    backgroundColor: COLORS.primaryDark,
+    borderColor: COLORS.primaryDark,
   },
   supersetPickerActions: {
     flexDirection: 'row',
@@ -1278,22 +1279,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: COLORS.border,
   },
   supersetCancelBtnText: {
     fontSize: 14,
-    color: '#9A9A9A',
+    color: COLORS.textSecondary,
     fontWeight: '600',
   },
   supersetConfirmBtn: {
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: 8,
-    backgroundColor: '#8B0000',
+    backgroundColor: COLORS.primaryDark,
   },
   supersetConfirmBtnText: {
     fontSize: 14,
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
     fontWeight: '700',
   },
 
@@ -1301,7 +1302,7 @@ const styles = StyleSheet.create({
   exDropdown: {
     position: 'absolute',
     right: 16,
-    backgroundColor: '#1F1F1F',
+    backgroundColor: COLORS.surface,
     borderRadius: 10,
     paddingVertical: 4,
     minWidth: 200,
@@ -1320,11 +1321,11 @@ const styles = StyleSheet.create({
   },
   exDropdownItemText: {
     fontSize: 14,
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
   },
   exDropdownDivider: {
     height: 1,
-    backgroundColor: '#333333',
+    backgroundColor: COLORS.border,
     marginHorizontal: 8,
   },
 
@@ -1339,7 +1340,7 @@ const styles = StyleSheet.create({
     opacity: 0.15,
   },
   exerciseCardGhost: {
-    borderColor: '#B11226',
+    borderColor: COLORS.primary,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.6,
@@ -1355,7 +1356,7 @@ const styles = StyleSheet.create({
   },
   dropIndicator: {
     height: 3,
-    backgroundColor: '#B11226',
+    backgroundColor: COLORS.primary,
     borderRadius: 2,
     marginBottom: 6,
     marginHorizontal: 4,

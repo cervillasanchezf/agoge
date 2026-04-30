@@ -127,10 +127,14 @@ exports.refresh = async (req, res) => {
       return res.status(401).json({ success: false, message: 'Sesión no válida' });
     }
 
-    // Emitir nuevo access token (el refresh token se mantiene)
+    // Rotar: emitir nuevo access token Y nuevo refresh token
     const newToken = generateAccessToken(user._id);
+    const newRefreshToken = generateRefreshToken(user._id);
 
-    res.json({ success: true, data: { token: newToken } });
+    user.refreshToken = await bcrypt.hash(newRefreshToken, 10);
+    await user.save();
+
+    res.json({ success: true, data: { token: newToken, refreshToken: newRefreshToken } });
   } catch (error) {
     console.error('Error al renovar token:', error);
     res.status(500).json({ success: false, message: 'Error al renovar sesión' });

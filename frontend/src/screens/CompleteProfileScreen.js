@@ -13,7 +13,9 @@ import {
   Platform,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
+import { profileService } from '../services/api';
 import * as ImagePicker from 'expo-image-picker';
+import { COLORS } from '../config/theme';
 
 const GOALS = [
   { value: 'ganar_masa', label: 'Ganar masa muscular' },
@@ -69,28 +71,40 @@ export default function CompleteProfileScreen({ navigation }) {
     }
 
     setLoading(true);
-    const result = await updateUserProfile({
-      profileImage: profileImage || user?.profileImage,
-      height: heightNum,
-      weight: weightNum,
-      goal,
-    });
-    setLoading(false);
-
-    if (result.success) {
-      if (navigation?.canGoBack()) {
-        Alert.alert('¡Perfil actualizado!', 'Tus datos se han guardado correctamente.', [
-          { text: 'OK', onPress: () => navigation.goBack() },
-        ]);
+    try {
+      // Si el usuario eligió una imagen local, subirla primero
+      let finalImageUrl = user?.profileImage;
+      if (profileImage && profileImage !== user?.profileImage && !profileImage.startsWith('http')) {
+        const uploadRes = await profileService.uploadAvatar(profileImage);
+        if (uploadRes.success) finalImageUrl = uploadRes.data.profileImage;
       }
-    } else {
-      Alert.alert('Error', result.message || 'Error al actualizar perfil');
+
+      const result = await updateUserProfile({
+        profileImage: finalImageUrl,
+        height: heightNum,
+        weight: weightNum,
+        goal,
+      });
+
+      if (result.success) {
+        if (navigation?.canGoBack()) {
+          Alert.alert('¡Perfil actualizado!', 'Tus datos se han guardado correctamente.', [
+            { text: 'OK', onPress: () => navigation.goBack() },
+          ]);
+        }
+      } else {
+        Alert.alert('Error', result.message || 'Error al actualizar perfil');
+      }
+    } catch {
+      Alert.alert('Error', 'No se pudo guardar el perfil');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: '#0D0D0D' }}
+      style={{ flex: 1, backgroundColor: COLORS.background }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
     <ScrollView style={styles.container} contentContainerStyle={{ flexGrow: 1 }}>
@@ -178,7 +192,7 @@ export default function CompleteProfileScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0D0D0D',
+    backgroundColor: COLORS.background,
   },
   content: {
     padding: 20,
@@ -187,13 +201,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
     marginBottom: 10,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
-    color: '#9A9A9A',
+    color: COLORS.textSecondary,
     marginBottom: 30,
     textAlign: 'center',
   },
@@ -207,16 +221,16 @@ const styles = StyleSheet.create({
     borderRadius: 60,
     marginBottom: 15,
     borderWidth: 3,
-    borderColor: '#B11226',
+    borderColor: COLORS.primary,
   },
   changeImageButton: {
-    backgroundColor: '#B11226',
+    backgroundColor: COLORS.primary,
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 20,
   },
   changeImageText: {
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -226,42 +240,42 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
     marginBottom: 8,
   },
   input: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderRadius: 10,
     padding: 15,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: '#333333',
-    color: '#EAEAEA',
+    borderColor: COLORS.border,
+    color: COLORS.textPrimary,
   },
   goalButton: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderRadius: 10,
     padding: 15,
     marginBottom: 10,
     borderWidth: 2,
-    borderColor: '#333333',
+    borderColor: COLORS.border,
   },
   goalButtonSelected: {
-    borderColor: '#B11226',
+    borderColor: COLORS.primary,
     backgroundColor: '#1A0000',
   },
   goalButtonText: {
     fontSize: 16,
-    color: '#9A9A9A',
+    color: COLORS.textSecondary,
     textAlign: 'center',
     fontWeight: '500',
   },
   goalButtonTextSelected: {
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
     fontWeight: '700',
   },
   submitButton: {
-    backgroundColor: '#B11226',
+    backgroundColor: COLORS.primary,
     borderRadius: 10,
     padding: 15,
     alignItems: 'center',
@@ -272,7 +286,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   submitButtonText: {
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
     fontSize: 16,
     fontWeight: 'bold',
   },

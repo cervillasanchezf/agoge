@@ -12,6 +12,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
+import { COLORS } from '../config/theme';
 
 export default function RegisterScreen({ navigation }) {
   const [name, setName] = useState('');
@@ -124,7 +125,7 @@ export default function RegisterScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0D0D0D',
+    backgroundColor: COLORS.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -137,13 +138,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
     marginBottom: 10,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
-    color: '#9A9A9A',
+    color: COLORS.textSecondary,
     marginBottom: 40,
     textAlign: 'center',
   },
@@ -151,17 +152,17 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   input: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderRadius: 10,
     padding: 15,
     fontSize: 16,
     marginBottom: 15,
     borderWidth: 1,
-    borderColor: '#333333',
-    color: '#EAEAEA',
+    borderColor: COLORS.border,
+    color: COLORS.textPrimary,
   },
   button: {
-    backgroundColor: '#B11226',
+    backgroundColor: COLORS.primary,
     borderRadius: 10,
     padding: 15,
     alignItems: 'center',
@@ -171,7 +172,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   buttonText: {
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
     fontSize: 16,
     fontWeight: 'bold',
   },
@@ -181,11 +182,11 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   loginText: {
-    color: '#9A9A9A',
+    color: COLORS.textSecondary,
     fontSize: 14,
   },
   loginLink: {
-    color: '#B11226',
+    color: COLORS.primary,
     fontSize: 14,
     fontWeight: 'bold',
   },

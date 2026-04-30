@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { sessionService } from '../services/api';
 import { MUSCLE_LABELS, getExerciseName } from '../config/translations';
+import { COLORS } from '../config/theme';
 
 const PERIODS = [
   { label: 'Semana', days: 7 },
@@ -226,7 +227,7 @@ export default function HistorialScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0D0D0D' },
+  container: { flex: 1, backgroundColor: COLORS.background },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
   // Filtros de período
@@ -236,30 +237,30 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     gap: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#1F1F1F',
+    borderBottomColor: COLORS.surface,
   },
   periodBtn: {
     flex: 1,
     paddingVertical: 6,
     borderRadius: 8,
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
   },
   periodBtnActive: {
-    backgroundColor: '#8B0000',
+    backgroundColor: COLORS.primaryDark,
   },
   periodBtnText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#6A6A6A',
+    color: COLORS.textMuted,
   },
   periodBtnTextActive: {
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
   },
 
   list: { padding: 16, gap: 12 },
   card: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderRadius: 12,
     padding: 14,
     shadowColor: '#000',
@@ -269,19 +270,19 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   cardTop: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 12 },
-  cardTitle: { fontSize: 15, fontWeight: '700', color: '#EAEAEA', marginBottom: 2 },
-  cardDate: { fontSize: 12, color: '#6A6A6A' },
+  cardTitle: { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 2 },
+  cardDate: { fontSize: 12, color: COLORS.textMuted },
   statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#181818',
+    backgroundColor: COLORS.surfaceAlt,
     borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 12,
   },
   statItem: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
-  statValue: { fontSize: 12, fontWeight: '600', color: '#9A9A9A' },
-  statDivider: { width: 1, height: 16, backgroundColor: '#333333' },
+  statValue: { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary },
+  statDivider: { width: 1, height: 16, backgroundColor: COLORS.border },
   empty: { alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: 12 },
-  emptyText: { fontSize: 15, color: '#6A6A6A', fontWeight: '500' },
+  emptyText: { fontSize: 15, color: COLORS.textMuted, fontWeight: '500' },
 });

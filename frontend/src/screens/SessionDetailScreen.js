@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { sessionService } from '../services/api';
 import { MUSCLE_LABELS, getExerciseName } from '../config/translations';
+import { COLORS } from '../config/theme';
 
 function formatDate(dateStr) {
   const d = new Date(dateStr);
@@ -340,12 +341,12 @@ export default function SessionDetailScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0D0D0D' },
+  container: { flex: 1, backgroundColor: COLORS.background },
   scroll: { padding: 16, gap: 14, paddingBottom: 40 },
 
   // Summary card
   summaryCard: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderRadius: 14,
     padding: 16,
     shadowColor: '#000',
@@ -354,33 +355,33 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  trainingName: { fontSize: 18, fontWeight: '800', color: '#EAEAEA', marginBottom: 2 },
-  dateText: { fontSize: 13, color: '#6A6A6A', marginBottom: 16, textTransform: 'capitalize' },
+  trainingName: { fontSize: 18, fontWeight: '800', color: COLORS.textPrimary, marginBottom: 2 },
+  dateText: { fontSize: 13, color: COLORS.textMuted, marginBottom: 16, textTransform: 'capitalize' },
   statsGrid: {
     flexDirection: 'row',
-    backgroundColor: '#181818',
+    backgroundColor: COLORS.surfaceAlt,
     borderRadius: 10,
     paddingVertical: 14,
     marginBottom: 16,
   },
   statCell: { flex: 1, alignItems: 'center', gap: 4 },
-  statVal: { fontSize: 15, fontWeight: '700', color: '#EAEAEA' },
-  statLbl: { fontSize: 10, color: '#6A6A6A', fontWeight: '600', textAlign: 'center' },
+  statVal: { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary },
+  statLbl: { fontSize: 10, color: COLORS.textMuted, fontWeight: '600', textAlign: 'center' },
 
   // Volume per muscle
-  muscleSection: { borderTopWidth: 1, borderTopColor: '#252525', paddingTop: 14, gap: 8 },
-  sectionTitle: { fontSize: 12, fontWeight: '700', color: '#6A6A6A', letterSpacing: 0.5, marginBottom: 4 },
+  muscleSection: { borderTopWidth: 1, borderTopColor: COLORS.surfaceDeep, paddingTop: 14, gap: 8 },
+  sectionTitle: { fontSize: 12, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.5, marginBottom: 4 },
   muscleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  muscleName: { fontSize: 12, color: '#9A9A9A', fontWeight: '600' },
-  muscleSets: { fontSize: 10, color: '#6A6A6A', fontWeight: '500' },
+  muscleName: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '600' },
+  muscleSets: { fontSize: 10, color: COLORS.textMuted, fontWeight: '500' },
   muscleNameWrap: { width: 90, gap: 1 },
-  barTrack: { flex: 1, height: 6, borderRadius: 3, backgroundColor: '#252525', flexDirection: 'row', overflow: 'hidden' },
-  barFill: { backgroundColor: '#B11226', borderRadius: 3 },
-  muscleVol: { width: 70, fontSize: 11, color: '#9A9A9A', textAlign: 'right' },
+  barTrack: { flex: 1, height: 6, borderRadius: 3, backgroundColor: COLORS.surfaceDeep, flexDirection: 'row', overflow: 'hidden' },
+  barFill: { backgroundColor: COLORS.primary, borderRadius: 3 },
+  muscleVol: { width: 70, fontSize: 11, color: COLORS.textSecondary, textAlign: 'right' },
 
   // Exercise card
   exCard: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderRadius: 12,
     padding: 14,
     shadowColor: '#000',
@@ -389,16 +390,16 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 1,
   },
-  exName: { fontSize: 15, fontWeight: '700', color: '#EAEAEA', marginBottom: 10 },
+  exName: { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 10 },
   tableHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 6,
     paddingBottom: 6,
     borderBottomWidth: 1,
-    borderBottomColor: '#252525',
+    borderBottomColor: COLORS.surfaceDeep,
   },
-  colLabel: { fontSize: 10, color: '#6A6A6A', fontWeight: '700', textAlign: 'center' },
+  colLabel: { fontSize: 10, color: COLORS.textMuted, fontWeight: '700', textAlign: 'center' },
   colSet:  { width: 36, textAlign: 'center' },
   colKg:   { width: 60, textAlign: 'center' },
   colReps: { width: 60, textAlign: 'center' },
@@ -412,14 +413,14 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   setRowDone: { backgroundColor: '#0A1A0A' },
-  setNum: { fontSize: 13, fontWeight: '700', color: '#B11226', textAlign: 'center' },
-  cellText: { fontSize: 13, fontWeight: '600', color: '#9A9A9A', textAlign: 'center' },
+  setNum: { fontSize: 13, fontWeight: '700', color: COLORS.primary, textAlign: 'center' },
+  cellText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary, textAlign: 'center' },
   checkCircle: {
     width: 22, height: 22, borderRadius: 11,
-    borderWidth: 2, borderColor: '#333333',
+    borderWidth: 2, borderColor: COLORS.border,
     alignItems: 'center', justifyContent: 'center',
   },
-  checkCircleDone: { borderColor: '#22c55e', backgroundColor: '#22c55e' },
+  checkCircleDone: { borderColor: COLORS.success, backgroundColor: COLORS.success },
 
   // Summary header with edit button
   summaryHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 0 },
@@ -428,16 +429,16 @@ const styles = StyleSheet.create({
   notesBlock: {
     marginTop: 14,
     borderTopWidth: 1,
-    borderTopColor: '#252525',
+    borderTopColor: COLORS.surfaceDeep,
     paddingTop: 12,
   },
-  notesLabel: { fontSize: 11, fontWeight: '700', color: '#6A6A6A', letterSpacing: 0.5, marginBottom: 6 },
-  notesText:  { fontSize: 14, color: '#9A9A9A', lineHeight: 20 },
+  notesLabel: { fontSize: 11, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.5, marginBottom: 6 },
+  notesText:  { fontSize: 14, color: COLORS.textSecondary, lineHeight: 20 },
 
   // Edit modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   modalSheet: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 20,
@@ -445,16 +446,16 @@ const styles = StyleSheet.create({
   },
   modalHandle: {
     width: 36, height: 4, borderRadius: 2,
-    backgroundColor: '#333333', alignSelf: 'center', marginBottom: 16,
+    backgroundColor: COLORS.border, alignSelf: 'center', marginBottom: 16,
   },
-  modalTitle: { fontSize: 17, fontWeight: '700', color: '#EAEAEA', marginBottom: 20 },
-  fieldLabel: { fontSize: 12, fontWeight: '600', color: '#9A9A9A', marginBottom: 6, marginTop: 12 },
+  modalTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 20 },
+  fieldLabel: { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 6, marginTop: 12 },
   fieldInput: {
     backgroundColor: '#111111',
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#2E2E2E',
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
     fontSize: 15,
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -463,16 +464,16 @@ const styles = StyleSheet.create({
   durationRow: { flexDirection: 'row', gap: 12, marginTop: 4 },
   durationUnit: { flex: 1, alignItems: 'center', backgroundColor: '#111111', borderRadius: 10, borderWidth: 1, borderColor: '#2E2E2E', paddingVertical: 8 },
   durationBtn: { padding: 6 },
-  durationValue: { fontSize: 22, fontWeight: '700', color: '#EAEAEA', marginVertical: 4 },
-  durationLabel: { fontSize: 11, color: '#6A6A6A', fontWeight: '600' },
+  durationValue: { fontSize: 22, fontWeight: '700', color: COLORS.textPrimary, marginVertical: 4 },
+  durationLabel: { fontSize: 11, color: COLORS.textMuted, fontWeight: '600' },
   saveBtn: {
     marginTop: 20,
-    backgroundColor: '#8B0000',
+    backgroundColor: COLORS.primaryDark,
     borderRadius: 10,
     paddingVertical: 14,
     alignItems: 'center',
   },
-  saveBtnText: { fontSize: 15, fontWeight: '700', color: '#EAEAEA' },
+  saveBtnText: { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary },
 
   // Delete button
   deleteBtn: {
@@ -484,8 +485,8 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#4A1010',
-    backgroundColor: '#1A0505',
+    borderColor: COLORS.dangerBorder,
+    backgroundColor: COLORS.dangerBg,
   },
-  deleteBtnText: { fontSize: 14, fontWeight: '600', color: '#FF3B3B' },
+  deleteBtnText: { fontSize: 14, fontWeight: '600', color: COLORS.danger },
 });

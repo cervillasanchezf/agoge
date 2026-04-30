@@ -14,6 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { SvgXml } from 'react-native-svg';
 import { useAuth } from '../context/AuthContext';
+import { COLORS } from '../config/theme';
 
 const logoXml = `<svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 846 246" width="846px" height="246px" xmlns:xlink="http://www.w3.org/1999/xlink">
 <g><path fill-rule="evenodd" fill="#B11226" d="M 312.5,25.5 C 313.552,25.3505 314.552,25.5172 315.5,26C 322,31.8333 328.167,38 334,44.5C 334.667,45.1667 334.667,45.8333 334,46.5C 307.167,73.3333 280.333,100.167 253.5,127C 274.667,145.5 295.833,164 317,182.5C 317.5,169.504 317.667,156.504 317.5,143.5C 309.5,143.5 301.5,143.5 293.5,143.5C 293.553,133.953 293.22,124.619 292.5,115.5C 310.167,115.5 327.833,115.5 345.5,115.5C 345.83,153.073 345.496,190.573 344.5,228C 337.5,228.667 330.5,228.667 323.5,228C 289.129,197.294 254.463,166.961 219.5,137C 216.65,134.318 213.984,131.484 211.5,128.5C 244.568,94.9328 277.734,61.5994 311,28.5C 311.513,27.4734 312.013,26.4734 312.5,25.5 Z"/></g>
@@ -122,7 +123,7 @@ export default function LoginScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0D0D0D',
+    backgroundColor: COLORS.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -138,7 +139,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 16,
-    color: '#9A9A9A',
+    color: COLORS.textSecondary,
     marginBottom: 40,
     textAlign: 'center',
   },
@@ -146,36 +147,36 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   input: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderRadius: 10,
     padding: 15,
     fontSize: 16,
     marginBottom: 15,
     borderWidth: 1,
-    borderColor: '#333333',
-    color: '#EAEAEA',
+    borderColor: COLORS.border,
+    color: COLORS.textPrimary,
   },
   passwordContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: COLORS.border,
     marginBottom: 15,
   },
   passwordInput: {
     flex: 1,
     padding: 15,
     fontSize: 16,
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
   },
   eyeButton: {
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
   button: {
-    backgroundColor: '#B11226',
+    backgroundColor: COLORS.primary,
     borderRadius: 10,
     padding: 15,
     alignItems: 'center',
@@ -185,7 +186,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   buttonText: {
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
     fontSize: 16,
     fontWeight: 'bold',
   },
@@ -195,11 +196,11 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   registerText: {
-    color: '#9A9A9A',
+    color: COLORS.textSecondary,
     fontSize: 14,
   },
   registerLink: {
-    color: '#B11226',
+    color: COLORS.primary,
     fontSize: 14,
     fontWeight: 'bold',
   },

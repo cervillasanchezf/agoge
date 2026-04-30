@@ -174,6 +174,20 @@ export const profileService = {
     const response = await api.get(`/profile/${userId}`);
     return response.data;
   },
+
+  uploadAvatar: async (localUri) => {
+    const filename = localUri.split('/').pop();
+    const match = /\.(\w+)$/.exec(filename);
+    const type = match ? `image/${match[1]}` : 'image/jpeg';
+
+    const formData = new FormData();
+    formData.append('avatar', { uri: localUri, name: filename, type });
+
+    const response = await api.post('/profile/avatar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
 };
 
 export const exerciseService = {

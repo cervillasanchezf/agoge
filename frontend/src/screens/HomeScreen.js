@@ -15,6 +15,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { SvgXml } from 'react-native-svg';
 import { planService, sessionService, measurementService } from '../services/api';
+import { COLORS } from '../config/theme';
 
 const logoXml = `<svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 846 246" width="846px" height="246px" xmlns:xlink="http://www.w3.org/1999/xlink">
 <g><path fill-rule="evenodd" fill="#B11226" d="M 312.5,25.5 C 313.552,25.3505 314.552,25.5172 315.5,26C 322,31.8333 328.167,38 334,44.5C 334.667,45.1667 334.667,45.8333 334,46.5C 307.167,73.3333 280.333,100.167 253.5,127C 274.667,145.5 295.833,164 317,182.5C 317.5,169.504 317.667,156.504 317.5,143.5C 309.5,143.5 301.5,143.5 293.5,143.5C 293.553,133.953 293.22,124.619 292.5,115.5C 310.167,115.5 327.833,115.5 345.5,115.5C 345.83,153.073 345.496,190.573 344.5,228C 337.5,228.667 330.5,228.667 323.5,228C 289.129,197.294 254.463,166.961 219.5,137C 216.65,134.318 213.984,131.484 211.5,128.5C 244.568,94.9328 277.734,61.5994 311,28.5C 311.513,27.4734 312.013,26.4734 312.5,25.5 Z"/></g>
@@ -144,6 +145,10 @@ export default function HomeScreen({ navigation }) {
 
   const todayPlanDay = useMemo(() => jsToPlanDay(today.getDay()), [today]);
   const todayKey = useMemo(() => toKey(today), [today]);
+  const todayFormatted = useMemo(() => {
+    const opts = { weekday: 'long', day: 'numeric', month: 'long' };
+    return today.toLocaleDateString('es-ES', opts);
+  }, [today]);
 
   const [loading, setLoading] = useState(true);
   const [activePlan, setActivePlan] = useState(null);
@@ -367,13 +372,17 @@ export default function HomeScreen({ navigation }) {
     const key = toKey(d);
     let planDay = planDayMap[jsToPlanDay(d.getDay())] || null;
     const daySessions = sessionsByDate[key] || [];
-    // If this day has no sessions of its own but its training was done elsewhere this week → hide PLANIFICADO
-    if (planDay && !daySessions.length) {
-      const covered = planDay.trainings.some(t => weekDoneTrainingIds.has(String(t._id)));
-      if (covered) planDay = null;
+    // Filter out planned trainings already done this week (on any day, including this one)
+    if (planDay) {
+      const pendingTrainings = planDay.trainings.filter(t => !weekDoneTrainingIds.has(String(t._id)));
+      planDay = pendingTrainings.length > 0 ? { ...planDay, trainings: pendingTrainings } : null;
     }
+    const isMeasDay = !!(activePlan?.measurementDay && planBounds)
+      && d >= planBounds.start && d <= planBounds.end
+      && jsToPlanDay(d.getDay()) === activePlan.measurementDay;
+    const hasMeasurement = !!measurementsByDate[key];
     const label = `${WEEKDAYS_ES[d.getDay()]}, ${d.getDate()} de ${MONTHS_GEN[d.getMonth()]}`;
-    setDaySheet({ key, label, planDay, sessions: daySessions, date: d });
+    setDaySheet({ key, label, planDay, sessions: daySessions, date: d, isMeasDay, hasMeasurement });
   }
 
   async function handleUpdateSessionDate(sessionId, newDateKey) {
@@ -405,13 +414,11 @@ export default function HomeScreen({ navigation }) {
     const d = new Date(`${selectedDayKey}T12:00:00`);
     const planDay = planDayMap[jsToPlanDay(d.getDay())] || null;
     if (!planDay) return null;
-    const daySessions = sessionsByDate[selectedDayKey] || [];
-    if (daySessions.length) return planDay; // session done on this exact day → show PLANIFICADO
-    // Check if training was done on another day of the same week
+    // Filter out planned trainings already done this week (on any day, including this one)
     const weekDoneIds = weekTrainingIdMap[toKey(getMonday(d))] || new Set();
-    const covered = planDay.trainings.some(t => weekDoneIds.has(String(t._id)));
-    return covered ? null : planDay;
-  }, [selectedDayKey, activePlan, planDayMap, sessionsByDate, weekTrainingIdMap]);
+    const pendingTrainings = planDay.trainings.filter(t => !weekDoneIds.has(String(t._id)));
+    return pendingTrainings.length > 0 ? { ...planDay, trainings: pendingTrainings } : null;
+  }, [selectedDayKey, activePlan, planDayMap, weekTrainingIdMap]);
 
   const selectedDayIsMeasurementDay = useMemo(() => {
     if (!selectedDayKey || !activePlan?.measurementDay || !planBounds) return false;
@@ -420,21 +427,17 @@ export default function HomeScreen({ navigation }) {
     return jsToPlanDay(d.getDay()) === activePlan.measurementDay;
   }, [selectedDayKey, activePlan, planBounds]);
 
-  const isMeasurementDay = useMemo(
-    () => !!(activePlan?.measurementDay && activePlan.measurementDay === todayPlanDay),
-    [activePlan, todayPlanDay],
+  const isTodayMeasurementDay = useMemo(() => {
+    if (!activePlan?.measurementDay || !planBounds) return false;
+    if (today < planBounds.start || today > planBounds.end) return false;
+    return todayPlanDay === activePlan.measurementDay;
+  }, [activePlan, planBounds, today, todayPlanDay]);
+
+  if (loading) return (
+    <SafeAreaView style={styles.container}>
+      <ActivityIndicator size="large" color="#B11226" style={styles.loader} />
+    </SafeAreaView>
   );
-
-  const todayFormatted = `${WEEKDAYS_ES[today.getDay()]}, ${today.getDate()} de ${MONTHS_GEN[today.getMonth()]}`;
-
-  // ---- Loading -------------
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <ActivityIndicator size="large" color="#B11226" style={styles.loader} />
-      </SafeAreaView>
-    );
-  }
 
   // ---- Render -------------
   return (
@@ -492,13 +495,20 @@ export default function HomeScreen({ navigation }) {
               const planDay = planDayMap[jsToPlanDay(d.getDay())];
               const hasPlanned = !!planDay;
               const isPast = key <= todayKey;
+              const isInPlan = !planBounds || (d >= planBounds.start && d <= planBounds.end);
+              const isMeasDay = isInPlan && !!(activePlan?.measurementDay && jsToPlanDay(d.getDay()) === activePlan.measurementDay);
+              const hasMeasurement = !!measurementsByDate[key];
               // training fulfilled elsewhere this week (done on a different day)
               const trainingCoveredElsewhere = hasPlanned && !hasSess
                 ? planDay.trainings.some(t => weekDoneTrainingIds.has(String(t._id)))
                 : false;
+              // planned training not yet done specifically on this day (could be extra session from another day)
+              const daySessIds = new Set((sessionsByDate[key] || []).map(s => String(s.trainingId?._id)));
+              const hasPendingPlanned = hasSess && hasPlanned
+                && planDay.trainings.some(t => !daySessIds.has(String(t._id)));
               // bar: gold if session done, dark red if planned+past+missed+not compensated, nothing otherwise
               const barColor = hasSess
-                ? '#C9A44C'
+                ? COLORS.gold
                 : hasPlanned && isPast && key !== todayKey && !trainingCoveredElsewhere
                   ? '#5A0000'
                   : hasPlanned && !trainingCoveredElsewhere
@@ -518,6 +528,18 @@ export default function HomeScreen({ navigation }) {
                     {d.getDate()}
                   </Text>
                   <View style={[styles.stripBar, barColor && { backgroundColor: barColor }]} />
+                  {hasPendingPlanned && (
+                    <View style={[styles.stripBar, {
+                      backgroundColor: isPast && key !== todayKey ? '#5A0000' : '#3A1010',
+                      marginTop: 2,
+                    }]} />
+                  )}
+                  {isMeasDay && (
+                    <View style={[styles.stripBar, {
+                      backgroundColor: hasMeasurement ? COLORS.primary : '#7A7A7A',
+                      marginTop: 2,
+                    }]} />
+                  )}
                 </TouchableOpacity>
               );
             })}
@@ -635,7 +657,7 @@ export default function HomeScreen({ navigation }) {
         </View>
 
         {/* Toma de medidas de hoy */}
-        {isMeasurementDay && (
+        {isTodayMeasurementDay && (
           <View style={[styles.section, { marginTop: 16 }]}>
             {todayMeasurement ? (
               <TouchableOpacity
@@ -647,7 +669,7 @@ export default function HomeScreen({ navigation }) {
                   <Ionicons name="checkmark-circle" size={16} color="#B11226" />
                   <Text style={[styles.microLabel, { marginBottom: 0, marginLeft: 6 }]}>TOMA DE MEDIDAS</Text>
                 </View>
-                <Text style={[styles.todayName, { color: '#EAEAEA' }]}>Realizada hoy</Text>
+                <Text style={[styles.todayName, { color: COLORS.textPrimary }]}>Realizada hoy</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
@@ -660,7 +682,7 @@ export default function HomeScreen({ navigation }) {
                   <View style={{ flex: 1, marginRight: 12 }}>
                     <Text style={styles.todayName}>Pendiente de registrar</Text>
                   </View>
-                  <View style={[styles.playBtn, { backgroundColor: '#1A0005', borderWidth: 1, borderColor: '#B11226' }]}>
+                  <View style={[styles.playBtn, { backgroundColor: COLORS.primaryLight, borderWidth: 1, borderColor: COLORS.primary }]}>
                     <Ionicons name="body-outline" size={20} color="#B11226" />
                   </View>
                 </View>
@@ -865,8 +887,15 @@ export default function HomeScreen({ navigation }) {
                       // Check if this planned day's training was fulfilled on another day of the same week
                       const cellPlanDay = planDayMap[jsToPlanDay(cellDate.getDay())];
                       const cellWeekDoneIds = weekTrainingIdMap[toKey(getMonday(cellDate))] || new Set();
-                      const calTrainingCoveredElsewhere = hasPlanned && !hasSess && !isOutOfPlan && !!cellPlanDay
-                        && cellPlanDay.trainings.some(t => cellWeekDoneIds.has(String(t._id)));
+                      // planned training not yet done specifically on this day
+                      const cellDaySessIds = new Set((sessionsByDate[cellKey] || []).map(s => String(s.trainingId?._id)));
+                      // covered elsewhere = all planned trainings done this week but none done on this specific day
+                      const calTrainingCoveredElsewhere = hasPlanned && !isOutOfPlan && !!cellPlanDay
+                        && cellPlanDay.trainings.every(t => cellWeekDoneIds.has(String(t._id)))
+                        && !cellPlanDay.trainings.some(t => cellDaySessIds.has(String(t._id)));
+                      // pending planned = session exists on this day but some planned training not yet done this week
+                      const calHasPendingPlanned = hasSess && hasPlanned && !isOutOfPlan && !!cellPlanDay
+                        && cellPlanDay.trainings.some(t => !cellWeekDoneIds.has(String(t._id)));
                       // Out-of-plan days are only interactive if they have a completed session
                       const isInteractive = !isOutOfPlan || hasSess;
                       return (
@@ -898,22 +927,29 @@ export default function HomeScreen({ navigation }) {
                                 {hasPlanned && !isOutOfPlan && !calTrainingCoveredElsewhere && (
                                   <View style={[
                                     styles.calDot,
-                                    { backgroundColor: hasSess ? '#C9A44C' : '#B11226' },
-                                    (isToday || isSelected) && { backgroundColor: '#EAEAEA' },
+                                    { backgroundColor: hasSess && !calHasPendingPlanned ? COLORS.gold : COLORS.primary },
+                                    (isToday || isSelected) && { backgroundColor: COLORS.textPrimary },
                                   ]} />
                                 )}
-                                {hasSess && (isOutOfPlan || !hasPlanned) && (
+                                {hasSess && calHasPendingPlanned && !isOutOfPlan && (
                                   <View style={[
                                     styles.calDot,
-                                    { backgroundColor: '#C9A44C' },
-                                    (isToday || isSelected) && { backgroundColor: '#EAEAEA' },
+                                    { backgroundColor: COLORS.gold },
+                                    (isToday || isSelected) && { backgroundColor: COLORS.textPrimary },
+                                  ]} />
+                                )}
+                                {hasSess && (isOutOfPlan || !hasPlanned || calTrainingCoveredElsewhere) && (
+                                  <View style={[
+                                    styles.calDot,
+                                    { backgroundColor: COLORS.gold },
+                                    (isToday || isSelected) && { backgroundColor: COLORS.textPrimary },
                                   ]} />
                                 )}
                                 {isMeasDay && (
                                   <View style={[
                                     styles.calDot,
-                                    { backgroundColor: hasMeasurement ? '#9A9A9A' : '#444' },
-                                    (isToday || isSelected) && { backgroundColor: '#EAEAEA' },
+                                    { backgroundColor: hasMeasurement ? COLORS.textSecondary : '#444' },
+                                    (isToday || isSelected) && { backgroundColor: COLORS.textPrimary },
                                   ]} />
                                 )}
                               </View>
@@ -947,7 +983,9 @@ export default function HomeScreen({ navigation }) {
                         <View style={{ marginLeft: 10, flex: 1 }}>
                           <Text style={styles.sessionRowName}>{t.name}</Text>
                         </View>
-                        {!selectedDaySessions.length && (
+                        {!selectedDaySessions.some(
+                            s => String(s.trainingId?._id) === String(t._id)
+                          ) && (
                           <TouchableOpacity
                             style={styles.dayPanelPlayBtn}
                             onPress={() => {
@@ -1021,7 +1059,7 @@ export default function HomeScreen({ navigation }) {
                       <Ionicons
                         name={measurementsByDate[selectedDayKey] ? 'checkmark-circle' : 'body-outline'}
                         size={16}
-                        color={measurementsByDate[selectedDayKey] ? '#B11226' : '#9A9A9A'}
+                        color={measurementsByDate[selectedDayKey] ? COLORS.primary : COLORS.textSecondary}
                       />
                       <View style={{ marginLeft: 10, flex: 1 }}>
                         <Text style={styles.sessionRowName}>
@@ -1070,8 +1108,10 @@ export default function HomeScreen({ navigation }) {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.sheetTrainingName}>{t.name}</Text>
                   </View>
-                  {/* Only show start button if there's no session yet for that day */}
-                  {!daySheet.sessions?.length && (
+                  {/* Only show start button if this specific training hasn't been done on this day */}
+                  {!(daySheet.sessions || []).some(
+                    s => String(s.trainingId?._id) === String(t._id)
+                  ) && (
                     <TouchableOpacity
                       style={styles.sheetPlayBtn}
                       onPress={() => {
@@ -1128,8 +1168,35 @@ export default function HomeScreen({ navigation }) {
             </View>
           )}
 
-          {/* Rest day – no plan, no session */}
-          {!daySheet?.planDay && !daySheet?.sessions?.length && (
+          {/* Medidas */}
+          {daySheet?.isMeasDay && (
+            <View style={styles.sheetSection}>
+              <Text style={styles.sheetSectionLabel}>TOMA DE MEDIDAS</Text>
+              <TouchableOpacity
+                style={styles.sheetSessionCard}
+                onPress={() => {
+                  setDaySheet(null);
+                  navigation.navigate('ProfileTab', { screen: 'Medidas' });
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name={daySheet.hasMeasurement ? 'checkmark-circle' : 'body-outline'}
+                  size={16}
+                  color={daySheet.hasMeasurement ? COLORS.primary : COLORS.textSecondary}
+                />
+                <View style={{ marginLeft: 10, flex: 1 }}>
+                  <Text style={styles.sheetSessionName}>
+                    {daySheet.hasMeasurement ? 'Realizada' : 'Pendiente de registrar'}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color="#555" />
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Rest day – no plan, no session, no measurement */}
+          {!daySheet?.planDay && !daySheet?.sessions?.length && !daySheet?.isMeasDay && (
             <Text style={styles.sheetRestText}>Sin entrenamiento planificado</Text>
           )}
 
@@ -1240,15 +1307,15 @@ export default function HomeScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0D0D0D' },
+  container: { flex: 1, backgroundColor: COLORS.background },
   loader: { flex: 1 },
   scroll: { paddingHorizontal: 16, paddingTop: 0 },
 
   // Header
   header: { marginBottom: 12 },
   logoContainer: { alignItems: 'center', paddingTop: 0, paddingBottom: 12 },
-  greeting: { fontSize: 22, fontWeight: '700', color: '#EAEAEA' },
-  dateText: { fontSize: 13, color: '#9A9A9A', marginTop: 3, textTransform: 'capitalize' },
+  greeting: { fontSize: 22, fontWeight: '700', color: COLORS.textPrimary },
+  dateText: { fontSize: 13, color: COLORS.textSecondary, marginTop: 3, textTransform: 'capitalize' },
 
   // End-of-cycle banner
   endBanner: {
@@ -1257,29 +1324,29 @@ const styles = StyleSheet.create({
     gap: 8,
     backgroundColor: '#1D1700',
     borderLeftWidth: 3,
-    borderLeftColor: '#C9A44C',
+    borderLeftColor: COLORS.gold,
     borderRadius: 8,
     padding: 12,
     marginBottom: 16,
   },
-  endBannerText: { flex: 1, fontSize: 13, color: '#C9A44C' },
+  endBannerText: { flex: 1, fontSize: 13, color: COLORS.gold },
 
   // Measurement cards
   measurementCardDone: {
     borderLeftWidth: 3,
-    borderLeftColor: '#B11226',
+    borderLeftColor: COLORS.primary,
     marginTop: 0,
   },
   measurementCardPending: {
     borderLeftWidth: 3,
-    borderLeftColor: '#B11226',
+    borderLeftColor: COLORS.primary,
     marginTop: 0,
   },
 
   // Training card with left border accent
   trainingCard: {
     borderLeftWidth: 3,
-    borderLeftColor: '#B11226',
+    borderLeftColor: COLORS.primary,
   },
 
   // Section
@@ -1290,7 +1357,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10,
   },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: '#EAEAEA', marginBottom: 8, marginTop: 8 },
+  sectionTitle: { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 8, marginTop: 8 },
 
   // Weekly strip
   strip: { flexDirection: 'row' },
@@ -1304,11 +1371,11 @@ const styles = StyleSheet.create({
   stripDayToday: {
     backgroundColor: '#1A0000',
     borderWidth: 1,
-    borderColor: '#B11226',
+    borderColor: COLORS.primary,
   },
-  stripLabel: { fontSize: 11, color: '#9A9A9A', marginBottom: 6 },
-  stripNum: { fontSize: 15, fontWeight: '600', color: '#EAEAEA' },
-  redText: { color: '#B11226', fontWeight: '700' },
+  stripLabel: { fontSize: 11, color: COLORS.textSecondary, marginBottom: 6 },
+  stripNum: { fontSize: 15, fontWeight: '600', color: COLORS.textPrimary },
+  redText: { color: COLORS.primary, fontWeight: '700' },
   stripBar: {
     width: '60%',
     height: 4,
@@ -1323,18 +1390,18 @@ const styles = StyleSheet.create({
     marginTop: 6,
     backgroundColor: 'transparent',
   },
-  dotActive: { backgroundColor: '#C9A44C' },
+  dotActive: { backgroundColor: COLORS.gold },
 
   // Card
-  card: { backgroundColor: '#1A1A1A', borderRadius: 12, padding: 16 },
+  card: { backgroundColor: COLORS.surface, borderRadius: 12, padding: 16 },
   cardIcon: { alignSelf: 'center', marginBottom: 8 },
-  cardEmptyTitle: { fontSize: 16, fontWeight: '600', color: '#EAEAEA', textAlign: 'center', marginBottom: 6 },
-  cardEmptyDesc: { fontSize: 13, color: '#9A9A9A', textAlign: 'center', marginBottom: 16 },
-  primaryBtn: { backgroundColor: '#B11226', borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
-  primaryBtnText: { color: '#EAEAEA', fontWeight: '700', fontSize: 14 },
+  cardEmptyTitle: { fontSize: 16, fontWeight: '600', color: COLORS.textPrimary, textAlign: 'center', marginBottom: 6 },
+  cardEmptyDesc: { fontSize: 13, color: COLORS.textSecondary, textAlign: 'center', marginBottom: 16 },
+  primaryBtn: { backgroundColor: COLORS.primary, borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
+  primaryBtnText: { color: COLORS.textPrimary, fontWeight: '700', fontSize: 14 },
 
   // Week progress badge
-  weekProgressBadge: { fontSize: 13, fontWeight: '600', color: '#C9A44C' },
+  weekProgressBadge: { fontSize: 13, fontWeight: '600', color: COLORS.gold },
 
   // Advanced stats button
   statsAdvBtn: {
@@ -1347,66 +1414,66 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#2E2E2E',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
   },
-  statsAdvBtnText: { fontSize: 13, color: '#C9A44C', fontWeight: '600' },
+  statsAdvBtnText: { fontSize: 13, color: COLORS.gold, fontWeight: '600' },
 
   // Today training
-  microLabel: { fontSize: 10, fontWeight: '700', color: '#B11226', letterSpacing: 1, marginBottom: 8 },
-  todayName: { fontSize: 18, fontWeight: '700', color: '#EAEAEA' },
-  doubleTag: { marginTop: 4, fontSize: 12, color: '#C9A44C' },
+  microLabel: { fontSize: 10, fontWeight: '700', color: COLORS.primary, letterSpacing: 1, marginBottom: 8 },
+  todayName: { fontSize: 18, fontWeight: '700', color: COLORS.textPrimary },
+  doubleTag: { marginTop: 4, fontSize: 12, color: COLORS.gold },
   playBtn: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#B11226',
+    backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  restTitle: { fontSize: 17, fontWeight: '600', color: '#EAEAEA', marginBottom: 6 },
-  nextText: { fontSize: 13, color: '#9A9A9A', lineHeight: 20 },
+  restTitle: { fontSize: 17, fontWeight: '600', color: COLORS.textPrimary, marginBottom: 6 },
+  nextText: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 20 },
 
   // Stats
   statsRow: { flexDirection: 'row', gap: 8 },
   statCard: {
     flex: 1,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderRadius: 12,
     padding: 14,
     alignItems: 'center',
   },
-  statValue: { fontSize: 20, fontWeight: '700', color: '#EAEAEA', marginVertical: 4 },
-  statLabel: { fontSize: 11, color: '#9A9A9A', textAlign: 'center' },
+  statValue: { fontSize: 20, fontWeight: '700', color: COLORS.textPrimary, marginVertical: 4 },
+  statLabel: { fontSize: 11, color: COLORS.textSecondary, textAlign: 'center' },
 
   // Planificación
-  planName: { fontSize: 16, fontWeight: '700', color: '#EAEAEA', flex: 1, marginRight: 8 },
+  planName: { fontSize: 16, fontWeight: '700', color: COLORS.textPrimary, flex: 1, marginRight: 8 },
   activeBadge: {
     backgroundColor: '#1A0000',
     borderWidth: 1,
-    borderColor: '#B11226',
+    borderColor: COLORS.primary,
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
-  activeBadgeText: { fontSize: 10, fontWeight: '700', color: '#B11226', letterSpacing: 0.5 },
-  progressLabel: { fontSize: 13, color: '#9A9A9A', marginTop: 8, marginBottom: 8 },
+  activeBadgeText: { fontSize: 10, fontWeight: '700', color: COLORS.primary, letterSpacing: 0.5 },
+  progressLabel: { fontSize: 13, color: COLORS.textSecondary, marginTop: 8, marginBottom: 8 },
   progressBarBg: {
     height: 6,
     backgroundColor: '#2A2A2A',
     borderRadius: 3,
     overflow: 'hidden',
   },
-  progressBarFill: { height: 6, backgroundColor: '#B11226', borderRadius: 3 },
+  progressBarFill: { height: 6, backgroundColor: COLORS.primary, borderRadius: 3 },
   linkBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
     marginTop: 12,
   },
-  linkBtnText: { fontSize: 13, color: '#B11226', marginRight: 2 },
+  linkBtnText: { fontSize: 13, color: COLORS.primary, marginRight: 2 },
 
   // Calendar modal
-  modalContainer: { flex: 1, backgroundColor: '#0D0D0D' },
+  modalContainer: { flex: 1, backgroundColor: COLORS.background },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1416,7 +1483,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#2E2E2E',
   },
-  modalTitle: { fontSize: 17, fontWeight: '700', color: '#EAEAEA' },
+  modalTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary },
   monthNav: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1424,9 +1491,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 16,
   },
-  monthTitle: { fontSize: 18, fontWeight: '700', color: '#EAEAEA' },
+  monthTitle: { fontSize: 18, fontWeight: '700', color: COLORS.textPrimary },
   calWeekRow: { flexDirection: 'row', paddingHorizontal: 10, marginBottom: 4 },
-  calWeekLabel: { flex: 1, textAlign: 'center', fontSize: 12, fontWeight: '600', color: '#9A9A9A' },
+  calWeekLabel: { flex: 1, textAlign: 'center', fontSize: 12, fontWeight: '600', color: COLORS.textSecondary },
   calGrid: { paddingHorizontal: 10 },
   calRow: { flexDirection: 'row' },
   calCell: {
@@ -1437,17 +1504,17 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     margin: 2,
   },
-  calCellToday: { backgroundColor: '#1A0000', borderWidth: 1, borderColor: '#B11226' },
-  calCellSelected: { backgroundColor: '#B11226' },
+  calCellToday: { backgroundColor: '#1A0000', borderWidth: 1, borderColor: COLORS.primary },
+  calCellSelected: { backgroundColor: COLORS.primary },
   calCellInner: { alignItems: 'center' },
-  calCellNum: { fontSize: 14, color: '#EAEAEA' },
-  calCellTodayNum: { color: '#B11226', fontWeight: '700' },
-  calCellSelectedNum: { color: '#EAEAEA', fontWeight: '700' },
+  calCellNum: { fontSize: 14, color: COLORS.textPrimary },
+  calCellTodayNum: { color: COLORS.primary, fontWeight: '700' },
+  calCellSelectedNum: { color: COLORS.textPrimary, fontWeight: '700' },
   calCellOutOfPlan: { opacity: 0.2 },
   calCellOutOfPlanNum: { color: '#555' },
 
   // Week range label under month title
-  calWeekRangeLabel: { fontSize: 11, color: '#C9A44C', marginTop: 2, fontWeight: '600', letterSpacing: 0.3 },
+  calWeekRangeLabel: { fontSize: 11, color: COLORS.gold, marginTop: 2, fontWeight: '600', letterSpacing: 0.3 },
 
   // Week number column
   calWeekNumCol: {
@@ -1462,7 +1529,7 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 2,
     marginTop: 2,
-    backgroundColor: '#C9A44C',
+    backgroundColor: COLORS.gold,
   },
   calDotsRow: {
     flexDirection: 'row',
@@ -1478,29 +1545,29 @@ const styles = StyleSheet.create({
     borderTopColor: '#2E2E2E',
     marginTop: 4,
   },
-  dayPanelTitle: { fontSize: 15, fontWeight: '700', color: '#EAEAEA', marginBottom: 12, textTransform: 'capitalize' },
+  dayPanelTitle: { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 12, textTransform: 'capitalize' },
   dayPanelSection: { marginBottom: 12 },
-  dayPanelSectionLabel: { fontSize: 10, fontWeight: '700', color: '#B11226', letterSpacing: 1, marginBottom: 6 },
+  dayPanelSectionLabel: { fontSize: 10, fontWeight: '700', color: COLORS.primary, letterSpacing: 1, marginBottom: 6 },
   dayPanelPlayBtn: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#B11226',
+    backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 8,
   },
-  noSessionsText: { fontSize: 14, color: '#9A9A9A', textAlign: 'center', paddingVertical: 16 },
+  noSessionsText: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', paddingVertical: 16 },
   sessionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     padding: 12,
     borderRadius: 10,
     marginBottom: 8,
   },
-  sessionRowName: { fontSize: 15, fontWeight: '600', color: '#EAEAEA' },
-  sessionRowMeta: { fontSize: 12, color: '#9A9A9A', marginTop: 2 },
+  sessionRowName: { fontSize: 15, fontWeight: '600', color: COLORS.textPrimary },
+  sessionRowMeta: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
 
   // Day Sheet (bottom sheet)
   sheetOverlay: {
@@ -1512,7 +1579,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 16,
@@ -1530,12 +1597,68 @@ const styles = StyleSheet.create({
   sheetTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
     textTransform: 'capitalize',
     marginBottom: 16,
   },
   sheetSection: { marginBottom: 16 },
-  sheetSectionLabel: { fontSize: 10, fontWeight: '700', color: '#B11226', letterSpacing: 1, marginBottom: 8 },
+  sheetSectionLabel: { fontSize: 10, fontWeight: '700', color: COLORS.primary, letterSpacing: 1, marginBottom: 8 },
+nLabel: { fontSize: 10, fontWeight: '700', color: COLORS.primary, letterSpacing: 1, marginBottom: 6 },
+  dayPanelPlayBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  noSessionsText: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', paddingVertical: 16 },
+  sessionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 8,
+  },
+  sessionRowName: { fontSize: 15, fontWeight: '600', color: COLORS.textPrimary },
+  sessionRowMeta: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
+
+  // Day Sheet (bottom sheet)
+  sheetOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  sheetContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    maxHeight: '65%',
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#444',
+    alignSelf: 'center',
+    marginBottom: 12,
+  },
+  sheetTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+    textTransform: 'capitalize',
+    marginBottom: 16,
+  },
+  sheetSection: { marginBottom: 16 },
+  sheetSectionLabel: { fontSize: 10, fontWeight: '700', color: COLORS.primary, letterSpacing: 1, marginBottom: 8 },
   sheetTrainingRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1544,12 +1667,12 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 6,
   },
-  sheetTrainingName: { fontSize: 15, fontWeight: '600', color: '#EAEAEA' },
+  sheetTrainingName: { fontSize: 15, fontWeight: '600', color: COLORS.textPrimary },
   sheetPlayBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#B11226',
+    backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 8,
@@ -1562,8 +1685,8 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 6,
   },
-  sheetSessionName: { fontSize: 15, fontWeight: '600', color: '#EAEAEA' },
-  sheetSessionMeta: { fontSize: 12, color: '#9A9A9A', marginTop: 2 },
+  sheetSessionName: { fontSize: 15, fontWeight: '600', color: COLORS.textPrimary },
+  sheetSessionMeta: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
   editDateBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1572,10 +1695,10 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#C9A44C',
+    borderColor: COLORS.gold,
     marginLeft: 8,
   },
-  editDateBtnText: { fontSize: 11, color: '#C9A44C', fontWeight: '600' },
-  sheetRestText: { fontSize: 15, color: '#9A9A9A', textAlign: 'center', paddingVertical: 24 },
+  editDateBtnText: { fontSize: 11, color: COLORS.gold, fontWeight: '600' },
+  sheetRestText: { fontSize: 15, color: COLORS.textSecondary, textAlign: 'center', paddingVertical: 24 },
 });
 

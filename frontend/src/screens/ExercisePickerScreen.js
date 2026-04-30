@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { exerciseService } from '../services/api';
+import { COLORS } from '../config/theme';
 import {
   CATEGORY_LABELS,
   EQUIPMENT_LABELS,
@@ -171,7 +172,7 @@ export default function ExercisePickerScreen({ navigation, route }) {
         <Ionicons
           name={sel ? 'checkmark-circle' : 'add-circle-outline'}
           size={24}
-          color={sel ? '#B11226' : '#4A4A4A'}
+          color={sel ? COLORS.primary : '#4A4A4A'}
         />
       </TouchableOpacity>
     );
@@ -212,7 +213,7 @@ export default function ExercisePickerScreen({ navigation, route }) {
               <Text style={[styles.filterBtnText, isActive && styles.filterBtnTextActive]} numberOfLines={1}>
                 {activeLabel}
               </Text>
-              <Ionicons name="chevron-down" size={13} color={isActive ? '#B11226' : '#6A6A6A'} style={{ marginLeft: 3 }} />
+              <Ionicons name="chevron-down" size={13} color={isActive ? COLORS.primary : COLORS.textMuted} style={{ marginLeft: 3 }} />
             </TouchableOpacity>
           );
         })}
@@ -267,13 +268,13 @@ export default function ExercisePickerScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0D0D0D' },
+  container: { flex: 1, backgroundColor: COLORS.background },
 
   // Buscador
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     margin: 12,
     marginBottom: 8,
     borderRadius: 10,
@@ -286,7 +287,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   searchIcon: { marginRight: 8 },
-  searchInput: { flex: 1, fontSize: 15, color: '#EAEAEA' },
+  searchInput: { flex: 1, fontSize: 15, color: COLORS.textPrimary },
 
   // Barra de filtros
   filterBar: {
@@ -299,9 +300,9 @@ const styles = StyleSheet.create({
   filterBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: COLORS.border,
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 7,
@@ -312,18 +313,18 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   filterBtnActive: {
-    borderColor: '#B11226',
+    borderColor: COLORS.primary,
     backgroundColor: '#1A0000',
   },
-  filterBtnText: { fontSize: 13, fontWeight: '600', color: '#9A9A9A' },
-  filterBtnTextActive: { color: '#EAEAEA' },
+  filterBtnText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
+  filterBtnTextActive: { color: COLORS.textPrimary },
   clearBtn: { padding: 2 },
 
   // Lista de ejercicios
   exerciseItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     marginHorizontal: 12,
     marginVertical: 4,
     borderRadius: 10,
@@ -334,12 +335,12 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 1,
   },
-  exerciseItemSelected: { borderWidth: 1.5, borderColor: '#B11226' },
+  exerciseItemSelected: { borderWidth: 1.5, borderColor: COLORS.primary },
   exerciseInfo: { flex: 1 },
-  exerciseName: { fontSize: 15, fontWeight: '600', color: '#EAEAEA', marginBottom: 2 },
-  exerciseMeta: { fontSize: 12, color: '#6A6A6A' },
+  exerciseName: { fontSize: 15, fontWeight: '600', color: COLORS.textPrimary, marginBottom: 2 },
+  exerciseMeta: { fontSize: 12, color: COLORS.textMuted },
   empty: { padding: 40, alignItems: 'center' },
-  emptyText: { color: '#6A6A6A', fontSize: 15 },
+  emptyText: { color: COLORS.textMuted, fontSize: 15 },
 
   // Footer de selección
   footer: {
@@ -347,28 +348,28 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: '#333333',
+    borderTopColor: COLORS.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 6,
   },
-  footerText: { fontSize: 14, color: '#B11226', fontWeight: '600' },
+  footerText: { fontSize: 14, color: COLORS.primary, fontWeight: '600' },
   confirmButton: {
-    backgroundColor: '#B11226',
+    backgroundColor: COLORS.primary,
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
-  confirmButtonText: { color: '#EAEAEA', fontWeight: '700', fontSize: 14 },
+  confirmButtonText: { color: COLORS.textPrimary, fontWeight: '700', fontSize: 14 },
 
   // Bottom sheet
   modalContainer: {
@@ -380,7 +381,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.6)',
   },
   sheet: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 16,
@@ -390,7 +391,7 @@ const styles = StyleSheet.create({
   sheetHandle: {
     width: 40,
     height: 4,
-    backgroundColor: '#333333',
+    backgroundColor: COLORS.border,
     borderRadius: 2,
     alignSelf: 'center',
     marginBottom: 12,
@@ -398,7 +399,7 @@ const styles = StyleSheet.create({
   sheetTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
     marginBottom: 8,
     textAlign: 'center',
   },
@@ -408,8 +409,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#252525',
+    borderBottomColor: COLORS.surfaceDeep,
   },
-  sheetOptionText: { fontSize: 15, color: '#9A9A9A' },
-  sheetOptionActive: { color: '#EAEAEA', fontWeight: '600' },
+  sheetOptionText: { fontSize: 15, color: COLORS.textSecondary },
+  sheetOptionActive: { color: COLORS.textPrimary, fontWeight: '600' },
 });

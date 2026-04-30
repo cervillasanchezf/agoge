@@ -37,6 +37,7 @@ exports.getSessionHistory = async (req, res) => {
       userId: req.userId,
       trainingId: req.params.trainingId,
     })
+      .lean()
       .populate('exercises.exerciseId', 'name name_es primaryMuscles')
       .sort({ date: -1 })
       .skip(skip)
@@ -64,6 +65,14 @@ exports.getSessionHistory = async (req, res) => {
 exports.createSession = async (req, res) => {
   try {
     const { trainingId, exercises, notes, date, duration } = req.body;
+
+    // Validar fecha si se proporciona
+    if (date !== undefined) {
+      const parsed = new Date(date);
+      if (isNaN(parsed.getTime())) {
+        return res.status(400).json({ success: false, message: 'La fecha proporcionada no es válida' });
+      }
+    }
 
     // Verificar que la plantilla pertenece al usuario
     const training = await Training.findOne({ _id: trainingId, userId: req.userId });
@@ -107,6 +116,7 @@ exports.getAllSessions = async (req, res) => {
     const total = await TrainingSession.countDocuments(filter);
 
     const sessions = await TrainingSession.find(filter)
+      .lean()
       .populate('trainingId', 'name')
       .populate('exercises.exerciseId', 'name name_es primaryMuscles')
       .sort({ date: -1 })

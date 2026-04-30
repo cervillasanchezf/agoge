@@ -51,4 +51,7 @@ const trainingSchema = new mongoose.Schema({
   timestamps: true,
 });
 
+// Índice compuesto para la query principal del usuario
+trainingSchema.index({ userId: 1, createdAt: -1 });
+
 module.exports = mongoose.model('Training', trainingSchema);

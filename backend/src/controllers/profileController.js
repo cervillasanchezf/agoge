@@ -1,3 +1,4 @@
+const path = require('path');
 const User = require('../models/User');
 
 // @desc    Actualizar perfil de usuario
@@ -89,5 +90,34 @@ exports.getProfile = async (req, res) => {
       message: 'Error al obtener perfil',
       error: error.message
     });
+  }
+};
+
+// @desc    Subir imagen de perfil
+// @route   POST /api/profile/avatar
+// @access  Private
+exports.uploadProfileImage = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No se ha proporcionado ninguna imagen' });
+    }
+
+    // Build the public URL — the server must serve /uploads as static
+    const imageUrl = `/uploads/avatars/${req.file.filename}`;
+
+    const user = await User.findByIdAndUpdate(
+      req.userId,
+      { profileImage: imageUrl },
+      { new: true, select: '-password -refreshToken' }
+    );
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+    }
+
+    res.json({ success: true, data: { profileImage: imageUrl } });
+  } catch (error) {
+    console.error('Error al subir imagen de perfil:', error);
+    res.status(500).json({ success: false, message: 'Error al subir la imagen' });
   }
 };

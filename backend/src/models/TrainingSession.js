@@ -59,4 +59,8 @@ const trainingSessionSchema = new mongoose.Schema({
   timestamps: true,
 });
 
+// Índices compuestos para las queries más frecuentes
+trainingSessionSchema.index({ userId: 1, date: -1 });       // historial general
+trainingSessionSchema.index({ userId: 1, trainingId: 1, date: -1 }); // historial por plantilla
+
 module.exports = mongoose.model('TrainingSession', trainingSessionSchema);

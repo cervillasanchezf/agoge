@@ -6,6 +6,7 @@ const Training = require('../models/Training');
 exports.getTrainings = async (req, res) => {
   try {
     const trainings = await Training.find({ userId: req.userId })
+      .lean()
       .populate('exercises.exerciseId', 'name name_es category primaryMuscles images')
       .sort({ createdAt: -1 });
 

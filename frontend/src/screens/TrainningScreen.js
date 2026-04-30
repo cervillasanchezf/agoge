@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { trainingService } from '../services/api';
+import { COLORS } from '../config/theme';
 
 export default function TrainningScreen({ navigation }) {
   const [trainings, setTrainings] = useState([]);
@@ -172,7 +173,7 @@ export default function TrainningScreen({ navigation }) {
             onPress={() => { setMenuVisible(false); handleDelete(menuTraining); }}
           >
             <Ionicons name="trash-outline" size={16} color="#FF3B3B" />
-            <Text style={[styles.dropdownItemText, { color: '#FF3B3B' }]}>Eliminar entrenamiento</Text>
+            <Text style={[styles.dropdownItemText, { color: COLORS.danger }]}>Eliminar entrenamiento</Text>
           </TouchableOpacity>
         </View>
       </Modal>
@@ -186,7 +187,7 @@ export default function TrainningScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0D0D0D',
+    backgroundColor: COLORS.background,
   },
   header: {
     paddingHorizontal: 20,
@@ -196,7 +197,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -208,7 +209,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#9A9A9A',
+    color: COLORS.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
@@ -225,7 +226,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 18,
-    color: '#6A6A6A',
+    color: COLORS.textMuted,
     fontWeight: '600',
     marginTop: 12,
   },
@@ -238,7 +239,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   card: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderRadius: 12,
     padding: 16,
     flexDirection: 'row',
@@ -255,12 +256,12 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
     marginBottom: 4,
   },
   cardMeta: {
     fontSize: 13,
-    color: '#9A9A9A',
+    color: COLORS.textSecondary,
   },
   topButtons: {
     flexDirection: 'row',
@@ -270,43 +271,43 @@ const styles = StyleSheet.create({
   },
   newTrainingButton: {
     flex: 1,
-    backgroundColor: '#B11226',
+    backgroundColor: COLORS.primary,
     borderRadius: 10,
     paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    shadowColor: '#B11226',
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.4,
     shadowRadius: 6,
     elevation: 4,
   },
   newTrainingButtonText: {
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
     fontSize: 14,
     fontWeight: '700',
   },
   planButton: {
     flex: 1,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: COLORS.border,
   },
   planButtonText: {
-    color: '#9A9A9A',
+    color: COLORS.textSecondary,
     fontSize: 14,
     fontWeight: '600',
   },
   dropdown: {
     position: 'absolute',
     right: 16,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderRadius: 10,
     paddingVertical: 4,
     minWidth: 210,
@@ -325,11 +326,11 @@ const styles = StyleSheet.create({
   },
   dropdownItemText: {
     fontSize: 15,
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
   },
   dropdownDivider: {
     height: 1,
-    backgroundColor: '#333333',
+    backgroundColor: COLORS.border,
     marginHorizontal: 8,
   },
 });
