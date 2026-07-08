@@ -9,6 +9,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getExerciseName } from '../config/translations';
+import { calcExerciseHI } from '../utils/hypertrophyMetrics';
+import { COLORS } from '../config/theme';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -25,6 +27,13 @@ function formatDuration(secs) {
 /** Epley 1RM estimate: weight × (1 + reps / 30) */
 function calc1RM(weight, reps) {
   return weight * (1 + reps / 30);
+}
+
+function hiColor(hi) {
+  if (hi >= 7) return COLORS.success;
+  if (hi >= 4) return COLORS.gold;
+  if (hi > 0)  return COLORS.warning;
+  return COLORS.textMuted;
 }
 
 /** Compute total volume and completed sets from a previous session object. */
@@ -47,23 +56,25 @@ function calcPrevStats(prevSession) {
 
 // ─── Sub-componentes ─────────────────────────────────────────────────────────
 
-function DeltaBadge({ current, previous }) {
+function DeltaBadge({ current, previous, unit }) {
   if (previous == null || previous === 0) return null;
   const diff = current - previous;
-  const pct  = Math.round(Math.abs(diff / previous) * 100);
   if (diff === 0) {
     return <Text style={styles.deltaEqual}>Sin cambios vs anterior</Text>;
   }
   const up = diff > 0;
+  const label = unit
+    ? `${up ? '+' : ''}${diff.toLocaleString('es-ES')} ${unit} vs anterior`
+    : `${up ? '+' : '-'}${Math.round(Math.abs(diff / previous) * 100)}% vs anterior`;
   return (
     <View style={styles.deltaRow}>
       <Ionicons
         name={up ? 'trending-up-outline' : 'trending-down-outline'}
         size={12}
-        color={up ? '#22c55e' : '#ef4444'}
+        color={up ? COLORS.success : COLORS.danger}
       />
-      <Text style={[styles.deltaText, { color: up ? '#22c55e' : '#ef4444' }]}>
-        {up ? '+' : '-'}{pct}% vs anterior
+      <Text style={[styles.deltaText, { color: up ? COLORS.success : COLORS.danger }]}>
+        {label}
       </Text>
     </View>
   );
@@ -121,6 +132,22 @@ export default function PostSessionScreen({ route, navigation }) {
     return { totalVolume, completedSets, prs };
   }, [exerciseData, histPrMap]);
 
+  const sessionHI = useMemo(() => {
+    const his = exerciseData
+      .filter(item => item.repMode !== 'cardio')
+      .map(item => calcExerciseHI({
+        exerciseId: item.exercise,
+        sets: item.sets.map(s => ({
+          completed: s.completed,
+          reps:   parseInt(s.reps)     || parseInt(s.reps_default)    || 0,
+          weight: parseFloat(s.weight) || parseFloat(s.weight_default) || 0,
+          rpe:    parseInt(s.rpe)      || parseInt(s.rpe_default)      || 0,
+        })),
+      }))
+      .filter(hi => hi > 0);
+    return his.length ? his.reduce((a, b) => a + b, 0) / his.length : 0;
+  }, [exerciseData]);
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -128,31 +155,45 @@ export default function PostSessionScreen({ route, navigation }) {
         {/* ── Cabecera celebración ─────────────────── */}
         <View style={styles.celebHeader}>
           <View style={styles.trophyRing}>
-            <Ionicons name="trophy" size={44} color="#C9A44C" />
+            <Ionicons name="trophy" size={44} color={COLORS.gold} />
           </View>
           <Text style={styles.celebTitle}>¡Gran trabajo!</Text>
           <Text style={styles.celebSub}>{trainingName}</Text>
           <View style={styles.durationPill}>
-            <Ionicons name="time-outline" size={14} color="#B11226" />
+            <Ionicons name="time-outline" size={14} color={COLORS.primary} />
             <Text style={styles.durationText}>{formatDuration(duration)}</Text>
           </View>
         </View>
 
         {/* ── Stats principales ────────────────────── */}
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Ionicons name="barbell-outline" size={24} color="#C9A44C" />
-            <Text style={styles.statVal}>
+        <View style={styles.statsCol}>
+          {/* Volumen — fila ancha */}
+          <View style={[styles.statCard, styles.statCardWide]}>
+            <View style={styles.statCardRow}>
+              <Ionicons name="barbell-outline" size={20} color={COLORS.gold} />
+              <Text style={styles.statUnit}>Volumen total</Text>
+            </View>
+            <Text style={styles.statValLarge}>
               {totalVolume > 0 ? totalVolume.toLocaleString('es-ES') : '—'}
+              {totalVolume > 0 && <Text style={styles.statUnitInline}> kg</Text>}
             </Text>
-            {totalVolume > 0 && <Text style={styles.statUnit}>kg volumen</Text>}
-            <DeltaBadge current={totalVolume} previous={prevStats?.prevVolume} />
+            <DeltaBadge current={totalVolume} previous={prevStats?.prevVolume} unit="kg" />
           </View>
-          <View style={styles.statCard}>
-            <Ionicons name="checkmark-circle-outline" size={24} color="#22c55e" />
-            <Text style={styles.statVal}>{completedSets}</Text>
-            <Text style={styles.statUnit}>series hechas</Text>
-            <DeltaBadge current={completedSets} previous={prevStats?.prevCompleted} />
+
+          {/* Series + HI — fila dividida */}
+          <View style={styles.statsRow}>
+            <View style={styles.statCard}>
+              <Ionicons name="checkmark-circle-outline" size={22} color={COLORS.success} />
+              <Text style={styles.statVal}>{completedSets}</Text>
+              <Text style={styles.statUnit}>series hechas</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Ionicons name="flash-outline" size={22} color={hiColor(sessionHI)} />
+              <Text style={[styles.statVal, { color: hiColor(sessionHI) }]}>
+                {sessionHI > 0 ? sessionHI.toFixed(1) : '—'}
+              </Text>
+              <Text style={styles.statUnit}>índice HI</Text>
+            </View>
           </View>
         </View>
 
@@ -160,7 +201,7 @@ export default function PostSessionScreen({ route, navigation }) {
         {prs.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="flame" size={15} color="#B11226" />
+              <Ionicons name="flame" size={15} color={COLORS.primary} />
               <Text style={styles.sectionTitle}>
                 Nuevos récords · {prs.length}
               </Text>
@@ -188,7 +229,7 @@ export default function PostSessionScreen({ route, navigation }) {
                     </Text>
                   )}
                 </View>
-                <Ionicons name="arrow-up-circle" size={22} color="#22c55e" />
+                <Ionicons name="arrow-up-circle" size={22} color={COLORS.success} />
               </View>
             ))}
           </View>
@@ -197,24 +238,63 @@ export default function PostSessionScreen({ route, navigation }) {
         {/* ── Ejercicios realizados ────────────────── */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="list-outline" size={15} color="#9A9A9A" />
+            <Ionicons name="list-outline" size={15} color={COLORS.textSecondary} />
             <Text style={styles.sectionTitle}>Ejercicios realizados</Text>
           </View>
           {exerciseData.map((item, i) => {
             const done  = item.sets.filter(s => s.completed).length;
             const total = item.sets.length;
             const allDone = done === total && total > 0;
+
+            let bestSet = null;
+            let exVolume = 0;
+            let totalKm = 0;
+            item.sets.forEach(s => {
+              if (!s.completed) return;
+              if (item.repMode === 'cardio') {
+                totalKm += parseFloat(s.km) || 0;
+              } else {
+                const w = parseFloat(s.weight) || parseFloat(s.weight_default) || 0;
+                const r = parseInt(s.reps)     || parseInt(s.reps_default)     || 0;
+                exVolume += w * r;
+                if (w > 0) {
+                  const orm = calc1RM(w, r);
+                  if (!bestSet || orm > bestSet.orm)
+                    bestSet = { weight: w, reps: r, orm };
+                }
+              }
+            });
+
             return (
               <View key={i} style={styles.exRow}>
                 <View style={[styles.exBadge, allDone && styles.exBadgeDone]}>
                   <Text style={styles.exBadgeText}>{i + 1}</Text>
                 </View>
-                <Text style={styles.exName} numberOfLines={1}>
-                  {getExerciseName(item.exercise)}
-                </Text>
-                <Text style={[styles.exSets, !allDone && styles.exSetsPartial]}>
-                  {done}/{total}
-                </Text>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={styles.exName} numberOfLines={1}>
+                      {getExerciseName(item.exercise)}
+                    </Text>
+                    <Text style={[styles.exSets, !allDone && styles.exSetsPartial]}>
+                      {done}/{total}
+                    </Text>
+                  </View>
+                  {item.repMode === 'cardio' ? (
+                    totalKm > 0 && (
+                      <Text style={styles.exDetail}>
+                        {totalKm % 1 === 0 ? totalKm : totalKm.toFixed(2)} km
+                      </Text>
+                    )
+                  ) : (
+                    (bestSet || exVolume > 0) && (
+                      <Text style={styles.exDetail}>
+                        {bestSet ? `${bestSet.weight} kg × ${bestSet.reps} reps` : ''}
+                        {bestSet && exVolume > 0 ? ' · ' : ''}
+                        {exVolume > 0 ? `${exVolume.toLocaleString('es-ES')} kg vol` : ''}
+                      </Text>
+                    )
+                  )}
+                </View>
               </View>
             );
           })}
@@ -239,7 +319,7 @@ export default function PostSessionScreen({ route, navigation }) {
 // ─── Estilos ─────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0D0D0D' },
+  container: { flex: 1, backgroundColor: COLORS.background },
   scroll:    { paddingBottom: 24 },
 
   // Celebration header
@@ -254,73 +334,96 @@ const styles = StyleSheet.create({
     width: 96,
     height: 96,
     borderRadius: 48,
-    backgroundColor: '#1F1F1F',
+    backgroundColor: COLORS.surfaceElevated,
     borderWidth: 2,
-    borderColor: '#C9A44C',
+    borderColor: COLORS.gold,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 10,
-    shadowColor: '#C9A44C',
+    shadowColor: COLORS.gold,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.35,
     shadowRadius: 16,
     elevation: 8,
   },
   celebTitle: {
-    fontSize: 30,
+    fontSize: 32,
     fontWeight: '800',
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
     letterSpacing: -0.5,
   },
   celebSub: {
-    fontSize: 15,
-    color: '#9A9A9A',
+    fontSize: 17,
+    color: COLORS.textSecondary,
     fontWeight: '500',
   },
   durationPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: '#1F1F1F',
+    backgroundColor: COLORS.surfaceElevated,
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderWidth: 1,
-    borderColor: '#2A0A0A',
+    borderColor: COLORS.dangerBg,
     marginTop: 6,
   },
   durationText: {
-    fontSize: 14,
-    color: '#B11226',
+    fontSize: 16,
+    color: COLORS.primary,
     fontWeight: '700',
   },
 
   // Stats
-  statsRow: {
-    flexDirection: 'row',
+  statsCol: {
     marginHorizontal: 16,
     gap: 10,
     marginBottom: 14,
   },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
   statCard: {
     flex: 1,
-    backgroundColor: '#1F1F1F',
+    backgroundColor: COLORS.surfaceElevated,
     borderRadius: 14,
     padding: 16,
     alignItems: 'center',
-    gap: 3,
+    gap: 4,
     borderWidth: 1,
-    borderColor: '#252525',
+    borderColor: COLORS.borderSubtle,
+  },
+  statCardWide: {
+    alignItems: 'flex-start',
+    gap: 6,
+  },
+  statCardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  statValLarge: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: COLORS.textPrimary,
+    lineHeight: 42,
+  },
+  statUnitInline: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: COLORS.textMuted,
   },
   statVal: {
     fontSize: 26,
     fontWeight: '800',
-    color: '#EAEAEA',
-    marginTop: 6,
+    color: COLORS.textPrimary,
+    marginTop: 4,
   },
   statUnit: {
-    fontSize: 11,
-    color: '#6A6A6A',
+    fontSize: 13,
+    color: COLORS.textMuted,
     fontWeight: '500',
   },
   deltaRow: {
@@ -330,12 +433,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   deltaText: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '700',
   },
   deltaEqual: {
-    fontSize: 11,
-    color: '#6A6A6A',
+    fontSize: 13,
+    color: COLORS.textMuted,
     marginTop: 4,
   },
 
@@ -343,11 +446,11 @@ const styles = StyleSheet.create({
   section: {
     marginHorizontal: 16,
     marginBottom: 14,
-    backgroundColor: '#1F1F1F',
+    backgroundColor: COLORS.surfaceElevated,
     borderRadius: 14,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#252525',
+    borderColor: COLORS.borderSubtle,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -356,9 +459,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   sectionTitle: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '700',
-    color: '#6A6A6A',
+    color: COLORS.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
@@ -370,10 +473,10 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 8,
     borderTopWidth: 1,
-    borderTopColor: '#252525',
+    borderTopColor: COLORS.borderSubtle,
   },
   prBadge: {
-    backgroundColor: '#B11226',
+    backgroundColor: COLORS.primary,
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -381,34 +484,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   prBadgeText: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '800',
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
     letterSpacing: 0.5,
   },
   prName: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
   },
   prBestSet: {
-    fontSize: 13,
-    color: '#EAEAEA',
+    fontSize: 15,
+    color: COLORS.textPrimary,
     fontWeight: '700',
     marginTop: 2,
   },
   prCompare: {
-    fontSize: 12,
-    color: '#9A9A9A',
+    fontSize: 14,
+    color: COLORS.textSecondary,
     marginTop: 2,
   },
   prDeltaUp: {
-    color: '#22c55e',
+    color: COLORS.success,
     fontWeight: '700',
   },
   prFirst: {
-    fontSize: 12,
-    color: '#6A6A6A',
+    fontSize: 14,
+    color: COLORS.textMuted,
     fontStyle: 'italic',
     marginTop: 2,
   },
@@ -416,63 +519,68 @@ const styles = StyleSheet.create({
   // Exercise list
   exRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 10,
     paddingVertical: 9,
     borderTopWidth: 1,
-    borderTopColor: '#252525',
+    borderTopColor: COLORS.borderSubtle,
   },
   exBadge: {
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: '#2A0A0A',
+    backgroundColor: COLORS.dangerBg,
     borderWidth: 1,
-    borderColor: '#5A0000',
+    borderColor: COLORS.primaryBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
   exBadgeDone: {
-    backgroundColor: '#0A2A0A',
-    borderColor: '#1A5A1A',
+    backgroundColor: COLORS.successBg,
+    borderColor: COLORS.successBorder,
   },
   exBadgeText: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '700',
-    color: '#9A9A9A',
+    color: COLORS.textSecondary,
   },
   exName: {
     flex: 1,
-    fontSize: 14,
-    color: '#EAEAEA',
+    fontSize: 16,
+    color: COLORS.textPrimary,
     fontWeight: '500',
   },
   exSets: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '700',
-    color: '#22c55e',
+    color: COLORS.success,
   },
   exSetsPartial: {
-    color: '#C9A44C',
+    color: COLORS.gold,
+  },
+  exDetail: {
+    fontSize: 13,
+    color: COLORS.textMuted,
+    marginTop: 2,
   },
 
   // Footer
   footer: {
     padding: 16,
     paddingBottom: 24,
-    backgroundColor: '#0D0D0D',
+    backgroundColor: COLORS.background,
     borderTopWidth: 1,
-    borderTopColor: '#1F1F1F',
+    borderTopColor: COLORS.surfaceElevated,
   },
   doneBtn: {
-    backgroundColor: '#B11226',
+    backgroundColor: COLORS.primary,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
   },
   doneBtnText: {
-    color: '#EAEAEA',
-    fontSize: 16,
+    color: COLORS.textPrimary,
+    fontSize: 18,
     fontWeight: '700',
   },
 });

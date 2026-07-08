@@ -5,7 +5,7 @@ const auth = require('../middleware/auth');
 const { getLastSession, getSessionHistory, getExerciseMaxes, createSession, getAllSessions, updateSession, deleteSession } = require('../controllers/trainingSessionController');
 
 const createSessionValidation = [
-  body('trainingId').notEmpty().withMessage('El ID del entrenamiento es requerido'),
+  body('trainingId').optional({ nullable: true }),
   body('exercises').isArray().withMessage('Los ejercicios deben ser un array'),
   body('duration').optional().isNumeric().withMessage('La duración debe ser un número'),
   body('date').optional().isISO8601().withMessage('La fecha debe ser una fecha válida'),

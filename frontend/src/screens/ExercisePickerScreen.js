@@ -50,7 +50,7 @@ function FilterBottomSheet({ visible, config, options, activeValue, onSelect, on
                 <Text style={[styles.sheetOptionText, !activeValue && styles.sheetOptionActive]}>
                   Cualquiera
                 </Text>
-                {!activeValue && <Ionicons name="checkmark" size={18} color="#B11226" />}
+                {!activeValue && <Ionicons name="checkmark" size={18} color={COLORS.primary} />}
               </TouchableOpacity>
             }
             renderItem={({ item }) => {
@@ -63,7 +63,7 @@ function FilterBottomSheet({ visible, config, options, activeValue, onSelect, on
                   <Text style={[styles.sheetOptionText, isActive && styles.sheetOptionActive]}>
                     {config?.labelMap[item] || item}
                   </Text>
-                  {isActive && <Ionicons name="checkmark" size={18} color="#B11226" />}
+                  {isActive && <Ionicons name="checkmark" size={18} color={COLORS.primary} />}
                 </TouchableOpacity>
               );
             }}
@@ -172,7 +172,7 @@ export default function ExercisePickerScreen({ navigation, route }) {
         <Ionicons
           name={sel ? 'checkmark-circle' : 'add-circle-outline'}
           size={24}
-          color={sel ? COLORS.primary : '#4A4A4A'}
+          color={sel ? COLORS.primary : COLORS.iconInactive}
         />
       </TouchableOpacity>
     );
@@ -182,17 +182,17 @@ export default function ExercisePickerScreen({ navigation, route }) {
     <SafeAreaView style={styles.container} edges={['bottom']}>
       {/* Buscador */}
       <View style={styles.searchContainer}>
-        <Ionicons name="search-outline" size={18} color="#6A6A6A" style={styles.searchIcon} />
+        <Ionicons name="search-outline" size={18} color={COLORS.textMuted} style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
           placeholder="Buscar ejercicio..."
-          placeholderTextColor="#6A6A6A"
+          placeholderTextColor={COLORS.textMuted}
           value={search}
           onChangeText={setSearch}
         />
         {search.length > 0 && (
           <TouchableOpacity onPress={() => setSearch('')}>
-            <Ionicons name="close-circle" size={18} color="#6A6A6A" />
+            <Ionicons name="close-circle" size={18} color={COLORS.textMuted} />
           </TouchableOpacity>
         )}
       </View>
@@ -219,14 +219,14 @@ export default function ExercisePickerScreen({ navigation, route }) {
         })}
         {activeFilterCount > 0 && (
           <TouchableOpacity style={styles.clearBtn} onPress={() => setFilters({})}>
-            <Ionicons name="close-circle" size={20} color="#FF3B3B" />
+            <Ionicons name="close-circle" size={20} color={COLORS.danger} />
           </TouchableOpacity>
         )}
       </View>
 
       {/* Lista */}
       {loading ? (
-        <ActivityIndicator style={{ flex: 1 }} color="#B11226" size="large" />
+        <ActivityIndicator style={{ flex: 1 }} color={COLORS.primary} size="large" />
       ) : (
         <FlatList
           data={exercises}
@@ -234,7 +234,7 @@ export default function ExercisePickerScreen({ navigation, route }) {
           renderItem={renderExercise}
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.3}
-          ListFooterComponent={loadingMore ? <ActivityIndicator color="#B11226" style={{ padding: 16 }} /> : null}
+          ListFooterComponent={loadingMore ? <ActivityIndicator color={COLORS.primary} style={{ padding: 16 }} /> : null}
           ListEmptyComponent={
             <View style={styles.empty}>
               <Text style={styles.emptyText}>No se encontraron ejercicios</Text>
@@ -287,7 +287,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   searchIcon: { marginRight: 8 },
-  searchInput: { flex: 1, fontSize: 15, color: COLORS.textPrimary },
+  searchInput: { flex: 1, fontSize: 17, color: COLORS.textPrimary },
 
   // Barra de filtros
   filterBar: {
@@ -314,9 +314,9 @@ const styles = StyleSheet.create({
   },
   filterBtnActive: {
     borderColor: COLORS.primary,
-    backgroundColor: '#1A0000',
+    backgroundColor: COLORS.primaryLight,
   },
-  filterBtnText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
+  filterBtnText: { fontSize: 15, fontWeight: '600', color: COLORS.textSecondary },
   filterBtnTextActive: { color: COLORS.textPrimary },
   clearBtn: { padding: 2 },
 
@@ -337,10 +337,10 @@ const styles = StyleSheet.create({
   },
   exerciseItemSelected: { borderWidth: 1.5, borderColor: COLORS.primary },
   exerciseInfo: { flex: 1 },
-  exerciseName: { fontSize: 15, fontWeight: '600', color: COLORS.textPrimary, marginBottom: 2 },
-  exerciseMeta: { fontSize: 12, color: COLORS.textMuted },
+  exerciseName: { fontSize: 17, fontWeight: '600', color: COLORS.textPrimary, marginBottom: 2 },
+  exerciseMeta: { fontSize: 14, color: COLORS.textMuted },
   empty: { padding: 40, alignItems: 'center' },
-  emptyText: { color: COLORS.textMuted, fontSize: 15 },
+  emptyText: { color: COLORS.textMuted, fontSize: 17 },
 
   // Footer de selección
   footer: {
@@ -362,14 +362,14 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 6,
   },
-  footerText: { fontSize: 14, color: COLORS.primary, fontWeight: '600' },
+  footerText: { fontSize: 16, color: COLORS.primary, fontWeight: '600' },
   confirmButton: {
     backgroundColor: COLORS.primary,
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
-  confirmButtonText: { color: COLORS.textPrimary, fontWeight: '700', fontSize: 14 },
+  confirmButtonText: { color: COLORS.textPrimary, fontWeight: '700', fontSize: 16 },
 
   // Bottom sheet
   modalContainer: {
@@ -397,7 +397,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sheetTitle: {
-    fontSize: 17,
+    fontSize: 19,
     fontWeight: '700',
     color: COLORS.textPrimary,
     marginBottom: 8,
@@ -411,6 +411,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.surfaceDeep,
   },
-  sheetOptionText: { fontSize: 15, color: COLORS.textSecondary },
+  sheetOptionText: { fontSize: 17, color: COLORS.textSecondary },
   sheetOptionActive: { color: COLORS.textPrimary, fontWeight: '600' },
 });

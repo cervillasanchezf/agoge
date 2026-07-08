@@ -24,8 +24,10 @@ import { COLORS } from '../config/theme';
 
 const DEFAULT_SET = { kg: '', reps: '', repsTo: '', rpe: '' };
 const DEFAULT_CARDIO_SET = { km: '', h: 0, m: 0, s: 0 };
-const initExerciseConfig = () => ({ repMode: 'reps', sets: [{ ...DEFAULT_SET }] });
-const initCardioConfig = () => ({ repMode: 'cardio', sets: [{ ...DEFAULT_CARDIO_SET }] });
+const DEFAULT_TIME_SET = { h: 0, m: 0, s: 0 };
+const initExerciseConfig = () => ({ repMode: 'reps', restSeconds: '', effort: '', sets: [{ ...DEFAULT_SET }] });
+const initCardioConfig = () => ({ repMode: 'cardio', restSeconds: '', effort: '', sets: [{ ...DEFAULT_CARDIO_SET }] });
+const initTimeConfig = () => ({ repMode: 'time', restSeconds: '', effort: '', sets: [{ ...DEFAULT_TIME_SET }] });
 
 // ─── Drum Picker ─────────────────────────────────────────────────────────────
 const DRUM_ITEM_H = 44;
@@ -71,7 +73,7 @@ function DrumColumn({ values, initialIndex, onChange, label }) {
         <View pointerEvents="none" style={{
           position: 'absolute', left: 8, right: 8,
           top: DRUM_ITEM_H * 2, height: DRUM_ITEM_H,
-          borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#5A0000',
+          borderTopWidth: 1, borderBottomWidth: 1, borderColor: COLORS.primaryBorder,
           backgroundColor: 'rgba(139,0,0,0.1)', borderRadius: 6,
         }} />
       </View>
@@ -114,6 +116,9 @@ export default function NewTrainningScreen({ navigation, route }) {
   const editTraining = route.params?.editTraining ?? null;
 
   const [trainingName, setTrainingName] = useState(() => editTraining?.name ?? '');
+  const [trainingType, setTrainingType] = useState(() => editTraining?.type ?? 'strength');
+  const [trainingFormat, setTrainingFormat] = useState(() => editTraining?.format ?? 'straight');
+  const [timeCap, setTimeCap] = useState(() => editTraining?.timeCap ? String(Math.round(editTraining.timeCap / 60)) : '');
   const [exercises, setExercises] = useState(() => {
     if (!editTraining) return [];
     return editTraining.exercises.map(e => e.exerciseId);
@@ -123,9 +128,17 @@ export default function NewTrainningScreen({ navigation, route }) {
     const configs = {};
     editTraining.exercises.forEach(e => {
       const exId = e.exerciseId._id;
+      const firstSet = e.sets?.[0] ?? {};
+      const repMode = e.repMode || 'reps';
+      let defaultSet;
+      if (repMode === 'cardio') defaultSet = { ...DEFAULT_CARDIO_SET };
+      else if (repMode === 'time') defaultSet = { ...DEFAULT_TIME_SET };
+      else defaultSet = { ...DEFAULT_SET };
       configs[exId] = {
-        repMode: e.repMode || 'reps',
-        sets: e.sets && e.sets.length > 0 ? e.sets : [e.repMode === 'cardio' ? { ...DEFAULT_CARDIO_SET } : { ...DEFAULT_SET }],
+        repMode,
+        restSeconds: firstSet.restSeconds != null ? String(firstSet.restSeconds) : '',
+        effort: firstSet.effort != null ? String(firstSet.effort) : '',
+        sets: e.sets && e.sets.length > 0 ? e.sets : [defaultSet],
       };
     });
     return configs;
@@ -138,13 +151,33 @@ export default function NewTrainningScreen({ navigation, route }) {
     });
     return notes;
   });
+  const [exercisePhases, setExercisePhases] = useState(() => {
+    if (!editTraining) return {};
+    const phases = {};
+    editTraining.exercises.forEach(e => {
+      phases[e.exerciseId._id] = e.phase || 'main';
+    });
+    return phases;
+  });
   const [loading, setLoading] = useState(false);
   const [nameError, setNameError] = useState(false);
   const [tiempoTarget, setTiempoTarget] = useState(null);
   const [exMenuVisible, setExMenuVisible] = useState(false);
   const [exMenuId, setExMenuId] = useState(null);
   const [exMenuPos, setExMenuPos] = useState({ x: 0, y: 0 });
-  const [supersets, setSupersets] = useState({});
+  const [supersets, setSupersets] = useState(() => {
+    if (!editTraining) return {};
+    const map = {};
+    editTraining.exercises.forEach(e => {
+      if (e.supersetGroup) map[e.exerciseId._id] = e.supersetGroup;
+    });
+    // Sincronizar el contador para que los nuevos grupos no colisionen
+    const nums = Object.values(map)
+      .map(g => parseInt(g.replace('ss_', ''), 10))
+      .filter(n => !isNaN(n));
+    if (nums.length) supersetGroupCounter.current = Math.max(...nums);
+    return map;
+  });
   const [supersetPickerForId, setSupersetPickerForId] = useState(null);
   const [supersetPickerSelected, setSupersetPickerSelected] = useState([]);
   const supersetGroupCounter = useRef(0);
@@ -305,6 +338,11 @@ export default function NewTrainningScreen({ navigation, route }) {
           newOnes.forEach(ex => { if (!(ex._id in next)) next[ex._id] = ''; });
           return next;
         });
+        setExercisePhases(prev => {
+          const next = { ...prev };
+          newOnes.forEach(ex => { if (!(ex._id in next)) next[ex._id] = 'main'; });
+          return next;
+        });
       },
     });
   };
@@ -312,6 +350,7 @@ export default function NewTrainningScreen({ navigation, route }) {
   const handleRemoveExercise = (id) => {
     setExercises(prev => prev.filter(e => e._id !== id));
     setExerciseNotes(prev => { const next = { ...prev }; delete next[id]; return next; });
+    setExercisePhases(prev => { const next = { ...prev }; delete next[id]; return next; });
     setExerciseConfigs(prev => {
       const next = { ...prev };
       delete next[id];
@@ -364,6 +403,12 @@ export default function NewTrainningScreen({ navigation, route }) {
           delete next[id];
           return next;
         });
+        setExercisePhases(prev => {
+          const next = { ...prev };
+          next[newEx._id] = next[id] || 'main';
+          delete next[id];
+          return next;
+        });
       },
     });
   };
@@ -404,7 +449,10 @@ export default function NewTrainningScreen({ navigation, route }) {
   const addSet = (exerciseId) => {
     setExerciseConfigs(prev => {
       const config = prev[exerciseId];
-      const template = config.repMode === 'cardio' ? DEFAULT_CARDIO_SET : DEFAULT_SET;
+      let template;
+      if (config.repMode === 'cardio') template = DEFAULT_CARDIO_SET;
+      else if (config.repMode === 'time') template = DEFAULT_TIME_SET;
+      else template = DEFAULT_SET;
       return {
         ...prev,
         [exerciseId]: { ...config, sets: [...config.sets, { ...template }] },
@@ -439,14 +487,21 @@ export default function NewTrainningScreen({ navigation, route }) {
           text: 'Repeticiones',
           onPress: () => setExerciseConfigs(prev => ({
             ...prev,
-            [exerciseId]: { ...prev[exerciseId], repMode: 'reps' },
+            [exerciseId]: { ...prev[exerciseId], repMode: 'reps', sets: [{ ...DEFAULT_SET }] },
           })),
         },
         {
           text: 'Rango de repeticiones',
           onPress: () => setExerciseConfigs(prev => ({
             ...prev,
-            [exerciseId]: { ...prev[exerciseId], repMode: 'range' },
+            [exerciseId]: { ...prev[exerciseId], repMode: 'range', sets: [{ ...DEFAULT_SET }] },
+          })),
+        },
+        {
+          text: 'Tiempo',
+          onPress: () => setExerciseConfigs(prev => ({
+            ...prev,
+            [exerciseId]: { ...prev[exerciseId], repMode: 'time', sets: [{ ...DEFAULT_TIME_SET }] },
           })),
         },
         { text: 'Cancelar', style: 'cancel' },
@@ -468,13 +523,24 @@ export default function NewTrainningScreen({ navigation, route }) {
     try {
       const payload = {
         name: trainingName.trim(),
+        type: trainingType,
+        format: trainingFormat,
+        timeCap: timeCap !== '' ? (parseInt(timeCap) || 0) * 60 : 0,
         exercises: exercises.map((ex, idx) => {
           const config = exerciseConfigs[ex._id] || initExerciseConfig();
+          const restSec = config.restSeconds !== '' ? parseInt(config.restSeconds) || 0 : undefined;
+          const effortVal = config.effort !== '' ? parseInt(config.effort) || 0 : undefined;
           return {
             exerciseId: ex._id,
             order: idx,
+            phase: exercisePhases[ex._id] || 'main',
             repMode: config.repMode,
-            sets: config.sets,
+            supersetGroup: supersets[ex._id] || null,
+            sets: config.sets.map(s => ({
+              ...s,
+              ...(restSec !== undefined && { restSeconds: restSec }),
+              ...(effortVal !== undefined && { effort: effortVal }),
+            })),
             note: exerciseNotes[ex._id] || '',
           };
         }),
@@ -523,7 +589,7 @@ export default function NewTrainningScreen({ navigation, route }) {
               onChangeText={v => updateSet(exercise._id, idx, 'km', v)}
               keyboardType="decimal-pad"
               placeholder="—"
-              placeholderTextColor="#6A6A6A"
+              placeholderTextColor={COLORS.textMuted}
               textAlign="center"
               maxLength={6}
             />
@@ -542,22 +608,127 @@ export default function NewTrainningScreen({ navigation, route }) {
               onPress={() => removeSet(exercise._id, idx)}
               disabled={config.sets.length <= 1}
             >
-              <Ionicons name="remove-circle-outline" size={18} color="#CC3333" />
+              <Ionicons name="remove-circle-outline" size={18} color={COLORS.danger} />
             </TouchableOpacity>
           </View>
         ))}
         <TouchableOpacity style={styles.addSetBtn} onPress={() => addSet(exercise._id)}>
-          <Ionicons name="add" size={15} color="#8B0000" />
+          <Ionicons name="add" size={15} color={COLORS.primaryDark} />
           <Text style={styles.addSetBtnText}>Agregar Serie</Text>
         </TouchableOpacity>
+        <View style={styles.exerciseMetaRow}>
+          <View style={styles.exerciseMetaField}>
+            <Text style={styles.exerciseMetaLabel}>Descanso (s)</Text>
+            <TextInput
+              style={styles.exerciseMetaInput}
+              value={config.restSeconds}
+              onChangeText={v => setExerciseConfigs(prev => ({ ...prev, [exercise._id]: { ...prev[exercise._id], restSeconds: v } }))}
+              keyboardType="number-pad"
+              placeholder="—"
+              placeholderTextColor={COLORS.textMuted}
+              textAlign="center"
+              maxLength={4}
+            />
+          </View>
+          <View style={styles.exerciseMetaField}>
+            <Text style={styles.exerciseMetaLabel}>Esfuerzo (%)</Text>
+            <TextInput
+              style={styles.exerciseMetaInput}
+              value={config.effort}
+              onChangeText={v => setExerciseConfigs(prev => ({ ...prev, [exercise._id]: { ...prev[exercise._id], effort: v } }))}
+              keyboardType="number-pad"
+              placeholder="—"
+              placeholderTextColor={COLORS.textMuted}
+              textAlign="center"
+              maxLength={3}
+            />
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  const renderTimeTable = (exercise) => {
+    const config = exerciseConfigs[exercise._id];
+    if (!config) return null;
+    return (
+      <View style={styles.setsTable}>
+        <View style={styles.setsHeaderRow}>
+          <Text style={[styles.setsHeaderCell, styles.colSerie]}>SERIE</Text>
+          <TouchableOpacity
+            style={[styles.setsHeaderCellBtn, { flex: 1 }]}
+            onPress={() => toggleRepMode(exercise._id)}
+          >
+            <Text style={styles.setsHeaderCellBtnText}>TIEMPO</Text>
+            <Ionicons name="chevron-down" size={11} color="#6366f1" style={{ marginLeft: 3 }} />
+          </TouchableOpacity>
+          <View style={styles.colDel} />
+        </View>
+        {config.sets.map((set, idx) => (
+          <View key={idx} style={styles.setsRow}>
+            <View style={[styles.setsSerieCell, styles.colSerie]}>
+              <Text style={styles.setsSerieText}>{idx + 1}</Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.setsInputCell, { flex: 1, alignItems: 'center', justifyContent: 'center' }]}
+              onPress={() => setTiempoTarget({ exerciseId: exercise._id, setIdx: idx })}
+            >
+              <Text style={[styles.setsTimeTxt, (set.h === 0 && set.m === 0 && set.s === 0) && { color: COLORS.textMuted }]}>
+                {(set.h === 0 && set.m === 0 && set.s === 0)
+                  ? '—'
+                  : `${String(set.h).padStart(2, '0')}:${String(set.m).padStart(2, '0')}:${String(set.s).padStart(2, '0')}`}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.colDel, styles.setsDelBtn, config.sets.length <= 1 && { opacity: 0.2 }]}
+              onPress={() => removeSet(exercise._id, idx)}
+              disabled={config.sets.length <= 1}
+            >
+              <Ionicons name="remove-circle-outline" size={18} color={COLORS.danger} />
+            </TouchableOpacity>
+          </View>
+        ))}
+        <TouchableOpacity style={styles.addSetBtn} onPress={() => addSet(exercise._id)}>
+          <Ionicons name="add" size={15} color={COLORS.primaryDark} />
+          <Text style={styles.addSetBtnText}>Agregar Serie</Text>
+        </TouchableOpacity>
+        <View style={styles.exerciseMetaRow}>
+          <View style={styles.exerciseMetaField}>
+            <Text style={styles.exerciseMetaLabel}>Descanso (s)</Text>
+            <TextInput
+              style={styles.exerciseMetaInput}
+              value={config.restSeconds}
+              onChangeText={v => setExerciseConfigs(prev => ({ ...prev, [exercise._id]: { ...prev[exercise._id], restSeconds: v } }))}
+              keyboardType="number-pad"
+              placeholder="—"
+              placeholderTextColor={COLORS.textMuted}
+              textAlign="center"
+              maxLength={4}
+            />
+          </View>
+          <View style={styles.exerciseMetaField}>
+            <Text style={styles.exerciseMetaLabel}>Esfuerzo (%)</Text>
+            <TextInput
+              style={styles.exerciseMetaInput}
+              value={config.effort}
+              onChangeText={v => setExerciseConfigs(prev => ({ ...prev, [exercise._id]: { ...prev[exercise._id], effort: v } }))}
+              keyboardType="number-pad"
+              placeholder="—"
+              placeholderTextColor={COLORS.textMuted}
+              textAlign="center"
+              maxLength={3}
+            />
+          </View>
+        </View>
       </View>
     );
   };
 
   const renderSetsTable = (exercise) => {
-    if (exercise.category === 'cardio') return renderCardioTable(exercise);
     const config = exerciseConfigs[exercise._id];
     if (!config) return null;
+    if (config.repMode === 'cardio') return renderCardioTable(exercise);
+    if (config.repMode === 'time') return renderTimeTable(exercise);
     const isRange = config.repMode === 'range';
 
     return (
@@ -594,7 +765,7 @@ export default function NewTrainningScreen({ navigation, route }) {
               onChangeText={v => updateSet(exercise._id, idx, 'kg', v)}
               keyboardType="numeric"
               placeholder="—"
-              placeholderTextColor="#6A6A6A"
+              placeholderTextColor={COLORS.textMuted}
               textAlign="center"
               maxLength={5}
             />
@@ -608,7 +779,7 @@ export default function NewTrainningScreen({ navigation, route }) {
                   onChangeText={v => updateSet(exercise._id, idx, 'reps', v)}
                   keyboardType="numeric"
                   placeholder="—"
-                  placeholderTextColor="#6A6A6A"
+                  placeholderTextColor={COLORS.textMuted}
                   textAlign="center"
                   maxLength={3}
                 />
@@ -619,7 +790,7 @@ export default function NewTrainningScreen({ navigation, route }) {
                   onChangeText={v => updateSet(exercise._id, idx, 'repsTo', v)}
                   keyboardType="numeric"
                   placeholder="—"
-                  placeholderTextColor="#6A6A6A"
+                  placeholderTextColor={COLORS.textMuted}
                   textAlign="center"
                   maxLength={3}
                 />
@@ -631,7 +802,7 @@ export default function NewTrainningScreen({ navigation, route }) {
                 onChangeText={v => updateSet(exercise._id, idx, 'reps', v)}
                 keyboardType="numeric"
                 placeholder="—"
-                placeholderTextColor="#6A6A6A"
+                placeholderTextColor={COLORS.textMuted}
                 textAlign="center"
                 maxLength={4}
               />
@@ -644,7 +815,7 @@ export default function NewTrainningScreen({ navigation, route }) {
               onChangeText={v => updateSet(exercise._id, idx, 'rpe', v)}
               keyboardType="numeric"
               placeholder="—"
-              placeholderTextColor="#6A6A6A"
+              placeholderTextColor={COLORS.textMuted}
               textAlign="center"
               maxLength={2}
             />
@@ -655,16 +826,44 @@ export default function NewTrainningScreen({ navigation, route }) {
               onPress={() => removeSet(exercise._id, idx)}
               disabled={config.sets.length <= 1}
             >
-              <Ionicons name="remove-circle-outline" size={18} color="#CC3333" />
+              <Ionicons name="remove-circle-outline" size={18} color={COLORS.danger} />
             </TouchableOpacity>
           </View>
         ))}
 
         {/* Agregar serie */}
         <TouchableOpacity style={styles.addSetBtn} onPress={() => addSet(exercise._id)}>
-          <Ionicons name="add" size={15} color="#8B0000" />
+          <Ionicons name="add" size={15} color={COLORS.primaryDark} />
           <Text style={styles.addSetBtnText}>Agregar Serie</Text>
         </TouchableOpacity>
+        <View style={styles.exerciseMetaRow}>
+          <View style={styles.exerciseMetaField}>
+            <Text style={styles.exerciseMetaLabel}>Descanso (s)</Text>
+            <TextInput
+              style={styles.exerciseMetaInput}
+              value={config.restSeconds}
+              onChangeText={v => setExerciseConfigs(prev => ({ ...prev, [exercise._id]: { ...prev[exercise._id], restSeconds: v } }))}
+              keyboardType="number-pad"
+              placeholder="—"
+              placeholderTextColor={COLORS.textMuted}
+              textAlign="center"
+              maxLength={4}
+            />
+          </View>
+          <View style={styles.exerciseMetaField}>
+            <Text style={styles.exerciseMetaLabel}>Esfuerzo (%)</Text>
+            <TextInput
+              style={styles.exerciseMetaInput}
+              value={config.effort}
+              onChangeText={v => setExerciseConfigs(prev => ({ ...prev, [exercise._id]: { ...prev[exercise._id], effort: v } }))}
+              keyboardType="number-pad"
+              placeholder="—"
+              placeholderTextColor={COLORS.textMuted}
+              textAlign="center"
+              maxLength={3}
+            />
+          </View>
+        </View>
       </View>
     );
   };
@@ -691,10 +890,70 @@ export default function NewTrainningScreen({ navigation, route }) {
                 placeholder="Ej: Rutina de Fuerza"
                 value={trainingName}
                 onChangeText={v => { setTrainingName(v); if (v.trim()) setNameError(false); }}
-                placeholderTextColor="#6A6A6A"
+                placeholderTextColor={COLORS.textMuted}
               />
               {nameError && (
                 <Text style={styles.inputErrorText}>El nombre es obligatorio para guardar</Text>
+              )}
+            </View>
+
+            {/* ─── Tipo de entrenamiento ──────────────────────────────────── */}
+            <View style={styles.section}>
+              <Text style={styles.label}>Tipo</Text>
+              <View style={styles.pillRow}>
+                {[
+                  { key: 'strength',    label: 'Fuerza' },
+                  { key: 'cardio',      label: 'Cardio' },
+                  { key: 'functional',  label: 'Funcional' },
+                  { key: 'plyometrics', label: 'Pliometría' },
+                ].map(t => (
+                  <TouchableOpacity
+                    key={t.key}
+                    style={[styles.pill, trainingType === t.key && styles.pillActive]}
+                    onPress={() => setTrainingType(t.key)}
+                  >
+                    <Text style={[styles.pillText, trainingType === t.key && styles.pillTextActive]}>{t.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* ─── Formato ────────────────────────────────────────────────── */}
+            <View style={styles.section}>
+              <Text style={styles.label}>Formato</Text>
+              <View style={styles.pillRow}>
+                {[
+                  { key: 'straight', label: 'Series' },
+                  { key: 'circuit',  label: 'Circuito' },
+                  { key: 'amrap',    label: 'AMRAP' },
+                  { key: 'emom',     label: 'EMOM' },
+                  { key: 'fortime',  label: 'For Time' },
+                  { key: 'tabata',   label: 'Tabata' },
+                ].map(f => (
+                  <TouchableOpacity
+                    key={f.key}
+                    style={[styles.pill, trainingFormat === f.key && styles.pillActive]}
+                    onPress={() => setTrainingFormat(f.key)}
+                  >
+                    <Text style={[styles.pillText, trainingFormat === f.key && styles.pillTextActive]}>{f.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* TimeCap — solo visible para formatos que lo necesitan */}
+              {['amrap', 'emom', 'fortime', 'tabata'].includes(trainingFormat) && (
+                <View style={{ marginTop: 12 }}>
+                  <Text style={[styles.label, { fontSize: 16, marginBottom: 6 }]}>Tiempo límite (minutos)</Text>
+                  <TextInput
+                    style={[styles.input, { fontSize: 16, padding: 12 }]}
+                    value={timeCap}
+                    onChangeText={v => setTimeCap(v.replace(/[^0-9]/g, ''))}
+                    keyboardType="number-pad"
+                    placeholder="Ej: 20"
+                    placeholderTextColor={COLORS.textMuted}
+                    maxLength={4}
+                  />
+                </View>
               )}
             </View>
 
@@ -736,7 +995,7 @@ export default function NewTrainningScreen({ navigation, route }) {
                               {...getPanResponder(exercise._id).panHandlers}
                               style={styles.dragHandle}
                             >
-                              <Ionicons name="reorder-three" size={22} color="#6A6A6A" />
+                              <Ionicons name="reorder-three" size={22} color={COLORS.textMuted} />
                             </View>
                             <Text style={styles.exerciseOrder}>{index + 1}</Text>
                             <View style={{ flex: 1 }}>
@@ -754,11 +1013,26 @@ export default function NewTrainningScreen({ navigation, route }) {
                                   ? ` · ${MUSCLE_LABELS[exercise.primaryMuscles[0]] || exercise.primaryMuscles[0]}`
                                   : ''}
                               </Text>
+                              {/* Selector de fase */}
+                              <View style={styles.phaseRow}>
+                                {[{key:'warmup',label:'Calent.'},{key:'main',label:'Principal'},{key:'cooldown',label:'Vuelta calma'}].map(p => {
+                                  const active = (exercisePhases[exercise._id] || 'main') === p.key;
+                                  return (
+                                    <TouchableOpacity
+                                      key={p.key}
+                                      style={[styles.phasePill, active && styles.phasePillActive]}
+                                      onPress={() => setExercisePhases(prev => ({ ...prev, [exercise._id]: p.key }))}
+                                    >
+                                      <Text style={[styles.phasePillText, active && styles.phasePillTextActive]}>{p.label}</Text>
+                                    </TouchableOpacity>
+                                  );
+                                })}
+                              </View>
                               {/* Nota del ejercicio */}
                               <TextInput
                                 style={styles.exerciseNoteInput}
                                 placeholder="Añadir nota..."
-                                placeholderTextColor="#6A6A6A"
+                                placeholderTextColor={COLORS.textMuted}
                                 value={exerciseNotes[exercise._id] || ''}
                                 onChangeText={v => setExerciseNotes(prev => ({ ...prev, [exercise._id]: v }))}
                                 multiline
@@ -770,7 +1044,7 @@ export default function NewTrainningScreen({ navigation, route }) {
                             onPress={(e) => handleOpenExMenu(exercise._id, e)}
                             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                           >
-                            <Ionicons name="ellipsis-vertical" size={18} color="#6A6A6A" />
+                            <Ionicons name="ellipsis-vertical" size={18} color={COLORS.textMuted} />
                           </TouchableOpacity>
                         </View>
 
@@ -790,7 +1064,7 @@ export default function NewTrainningScreen({ navigation, route }) {
                             >
                               <View style={[styles.supersetCheckbox, supersetPickerSelected.includes(e._id) && styles.supersetCheckboxChecked]}>
                                 {supersetPickerSelected.includes(e._id) && (
-                                  <Ionicons name="checkmark" size={12} color="#EAEAEA" />
+                                  <Ionicons name="checkmark" size={12} color={COLORS.textPrimary} />
                                 )}
                               </View>
                               <Text style={styles.supersetPickerItemText}>{getExerciseName(e)}</Text>
@@ -826,7 +1100,7 @@ export default function NewTrainningScreen({ navigation, route }) {
               )}
 
               <TouchableOpacity style={styles.addExerciseButton} onPress={handleAddExercise}>
-                <Ionicons name="add-circle-outline" size={18} color="#8B0000" style={{ marginRight: 6 }} />
+                <Ionicons name="add-circle-outline" size={18} color={COLORS.primaryDark} style={{ marginRight: 6 }} />
                 <Text style={styles.addExerciseButtonText}>Añadir Ejercicio</Text>
               </TouchableOpacity>
 
@@ -836,7 +1110,7 @@ export default function NewTrainningScreen({ navigation, route }) {
                 disabled={loading}
               >
                 {loading
-                  ? <ActivityIndicator color="#EAEAEA" />
+                  ? <ActivityIndicator color={COLORS.textPrimary} />
                   : <Text style={styles.saveButtonText}>{editTraining ? 'Actualizar Entrenamiento' : 'Guardar Entrenamiento'}</Text>
                 }
               </TouchableOpacity>
@@ -861,7 +1135,7 @@ export default function NewTrainningScreen({ navigation, route }) {
             <View style={[styles.exerciseCard, styles.exerciseCardGhost]}>
               <View style={styles.exerciseHeader}>
                 <View style={styles.exerciseHeaderLeft}>
-                  <Ionicons name="reorder-three" size={22} color="#B11226" />
+                  <Ionicons name="reorder-three" size={22} color={COLORS.primary} />
                   <Text style={styles.exerciseOrder}>
                     {exercises.findIndex(e => e._id === activeDragId) + 1}
                   </Text>
@@ -900,7 +1174,7 @@ export default function NewTrainningScreen({ navigation, route }) {
                 });
               }}
             >
-              <Ionicons name="git-merge-outline" size={16} color="#CC3333" />
+              <Ionicons name="git-merge-outline" size={16} color={COLORS.danger} />
               <Text style={[styles.exDropdownItemText, { color: COLORS.danger }]}>Eliminar Superserie</Text>
             </TouchableOpacity>
           ) : (
@@ -912,7 +1186,7 @@ export default function NewTrainningScreen({ navigation, route }) {
                 setSupersetPickerForId(exMenuId);
               }}
             >
-              <Ionicons name="git-merge-outline" size={16} color="#9A9A9A" />
+              <Ionicons name="git-merge-outline" size={16} color={COLORS.textSecondary} />
               <Text style={styles.exDropdownItemText}>Añadir Superserie</Text>
             </TouchableOpacity>
           )}
@@ -921,7 +1195,7 @@ export default function NewTrainningScreen({ navigation, route }) {
             style={styles.exDropdownItem}
             onPress={() => { setExMenuVisible(false); handleReplaceExercise(exMenuId); }}
           >
-            <Ionicons name="swap-horizontal-outline" size={16} color="#9A9A9A" />
+            <Ionicons name="swap-horizontal-outline" size={16} color={COLORS.textSecondary} />
             <Text style={styles.exDropdownItemText}>Reemplazar Ejercicio</Text>
           </TouchableOpacity>
           <View style={styles.exDropdownDivider} />
@@ -929,7 +1203,7 @@ export default function NewTrainningScreen({ navigation, route }) {
             style={styles.exDropdownItem}
             onPress={() => { setExMenuVisible(false); handleRemoveExercise(exMenuId); }}
           >
-            <Ionicons name="trash-outline" size={16} color="#CC3333" />
+            <Ionicons name="trash-outline" size={16} color={COLORS.danger} />
             <Text style={[styles.exDropdownItemText, { color: COLORS.danger }]}>Eliminar Ejercicio</Text>
           </TouchableOpacity>
         </View>
@@ -962,13 +1236,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 15,
   },
-  label: { fontSize: 18, fontWeight: 'bold', color: COLORS.textPrimary, marginBottom: 10 },
-  exerciseCount: { fontSize: 14, color: COLORS.primaryDark, fontWeight: '600' },
+  label: { fontSize: 20, fontWeight: 'bold', color: COLORS.textPrimary, marginBottom: 10 },
+  exerciseCount: { fontSize: 16, color: COLORS.primaryDark, fontWeight: '600' },
+
+  // Type / format pill selector
+  pillRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  pill: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    backgroundColor: 'transparent',
+  },
+  pillActive: {
+    borderColor: COLORS.primaryDark,
+    backgroundColor: COLORS.dangerBg,
+  },
+  pillText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textMuted,
+  },
+  pillTextActive: {
+    color: COLORS.primaryDark,
+  },
   input: {
     backgroundColor: COLORS.surface,
     borderRadius: 10,
     padding: 15,
-    fontSize: 16,
+    fontSize: 18,
     borderWidth: 1,
     borderColor: COLORS.border,
     color: COLORS.textPrimary,
@@ -978,7 +1279,7 @@ const styles = StyleSheet.create({
   },
   inputErrorText: {
     color: COLORS.primary,
-    fontSize: 12,
+    fontSize: 14,
     marginTop: 6,
   },
   emptyExercises: {
@@ -991,8 +1292,8 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     marginBottom: 15,
   },
-  emptyText: { fontSize: 16, color: COLORS.textMuted, marginBottom: 5 },
-  emptySubtext: { fontSize: 14, color: '#4A4A4A', textAlign: 'center' },
+  emptyText: { fontSize: 18, color: COLORS.textMuted, marginBottom: 5 },
+  emptySubtext: { fontSize: 16, color: COLORS.iconInactive, textAlign: 'center' },
   exercisesList: { marginBottom: 15 },
 
   // Card de ejercicio
@@ -1021,13 +1322,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: COLORS.primaryDark,
     color: COLORS.textPrimary,
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '700',
     textAlign: 'center',
     lineHeight: 24,
   },
-  exerciseName: { fontSize: 15, color: COLORS.textPrimary, fontWeight: '600' },
-  exerciseMeta: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  exerciseName: { fontSize: 17, color: COLORS.textPrimary, fontWeight: '600' },
+  exerciseMeta: { fontSize: 14, color: COLORS.textMuted, marginTop: 2 },
 
   // Tabla de series
   setsTable: {
@@ -1053,7 +1354,7 @@ const styles = StyleSheet.create({
   colKm: { width: 70 },
   colTiempo: { width: 90 },
   setsHeaderCell: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '700',
     color: COLORS.textMuted,
     letterSpacing: 0.5,
@@ -1065,7 +1366,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   setsHeaderCellBtnText: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '700',
     color: COLORS.primaryDark,
     letterSpacing: 0.5,
@@ -1083,7 +1384,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   setsSerieText: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '700',
     color: COLORS.primaryDark,
     textAlign: 'center',
@@ -1092,7 +1393,7 @@ const styles = StyleSheet.create({
     height: 34,
     borderRadius: 6,
     backgroundColor: COLORS.surfaceAlt,
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     color: COLORS.textPrimary,
     textAlign: 'center',
@@ -1108,13 +1409,13 @@ const styles = StyleSheet.create({
     height: 34,
     borderRadius: 6,
     backgroundColor: COLORS.surfaceAlt,
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     color: COLORS.textPrimary,
     textAlign: 'center',
   },
   setsRangeSep: {
-    fontSize: 13,
+    fontSize: 15,
     color: COLORS.textMuted,
     fontWeight: '600',
     paddingHorizontal: 2,
@@ -1128,9 +1429,38 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   addSetBtnText: {
-    fontSize: 13,
+    fontSize: 15,
     color: COLORS.primaryDark,
     fontWeight: '600',
+  },
+  exerciseMetaRow: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 4,
+    paddingBottom: 8,
+    paddingTop: 4,
+  },
+  exerciseMetaField: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 4,
+  },
+  exerciseMetaLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.textMuted,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  exerciseMetaInput: {
+    width: '100%',
+    height: 34,
+    borderRadius: 6,
+    backgroundColor: COLORS.surfaceAlt,
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+    textAlign: 'center',
   },
   colDel: {
     width: 32,
@@ -1142,7 +1472,7 @@ const styles = StyleSheet.create({
   },
   exerciseNoteInput: {
     marginTop: 4,
-    fontSize: 12,
+    fontSize: 14,
     color: COLORS.textSecondary,
     paddingHorizontal: 0,
     paddingVertical: 2,
@@ -1161,7 +1491,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: COLORS.primaryDark,
   },
-  addExerciseButtonText: { color: COLORS.primaryDark, fontSize: 14, fontWeight: '600' },
+  addExerciseButtonText: { color: COLORS.primaryDark, fontSize: 16, fontWeight: '600' },
 
   saveButton: {
     marginTop: 16,
@@ -1177,10 +1507,10 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   saveButtonDisabled: { opacity: 0.6 },
-  saveButtonText: { color: COLORS.textPrimary, fontSize: 16, fontWeight: '700' },
+  saveButtonText: { color: COLORS.textPrimary, fontSize: 18, fontWeight: '700' },
 
   // Cardio table
-  setsTimeTxt: { fontSize: 13, fontWeight: '600', color: COLORS.textPrimary, textAlign: 'center' },
+  setsTimeTxt: { fontSize: 15, fontWeight: '600', color: COLORS.textPrimary, textAlign: 'center' },
 
   // Drum time picker
   drumSheet: {
@@ -1195,30 +1525,30 @@ const styles = StyleSheet.create({
     alignSelf: 'center', marginBottom: 16,
   },
   drumTitle: {
-    textAlign: 'center', fontSize: 16, fontWeight: '700',
+    textAlign: 'center', fontSize: 18, fontWeight: '700',
     color: COLORS.textPrimary, marginBottom: 12,
   },
   drumLabel: {
-    fontSize: 11, fontWeight: '700', color: COLORS.textMuted,
+    fontSize: 13, fontWeight: '700', color: COLORS.textMuted,
     letterSpacing: 0.5, marginBottom: 4, textAlign: 'center',
   },
-  drumItem: { fontSize: 22, color: '#4A4A4A', fontWeight: '500' },
-  drumItemSelected: { fontSize: 26, color: COLORS.textPrimary, fontWeight: '700' },
+  drumItem: { fontSize: 24, color: COLORS.iconInactive, fontWeight: '500' },
+  drumItemSelected: { fontSize: 28, color: COLORS.textPrimary, fontWeight: '700' },
   drumConfirmBtn: {
     marginHorizontal: 20, marginTop: 8,
     backgroundColor: COLORS.primaryDark, borderRadius: 10, padding: 16, alignItems: 'center',
   },
-  drumConfirmText: { color: COLORS.textPrimary, fontSize: 16, fontWeight: '700' },
+  drumConfirmText: { color: COLORS.textPrimary, fontSize: 18, fontWeight: '700' },
 
   // Superset badge
   supersetBadge: {
-    backgroundColor: '#2A0A0A',
+    backgroundColor: COLORS.dangerBg,
     borderRadius: 4,
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
   supersetBadgeText: {
-    fontSize: 10,
+    fontSize: 12,
     color: COLORS.primaryDark,
     fontWeight: '700',
     letterSpacing: 0.3,
@@ -1227,17 +1557,45 @@ const styles = StyleSheet.create({
     borderColor: COLORS.primaryDark,
   },
 
+  // Phase selector
+  phaseRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 6,
+    flexWrap: 'wrap',
+  },
+  phasePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.borderInner,
+    backgroundColor: 'transparent',
+  },
+  phasePillActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.dangerBg,
+  },
+  phasePillText: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    fontWeight: '600',
+  },
+  phasePillTextActive: {
+    color: COLORS.primary,
+  },
+
   // Superset picker
   supersetPicker: {
     backgroundColor: COLORS.surface,
     borderRadius: 10,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#2A0A0A',
+    borderColor: COLORS.dangerBg,
     padding: 14,
   },
   supersetPickerTitle: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '700',
     color: COLORS.textPrimary,
     marginBottom: 10,
@@ -1251,7 +1609,7 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.surfaceDeep,
   },
   supersetPickerItemText: {
-    fontSize: 14,
+    fontSize: 16,
     color: COLORS.textSecondary,
     flex: 1,
   },
@@ -1282,7 +1640,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   supersetCancelBtnText: {
-    fontSize: 14,
+    fontSize: 16,
     color: COLORS.textSecondary,
     fontWeight: '600',
   },
@@ -1293,7 +1651,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primaryDark,
   },
   supersetConfirmBtnText: {
-    fontSize: 14,
+    fontSize: 16,
     color: COLORS.textPrimary,
     fontWeight: '700',
   },
@@ -1320,7 +1678,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   exDropdownItemText: {
-    fontSize: 14,
+    fontSize: 16,
     color: COLORS.textPrimary,
   },
   exDropdownDivider: {

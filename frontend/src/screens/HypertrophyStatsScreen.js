@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Polyline, Path, Circle, Line, Text as SvgText, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { calcExerciseHI, secondaryActivation } from '../utils/hypertrophyMetrics';
+import { COLORS } from '../config/theme';
 
 // ─── Muscle group mapping ─────────────────────────────────────────────────────
 const MUSCLE_MAP = {
@@ -128,6 +129,14 @@ const CHART_MODES = [
   { key: 'hi',       label: 'HI' },
 ];
 
+const CHART_TITLE = {
+  total:    'Volumen semanal (kg)',
+  training: 'Volumen · Entreno (kg)',
+  exercise: 'Volumen · Ejercicio (kg)',
+  muscle:   'Volumen · Músculo (kg)',
+  hi:       'HI semanal',
+};
+
 export default function HypertrophyStatsScreen({ route }) {
   const { sessions = [], activePlan = null } = route.params || {};
   const { width } = useWindowDimensions();
@@ -142,6 +151,8 @@ export default function HypertrophyStatsScreen({ route }) {
   const [selectedItem, setSelectedItem] = useState(null);   // exercise or muscle
   const [pickerType, setPickerType] = useState(null);       // 'training' | 'exercise' | null
   const [pickerSearch, setPickerSearch] = useState('');
+  const [hiInfoVisible, setHiInfoVisible] = useState(false);
+  const [e1rmShowAll, setE1rmShowAll] = useState(false);
 
   const openPicker = (type) => { setPickerType(type); setPickerSearch(''); };
   const closePicker = () => setPickerType(null);
@@ -225,6 +236,25 @@ export default function HypertrophyStatsScreen({ route }) {
   }, [selectedTraining, sessions, exerciseOptions]);
 
   const muscleOptions = useMemo(() => Object.keys(MUSCLE_RANGES), []);
+
+  // ── Weekly summary (used when period === '1w') ───────────────────────────────
+  const weeklySummary = useMemo(() => {
+    if (effectivePeriod !== '1w') return null;
+    let totalVol = 0, totalSets = 0, totalExercises = 0;
+    const sessionCount = chartSessions.length;
+    chartSessions.forEach(s => {
+      (s.exercises || []).forEach(ex => {
+        totalExercises++;
+        (ex.sets || []).forEach(set => {
+          if (set.completed && (set.weight || 0) > 0 && (set.reps || 0) > 0) {
+            totalVol += set.weight * set.reps;
+            totalSets++;
+          }
+        });
+      });
+    });
+    return { sessionCount, totalVol, totalSets, totalExercises };
+  }, [chartSessions, effectivePeriod]);
 
   // Auto-select when chart mode changes
   useEffect(() => {
@@ -389,6 +419,41 @@ export default function HypertrophyStatsScreen({ route }) {
     return { avgHI, muscles };
   }, [chartSessions]);
 
+  // ── Mejores marcas (e1RM histórico) ─────────────────────────────────────────────────
+  // Uses ALL sessions (not period-filtered) — PRs are historical.
+  const topE1RM = useMemo(() => {
+    const map = {};
+    sessions.forEach(s => {
+      (s.exercises || []).forEach(ex => {
+        const name = ex.exerciseId?.name_es || ex.exerciseId?.name;
+        if (!name) return;
+        (ex.sets || []).forEach(set => {
+          if (!set.completed || !set.weight || !set.reps || set.reps <= 0) return;
+          const e1rm = set.weight * (1 + set.reps / 30);
+          if (!map[name] || e1rm > map[name].e1rm)
+            map[name] = { e1rm, weight: set.weight, reps: set.reps, date: s.date };
+        });
+      });
+    });
+    return Object.entries(map)
+      .map(([name, data]) => ({ name, ...data }))
+      .sort((a, b) => b.e1rm - a.e1rm)
+      .slice(0, 8);
+  }, [sessions]);
+
+  const MEDALS = ['🥇', '🥈', '🥉'];
+  const fmtPRDate = (dateStr) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    const diffDays = Math.floor((Date.now() - d.getTime()) / 86400000);
+    if (diffDays === 0) return 'hoy';
+    if (diffDays === 1) return 'ayer';
+    if (diffDays < 7) return `hace ${diffDays}d`;
+    if (diffDays < 30) return `hace ${Math.floor(diffDays / 7)}sem`;
+    if (diffDays < 365) return `hace ${Math.floor(diffDays / 30)}m`;
+    return `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getFullYear().toString().slice(2)}`;
+  };
+
   // ── Force balance (CAPA 1 + force field) ────────────────────────────
   const forceBalance = useMemo(() => {
     let push = 0, pull = 0;
@@ -405,9 +470,9 @@ export default function HypertrophyStatsScreen({ route }) {
   }, [chartSessions]);
 
   // ── Chart SVG helpers ──────────────────────────────────────────────────────
-  const CHART_H = 180;
-  const CHART_PAD = { top: 16, bottom: 36, left: 42, right: 16 };
-  const X_INSET = 12;
+  const CHART_H = 220;
+  const CHART_PAD = { top: 28, bottom: 30, left: 30, right: 40 };
+  const X_INSET = 16;
   const chartW = width - 32;
 
   const chartGeometry = useMemo(() => {
@@ -432,7 +497,8 @@ export default function HypertrophyStatsScreen({ route }) {
     else if (norm < 7) niceStep = 5 * magnitude;
     else niceStep = 10 * magnitude;
 
-    const minVal = Math.floor(rawMin / niceStep - 0.0001) * niceStep;
+    // Clamp minVal to 0 — volume and HI are always non-negative
+    const minVal = Math.max(0, Math.floor(rawMin / niceStep - 0.0001) * niceStep);
     const maxVal = Math.ceil(rawMax / niceStep + 0.0001) * niceStep;
     const range = maxVal - minVal || 1;
 
@@ -442,16 +508,20 @@ export default function HypertrophyStatsScreen({ route }) {
     const yFor = (v) =>
       CHART_PAD.top + innerH - ((v - minVal) / range) * innerH;
 
-    // Line path
+    // Straight-line path
     const linePath = chartData
       .map((d, i) => `${i === 0 ? 'M' : 'L'}${xFor(i).toFixed(1)},${yFor(d.val).toFixed(1)}`)
       .join(' ');
-
+    const baseY = (CHART_PAD.top + innerH).toFixed(1);
     const areaPath = n > 1
       ? linePath +
-        ` L${xFor(n - 1).toFixed(1)},${(CHART_PAD.top + innerH).toFixed(1)}` +
-        ` L${xFor(0).toFixed(1)},${(CHART_PAD.top + innerH).toFixed(1)} Z`
+        ` L${xFor(n - 1).toFixed(1)},${baseY}` +
+        ` L${xFor(0).toFixed(1)},${baseY} Z`
       : null;
+
+    // Max and last point indices (used for highlighted dots)
+    const maxIdx = rawValues.indexOf(Math.max(...rawValues));
+    const lastIdx = n - 1;
 
     // Y ticks
     const yTicks = [];
@@ -464,7 +534,7 @@ export default function HypertrophyStatsScreen({ route }) {
       ? chartData.map((_, i) => i)
       : [0, Math.floor((n - 1) / 3), Math.floor(2 * (n - 1) / 3), n - 1];
 
-    return { xFor, yFor, linePath, areaPath, yTicks, xLabelIndices, minVal, maxVal, range, innerH };
+    return { xFor, yFor, linePath, areaPath, yTicks, xLabelIndices, minVal, maxVal, range, innerH, maxIdx, lastIdx };
   }, [chartData, chartW]);
 
   return (
@@ -492,28 +562,32 @@ export default function HypertrophyStatsScreen({ route }) {
 
         {/* ── Volumen semanal (filterable) ── */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { marginBottom: 10 }]}>Volumen semanal</Text>
+          <Text style={styles.sectionTitle}>
+            {effectivePeriod === '1w' ? 'Resumen semanal' : (CHART_TITLE[chartMode] ?? 'Volumen semanal')}
+          </Text>
 
-          {/* Chart mode pills */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.modeScroll}>
-            <View style={styles.modeContainer}>
-              {CHART_MODES.map(m => (
-                <TouchableOpacity
-                  key={m.key}
-                  style={[styles.modeBtn, chartMode === m.key && styles.modeBtnActive]}
-                  onPress={() => setChartMode(m.key)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.modeBtnText, chartMode === m.key && styles.modeBtnTextActive]}>
-                    {m.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </ScrollView>
+          {/* Chart mode pills — hidden in weekly view */}
+          {effectivePeriod !== '1w' && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.modeScroll}>
+              <View style={styles.modeContainer}>
+                {CHART_MODES.map(m => (
+                  <TouchableOpacity
+                    key={m.key}
+                    style={[styles.modeBtn, chartMode === m.key && styles.modeBtnActive]}
+                    onPress={() => setChartMode(m.key)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.modeBtnText, chartMode === m.key && styles.modeBtnTextActive]}>
+                      {m.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+          )}
 
           {/* ── Contextual filter row ── */}
-          {chartMode === 'muscle' && (
+          {effectivePeriod !== '1w' && chartMode === 'muscle' && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.subScroll}>
               <View style={styles.subContainer}>
                 {muscleOptions.map(opt => (
@@ -532,7 +606,7 @@ export default function HypertrophyStatsScreen({ route }) {
             </ScrollView>
           )}
 
-          {chartMode === 'training' && trainingOptions.length > 0 && (
+          {effectivePeriod !== '1w' && chartMode === 'training' && trainingOptions.length > 0 && (
             <TouchableOpacity
               style={styles.pickerTrigger}
               onPress={() => openPicker('training')}
@@ -545,7 +619,7 @@ export default function HypertrophyStatsScreen({ route }) {
             </TouchableOpacity>
           )}
 
-          {chartMode === 'exercise' && (
+          {effectivePeriod !== '1w' && chartMode === 'exercise' && (
             <View style={styles.dualTriggerRow}>
               <TouchableOpacity
                 style={[styles.pickerTrigger, styles.pickerTriggerHalf]}
@@ -573,14 +647,46 @@ export default function HypertrophyStatsScreen({ route }) {
           )}
 
           <View style={styles.card}>
-            {chartData.length === 0 ? (
+            {effectivePeriod === '1w' ? (
+              // ── Weekly summary (no chart — single data point has no comparative value) ──
+              weeklySummary && weeklySummary.sessionCount > 0 ? (
+                <View style={styles.weekSummaryGrid}>
+                  <View style={styles.weekSummaryItem}>
+                    <Text style={styles.weekSummaryValue}>
+                      {weeklySummary.totalVol >= 1000
+                        ? `${(weeklySummary.totalVol / 1000).toFixed(1)}k`
+                        : `${Math.round(weeklySummary.totalVol)}`}
+                    </Text>
+                    <Text style={styles.weekSummaryLabel}>kg totales</Text>
+                  </View>
+                  <View style={styles.weekSummaryDivider} />
+                  <View style={styles.weekSummaryItem}>
+                    <Text style={styles.weekSummaryValue}>{weeklySummary.sessionCount}</Text>
+                    <Text style={styles.weekSummaryLabel}>{weeklySummary.sessionCount === 1 ? 'sesión' : 'sesiones'}</Text>
+                  </View>
+                  <View style={styles.weekSummaryDivider} />
+                  <View style={styles.weekSummaryItem}>
+                    <Text style={styles.weekSummaryValue}>{weeklySummary.totalSets}</Text>
+                    <Text style={styles.weekSummaryLabel}>series</Text>
+                  </View>
+                  <View style={styles.weekSummaryDivider} />
+                  <View style={styles.weekSummaryItem}>
+                    <Text style={styles.weekSummaryValue}>{weeklySummary.totalExercises}</Text>
+                    <Text style={styles.weekSummaryLabel}>ejercicios</Text>
+                  </View>
+                </View>
+              ) : (
+                <Text style={styles.emptyText}>Sin entrenos esta semana.</Text>
+              )
+            ) : chartData.length === 0 ? (
               <Text style={styles.emptyText}>Sin datos en el período seleccionado.</Text>
             ) : (
               <Svg width={chartW} height={CHART_H}>
                 <Defs>
                   <LinearGradient id="volGrad" x1="0" y1="0" x2="0" y2="1">
-                    <Stop offset="0" stopColor="#C9A44C" stopOpacity="0.3" />
-                    <Stop offset="1" stopColor="#C9A44C" stopOpacity="0" />
+                    <Stop offset="0" stopColor={COLORS.gold} stopOpacity="0.45" />
+                    <Stop offset="0.65" stopColor={COLORS.gold} stopOpacity="0.12" />
+                    <Stop offset="1" stopColor={COLORS.gold} stopOpacity="0" />
                   </LinearGradient>
                 </Defs>
 
@@ -592,14 +698,14 @@ export default function HypertrophyStatsScreen({ route }) {
                       y1={chartGeometry.yFor(v)}
                       x2={chartW - CHART_PAD.right}
                       y2={chartGeometry.yFor(v)}
-                      stroke="#252525"
+                      stroke={COLORS.borderSubtle}
                       strokeWidth={1}
                     />
                     <SvgText
                       x={CHART_PAD.left - 5}
                       y={chartGeometry.yFor(v) + 4}
-                      fontSize={9}
-                      fill="#6A6A6A"
+                      fontSize={15}
+                      fill={COLORS.textSecondary}
                       textAnchor="end"
                     >
                       {chartMode === 'hi'
@@ -610,6 +716,18 @@ export default function HypertrophyStatsScreen({ route }) {
                   </React.Fragment>
                 ))}
 
+                {/* X baseline */}
+                {chartGeometry && (
+                  <Line
+                    x1={CHART_PAD.left}
+                    y1={CHART_PAD.top + chartGeometry.innerH}
+                    x2={chartW - CHART_PAD.right}
+                    y2={CHART_PAD.top + chartGeometry.innerH}
+                    stroke="#3A3A3A"
+                    strokeWidth={1.5}
+                  />
+                )}
+
                 {/* Area fill */}
                 {chartGeometry?.areaPath && (
                   <Path d={chartGeometry.areaPath} fill="url(#volGrad)" />
@@ -618,25 +736,48 @@ export default function HypertrophyStatsScreen({ route }) {
                 {/* Line */}
                 <Path
                   d={chartGeometry?.linePath ?? ''}
-                  stroke="#C9A44C"
+                  stroke={COLORS.gold}
                   strokeWidth={2}
                   fill="none"
                   strokeLinejoin="round"
                   strokeLinecap="round"
                 />
 
-                {/* Dots */}
-                {chartData.map((d, i) => (
-                  <Circle
-                    key={i}
-                    cx={chartGeometry?.xFor(i) ?? 0}
-                    cy={chartGeometry?.yFor(d.val) ?? 0}
-                    r={3.5}
-                    fill="#C9A44C"
-                    stroke="#0D0D0D"
-                    strokeWidth={1.5}
-                  />
-                ))}
+                {/* Dots — label only for max and last point */}
+                {chartData.map((d, i) => {
+                  const isMax  = i === chartGeometry?.maxIdx;
+                  const isLast = i === chartGeometry?.lastIdx;
+                  const showLabel = isMax || (isLast && !isMax);
+                  const cx = chartGeometry?.xFor(i) ?? 0;
+                  const cy = chartGeometry?.yFor(d.val) ?? 0;
+                  const label = chartMode === 'hi'
+                    ? d.val.toFixed(1)
+                    : d.val >= 1000 ? `${(d.val / 1000).toFixed(1)}k` : `${Math.round(d.val)}`;
+                  return (
+                    <React.Fragment key={i}>
+                      <Circle
+                        cx={cx}
+                        cy={cy}
+                        r={isMax ? 5.5 : 3.5}
+                        fill={COLORS.gold}
+                        stroke={COLORS.background}
+                        strokeWidth={isMax ? 2 : 1.5}
+                      />
+                      {showLabel && (
+                        <SvgText
+                          x={cx}
+                          y={cy - 12}
+                          fontSize={15}
+                          fill={COLORS.gold}
+                          textAnchor="middle"
+                          fontWeight={'bold'}
+                        >
+                          {label}
+                        </SvgText>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
 
                 {/* X-axis labels */}
                 {chartGeometry?.xLabelIndices.map(i => {
@@ -646,8 +787,8 @@ export default function HypertrophyStatsScreen({ route }) {
                       key={i}
                       x={chartGeometry.xFor(i)}
                       y={CHART_H - 4}
-                      fontSize={9}
-                      fill="#6A6A6A"
+                      fontSize={13}
+                      fill={COLORS.textSecondary}
                       textAnchor="middle"
                     >
                       {`${parts[2]}/${parts[1]}`}
@@ -663,27 +804,72 @@ export default function HypertrophyStatsScreen({ route }) {
         <View style={styles.section}>
           <View style={styles.sectionTitleRow}>
             <Text style={styles.sectionTitle}>Índice de Hipertrofia</Text>
+            <TouchableOpacity onPress={() => setHiInfoVisible(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.infoIcon}>ⓘ</Text>
+            </TouchableOpacity>
           </View>
 
-          {/* avg HI KPI */}
-          <View style={[styles.card, { alignItems: 'center', marginBottom: 10 }]}>
-            <Text style={styles.hiKpiValue}>
-              {sessionHIData.avgHI > 0 ? sessionHIData.avgHI.toFixed(2) : '—'}
-            </Text>
-            <Text style={styles.hiKpiLabel}>HI medio (período)</Text>
+          {/* avg HI KPI - ring */}
+          <View style={[styles.card, { alignItems: 'center', marginBottom: 10, paddingVertical: 20 }]}>
+            {(() => {
+              const hi = sessionHIData.avgHI;
+              const ringColor = hi >= 7 ? COLORS.success : hi >= 4 ? COLORS.gold : hi > 0 ? COLORS.warning : COLORS.surfaceInner;
+              const progress = hi > 0 ? Math.min(hi / 10, 1) : 0;
+              const R = 44, SW = 8, SIZE = R * 2 + SW * 2, cx = SIZE / 2;
+              const CIRC = 2 * Math.PI * R;
+              const dashOffset = CIRC * (1 - progress);
+              return (
+                <View style={{ width: SIZE, height: SIZE, position: 'relative' }}>
+                  <Svg width={SIZE} height={SIZE} style={{ transform: [{ rotate: '-90deg' }] }}>
+                    <Circle cx={cx} cy={cx} r={R} stroke={COLORS.surfaceInner} strokeWidth={SW} fill="none" />
+                    <Circle
+                      cx={cx} cy={cx} r={R}
+                      stroke={ringColor} strokeWidth={SW} fill="none"
+                      strokeDasharray={`${CIRC}`}
+                      strokeDashoffset={`${dashOffset}`}
+                      strokeLinecap="round"
+                    />
+                  </Svg>
+                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={[styles.hiKpiValue, { color: ringColor, fontSize: 30 }]}>
+                      {hi > 0 ? hi.toFixed(1) : '—'}
+                    </Text>
+                    <Text style={{ fontSize: 13, color: '#666', fontWeight: '600' }}>/10</Text>
+                  </View>
+                </View>
+              );
+            })()}
+            <Text style={[styles.hiKpiLabel, { marginTop: 10 }]}>HI medio del período</Text>
           </View>
+
+          {/* HI bars legend */}
+          {sessionHIData.muscles.length > 0 && (
+            <View style={[styles.legendRow, { marginBottom: 8 }]}>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: COLORS.success }]} />
+                <Text style={styles.legendText}>{'Alto (≥ 7)'}</Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: COLORS.gold }]} />
+                <Text style={styles.legendText}>{'Moderado (≥ 4)'}</Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: COLORS.warning }]} />
+                <Text style={styles.legendText}>{'Bajo (< 4)'}</Text>
+              </View>
+            </View>
+          )}
 
           {/* Per-muscle avg HI */}
           {sessionHIData.muscles.length > 0 && (
             <View style={styles.card}>
               {sessionHIData.muscles.map(({ group, avg_HI }) => {
-                const maxHI = sessionHIData.muscles[0]?.avg_HI || 1;
-                const barW = Math.min((avg_HI / maxHI) * 100, 100);
-                const barColor = avg_HI >= maxHI * 0.75
-                  ? '#C9A44C'
-                  : avg_HI >= maxHI * 0.4
-                    ? '#B11226'
-                    : '#5A0000';
+                const barW = Math.min((avg_HI / 10) * 100, 100);
+                const barColor = avg_HI >= 7
+                  ? COLORS.success
+                  : avg_HI >= 4
+                    ? COLORS.gold
+                    : COLORS.warning;
                 return (
                   <View key={group} style={styles.muscleRow}>
                     <Text style={styles.muscleLabel}>{group}</Text>
@@ -708,6 +894,46 @@ export default function HypertrophyStatsScreen({ route }) {
           )}
         </View>
 
+        {/* ── Mejores marcas (e1RM) ── */}
+        {topE1RM.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Mejores marcas</Text>
+            <View style={styles.card}>
+              {(e1rmShowAll ? topE1RM : topE1RM.slice(0, 3)).map((item, i) => {
+                const medal = MEDALS[i] ?? null;
+                return (
+                  <View key={item.name} style={[styles.e1rmRow, i < (e1rmShowAll ? topE1RM.length : Math.min(topE1RM.length, 3)) - 1 && styles.e1rmRowBorder]}>
+                    <Text style={styles.e1rmRank}>{medal ?? `#${i + 1}`}</Text>
+                    <View style={styles.e1rmInfo}>
+                      <View style={styles.e1rmNameRow}>
+                        <Text style={styles.e1rmName} numberOfLines={1}>{item.name}</Text>
+                        {item.date ? <Text style={styles.e1rmDate}>{fmtPRDate(item.date)}</Text> : null}
+                      </View>
+                      <Text style={styles.e1rmSet}>{item.weight} kg × {item.reps} reps</Text>
+                    </View>
+                    <View style={styles.e1rmBadge}>
+                      <Text style={styles.e1rmValue}>{Math.round(item.e1rm)} kg</Text>
+                      <Text style={styles.e1rmLabel}>e1RM</Text>
+                    </View>
+                  </View>
+                );
+              })}
+              {topE1RM.length > 3 && (
+                <TouchableOpacity
+                  style={styles.e1rmToggleBtn}
+                  onPress={() => setE1rmShowAll(v => !v)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.e1rmToggleText}>
+                    {e1rmShowAll ? 'Mostrar menos ▴' : `Mostrar más ▾`}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              <Text style={styles.e1rmHint}>Estimado con Epley · basado en tu historial completo</Text>
+            </View>
+          </View>
+        )}
+
         {/* ── Series por grupo muscular (from plan) ── */}
         <View style={styles.section}>
           <View style={styles.sectionTitleRow}>
@@ -720,15 +946,15 @@ export default function HypertrophyStatsScreen({ route }) {
           </View>
           <View style={styles.legendRow}>
             <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: '#8B0000' }]} />
+              <View style={[styles.legendDot, { backgroundColor: COLORS.warning }]} />
               <Text style={styles.legendText}>Por debajo MEV</Text>
             </View>
             <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: '#C9A44C' }]} />
+              <View style={[styles.legendDot, { backgroundColor: COLORS.success }]} />
               <Text style={styles.legendText}>Zona óptima</Text>
             </View>
             <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: '#2E6B3E' }]} />
+              <View style={[styles.legendDot, { backgroundColor: COLORS.info }]} />
               <Text style={styles.legendText}>Por encima MAV</Text>
             </View>
           </View>
@@ -741,22 +967,22 @@ export default function HypertrophyStatsScreen({ route }) {
               <>
                 {planMuscleSetData.map(({ group, sets, mev, mav }) => {
                   const barColor = sets === 0
-                    ? '#2A2A2A'
+                    ? COLORS.surfaceInner
                     : sets < mev
-                      ? '#8B0000'
+                      ? COLORS.warning
                       : sets > mav
-                        ? '#2E6B3E'
-                        : '#C9A44C';
+                        ? COLORS.info
+                        : COLORS.success;
                   const barW = sets === 0 ? 0 : Math.min((sets / (mav * 1.3)) * 100, 100);
                   return (
                     <View key={group} style={styles.muscleRow}>
                       <Text style={styles.muscleLabel}>{group}</Text>
                       <View style={styles.muscleBarBg}>
                         <View style={[styles.muscleBarFill, { width: `${barW}%`, backgroundColor: barColor }]} />
-                        <View style={[styles.muscleRefLine, { left: `${(mev / (mav * 1.3)) * 100}%`, backgroundColor: '#9A9A9A' }]} />
-                        <View style={[styles.muscleRefLine, { left: `${(mav / (mav * 1.3)) * 100}%`, backgroundColor: '#555' }]} />
+                        <View style={[styles.muscleRefLine, { left: `${(mev / (mav * 1.3)) * 100}%`, backgroundColor: '#BDBDBD' }]} />
+                        <View style={[styles.muscleRefLine, { left: `${(mav / (mav * 1.3)) * 100}%`, backgroundColor: '#888' }]} />
                       </View>
-                      <Text style={[styles.muscleSetCount, { color: barColor === '#2A2A2A' ? '#555' : barColor }]}>
+                      <Text style={[styles.muscleSetCount, { color: barColor === COLORS.surfaceInner ? '#777' : barColor }]}>
                         {sets}
                       </Text>
                     </View>
@@ -774,6 +1000,57 @@ export default function HypertrophyStatsScreen({ route }) {
 
         <View style={{ height: 24 }} />
       </ScrollView>
+
+      {/* ── HI Info modal ── */}
+      <Modal
+        visible={hiInfoVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setHiInfoVisible(false)}
+      >
+        <Pressable style={styles.infoOverlay} onPress={() => setHiInfoVisible(false)}>
+          <Pressable style={styles.infoSheet} onPress={() => {}}>
+            <Text style={styles.infoTitle}>¿Cómo se calcula el HI?</Text>
+
+            <Text style={styles.infoBody}>
+              El <Text style={styles.infoHighlight}>Índice de Hipertrofia (HI)</Text> mide el estímulo real de crecimiento muscular de cada ejercicio combinando cinco factores:
+            </Text>
+
+            <View style={styles.infoRow}>
+              <Text style={styles.infoBullet}>📦</Text>
+              <Text style={styles.infoRowText}><Text style={styles.infoHighlight}>Volumen</Text> — series × reps × peso. La base del estímulo.</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoBullet}>🔢</Text>
+              <Text style={styles.infoRowText}><Text style={styles.infoHighlight}>Rango de reps</Text> — la zona óptima es 6-12 reps. Muy pocas o muchas reducen el factor.</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoBullet}>⚡</Text>
+              <Text style={styles.infoRowText}><Text style={styles.infoHighlight}>Intensidad relativa</Text> — el peso usado como % de tu máximo estimado (e1RM). El pico está en 70-80 %.</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoBullet}>🎯</Text>
+              <Text style={styles.infoRowText}><Text style={styles.infoHighlight}>RPE</Text> — proximidad al fallo. Más cerca del límite = mayor estímulo.</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoBullet}>💪</Text>
+              <Text style={styles.infoRowText}><Text style={styles.infoHighlight}>Músculo y mecánica</Text> — músculos con menor eficiencia mecánica (bíceps, gemelos) reciben un bonus.</Text>
+            </View>
+
+            <Text style={styles.infoFormula}>HI = log(volumen) × reps × intensidad × RPE × músculo</Text>
+
+            <View style={styles.infoDisclaimer}>
+              <Text style={styles.infoDisclaimerText}>
+                ⚠️ El HI es una <Text style={{ fontWeight: '700' }}>estimación orientativa</Text>, no una métrica científica exacta. Úsalo como referencia para comparar sesiones entre sí, no como un valor absoluto a alcanzar.
+              </Text>
+            </View>
+
+            <TouchableOpacity style={styles.infoCloseBtn} onPress={() => setHiInfoVisible(false)}>
+              <Text style={styles.infoCloseBtnText}>Entendido</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* ── Picker modal (training or exercise) ── */}
       <Modal
@@ -841,105 +1118,105 @@ export default function HypertrophyStatsScreen({ route }) {
 }
 
 const styles = StyleSheet.create({
-  container:   { flex: 1, backgroundColor: '#0D0D0D' },
+  container:   { flex: 1, backgroundColor: COLORS.background },
   scroll:      { paddingHorizontal: 16, paddingTop: 12 },
 
   // Period selector
-  periodRow:           { flexDirection: 'row', backgroundColor: '#1A1A1A', borderRadius: 10, padding: 3, marginBottom: 16 },
+  periodRow:           { flexDirection: 'row', backgroundColor: COLORS.surface, borderRadius: 10, padding: 3, marginBottom: 16 },
   periodBtn:           { flex: 1, paddingVertical: 7, alignItems: 'center', borderRadius: 8 },
-  periodBtnActive:     { backgroundColor: '#2E2E2E' },
-  periodBtnText:       { fontSize: 13, color: '#9A9A9A', fontWeight: '500' },
-  periodBtnTextActive: { color: '#EAEAEA', fontWeight: '700' },
+  periodBtnActive:     { backgroundColor: COLORS.border },
+  periodBtnText:       { fontSize: 15, color: COLORS.textSecondary, fontWeight: '500' },
+  periodBtnTextActive: { color: COLORS.textPrimary, fontWeight: '700' },
 
   // Sections
   section:          { marginBottom: 16 },
   sectionTitleRow:  { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  sectionTitle:     { fontSize: 15, fontWeight: '700', color: '#EAEAEA' },
+  sectionTitle:     { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 10 },
   planBadge:        { backgroundColor: '#1C2E1C', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
-  planBadgeText:    { fontSize: 10, color: '#4CAF50', fontWeight: '700' },
-  card:             { backgroundColor: '#1A1A1A', borderRadius: 12, padding: 16 },
-  emptyText:        { fontSize: 13, color: '#9A9A9A', textAlign: 'center', paddingVertical: 8 },
+  planBadgeText:    { fontSize: 12, color: COLORS.success, fontWeight: '700' },
+  card:             { backgroundColor: COLORS.surface, borderRadius: 12, padding: 16 },
+  emptyText:        { fontSize: 15, color: COLORS.textSecondary, textAlign: 'center', paddingVertical: 8 },
 
   // Chart mode pills
   modeScroll:          { marginBottom: 8 },
   modeContainer:       { flexDirection: 'row', gap: 6, paddingVertical: 2 },
-  modeBtn:             { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 16, backgroundColor: '#1A1A1A' },
-  modeBtnActive:       { backgroundColor: '#C9A44C18', borderWidth: 1, borderColor: '#C9A44C' },
-  modeBtnText:         { fontSize: 12, color: '#9A9A9A', fontWeight: '500' },
-  modeBtnTextActive:   { color: '#C9A44C', fontWeight: '700' },
+  modeBtn:             { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 16, backgroundColor: '#242424' },
+  modeBtnActive:       { backgroundColor: '#C9A44C18', borderWidth: 1, borderColor: COLORS.gold },
+  modeBtnText:         { fontSize: 14, color: COLORS.textSecondary, fontWeight: '500' },
+  modeBtnTextActive:   { color: COLORS.gold, fontWeight: '700' },
 
   // Secondary selector pills
   subScroll:           { marginBottom: 8 },
   subContainer:        { flexDirection: 'row', gap: 6, paddingVertical: 2 },
-  subBtn:              { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, backgroundColor: '#1A1A1A', maxWidth: 160 },
-  subBtnActive:        { backgroundColor: '#2E2E2E', borderWidth: 1, borderColor: '#9A9A9A55' },
-  subBtnText:          { fontSize: 11, color: '#9A9A9A' },
-  subBtnTextActive:    { color: '#EAEAEA', fontWeight: '600' },
+  subBtn:              { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, backgroundColor: COLORS.surface, maxWidth: 160 },
+  subBtnActive:        { backgroundColor: COLORS.border, borderWidth: 1, borderColor: '#9A9A9A55' },
+  subBtnText:          { fontSize: 13, color: COLORS.textSecondary },
+  subBtnTextActive:    { color: COLORS.textPrimary, fontWeight: '600' },
 
   // Chart header
   chartHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  chartMax:     { fontSize: 12, color: '#9A9A9A', fontWeight: '600' },
-  chartHint:    { fontSize: 10, color: '#555', fontStyle: 'italic' },
+  chartMax:     { fontSize: 14, color: COLORS.textSecondary, fontWeight: '600' },
+  chartHint:    { fontSize: 12, color: '#555', fontStyle: 'italic' },
 
   // Legend
   legendRow:    { flexDirection: 'row', gap: 12, marginBottom: 8, flexWrap: 'wrap' },
   legendItem:   { flexDirection: 'row', alignItems: 'center', gap: 5 },
   legendDot:    { width: 8, height: 8, borderRadius: 4 },
-  legendText:   { fontSize: 11, color: '#9A9A9A' },
+  legendText:   { fontSize: 13, color: COLORS.textSecondary },
 
   // Muscle chart
   muscleRow:    { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  muscleLabel:  { width: 90, fontSize: 12, color: '#EAEAEA' },
+  muscleLabel:  { width: 90, fontSize: 14, color: COLORS.textPrimary },
   muscleBarBg: {
     flex: 1,
-    height: 10,
-    backgroundColor: '#2A2A2A',
-    borderRadius: 5,
+    height: 12,
+    backgroundColor: COLORS.surfaceInner,
+    borderRadius: 6,
     overflow: 'hidden',
     position: 'relative',
   },
-  muscleBarFill:  { height: '100%', borderRadius: 5 },
+  muscleBarFill:  { height: '100%', borderRadius: 6 },
   muscleRefLine: {
     position: 'absolute',
     top: 0,
     bottom: 0,
     width: 1.5,
   },
-  muscleSetCount:      { width: 28, textAlign: 'right', fontSize: 12, fontWeight: '700' },
-  muscleRangeHint:     { marginTop: 8, borderTopWidth: 1, borderTopColor: '#2A2A2A', paddingTop: 8 },
-  muscleRangeHintText: { fontSize: 10, color: '#555', textAlign: 'center' },
+  muscleSetCount:      { width: 28, textAlign: 'right', fontSize: 14, fontWeight: '700' },
+  muscleRangeHint:     { marginTop: 8, borderTopWidth: 1, borderTopColor: COLORS.surfaceInner, paddingTop: 8 },
+  muscleRangeHintText: { fontSize: 12, color: '#777', textAlign: 'center' },
 
   // Push/Pull/Legs
   pplRow:   { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  pplLabel: { width: 60, fontSize: 13, color: '#EAEAEA', fontWeight: '600' },
+  pplLabel: { width: 60, fontSize: 15, color: COLORS.textPrimary, fontWeight: '600' },
   pplBarBg: {
     flex: 1,
     height: 12,
-    backgroundColor: '#2A2A2A',
+    backgroundColor: COLORS.surfaceInner,
     borderRadius: 6,
     overflow: 'hidden',
   },
   pplBarFill:  { height: '100%', borderRadius: 6 },
-  pplCount:    { width: 28, textAlign: 'right', fontSize: 13, fontWeight: '700' },
+  pplCount:    { width: 28, textAlign: 'right', fontSize: 15, fontWeight: '700' },
 
   // Exercise picker trigger
   dualTriggerRow:    { flexDirection: 'row', gap: 8, marginBottom: 8 },
   pickerTrigger: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#2E2E2E',
+    borderColor: COLORS.border,
     gap: 6,
   },
   pickerTriggerHalf: { flex: 1, marginBottom: 0, flexDirection: 'column', alignItems: 'flex-start', gap: 1 },
-  pickerTriggerLabel: { fontSize: 10, color: '#555', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
-  pickerTriggerText: { flex: 1, fontSize: 13, color: '#EAEAEA', fontWeight: '500' },
-  pickerChevron:     { fontSize: 12, color: '#555' },
+  pickerTriggerLabel: { fontSize: 12, color: '#555', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  pickerTriggerText: { flex: 1, fontSize: 15, color: COLORS.textPrimary, fontWeight: '500' },
+  pickerChevron:     { fontSize: 14, color: '#555' },
 
   // Modal
   modalOverlay: {
@@ -957,21 +1234,21 @@ const styles = StyleSheet.create({
   },
   modalHandle: {
     width: 36, height: 4, borderRadius: 2,
-    backgroundColor: '#3A3A3A',
+    backgroundColor: COLORS.surfaceInner,
     alignSelf: 'center',
     marginTop: 10, marginBottom: 14,
   },
-  modalTitle:  { fontSize: 16, fontWeight: '700', color: '#EAEAEA', marginBottom: 12 },
+  modalTitle:  { fontSize: 18, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 12 },
   modalSearch: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 9,
-    fontSize: 14,
-    color: '#EAEAEA',
+    fontSize: 16,
+    color: COLORS.textPrimary,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#2E2E2E',
+    borderColor: COLORS.border,
   },
   modalList:         { flexGrow: 0 },
   modalItem: {
@@ -984,13 +1261,113 @@ const styles = StyleSheet.create({
     borderBottomColor: '#1E1E1E',
   },
   modalItemActive:     { },
-  modalItemText:       { fontSize: 14, color: '#BDBDBD' },
-  modalItemTextActive: { color: '#C9A44C', fontWeight: '700' },
-  modalItemCheck:      { fontSize: 14, color: '#C9A44C' },
+  modalItemText:       { fontSize: 16, color: '#BDBDBD' },
+  modalItemTextActive: { color: COLORS.gold, fontWeight: '700' },
+  modalItemCheck:      { fontSize: 16, color: COLORS.gold },
+
+  // Weekly summary grid
+  weekSummaryGrid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+  },
+  weekSummaryItem:    { flex: 1, alignItems: 'center', gap: 4 },
+  weekSummaryValue:   { fontSize: 24, fontWeight: '700', color: COLORS.textPrimary },
+  weekSummaryLabel:   { fontSize: 13, color: COLORS.textSecondary, textAlign: 'center' },
+  weekSummaryDivider: { width: 1, height: 36, backgroundColor: COLORS.border },
 
   // HI section
-  hiKpiValue:     { fontSize: 28, fontWeight: '700', color: '#C9A44C' },
-  hiKpiLabel:     { fontSize: 10, color: '#9A9A9A', textAlign: 'center', marginTop: 2 },
-  hiKpiDivider:   { width: 1, backgroundColor: '#2E2E2E', alignSelf: 'stretch' },
-  hiBalanceHint:  { fontSize: 10, color: '#555', marginTop: 4 },
+  hiKpiValue:     { fontSize: 38, fontWeight: '700', color: COLORS.gold },
+  hiKpiLabel:     { fontSize: 12, color: COLORS.textSecondary, textAlign: 'center', marginTop: 2 },
+  hiKpiDivider:   { width: 1, backgroundColor: COLORS.border, alignSelf: 'stretch' },
+  hiBalanceHint:  { fontSize: 12, color: '#555', marginTop: 4 },
+
+  // e1RM leaderboard
+  e1rmRow:        { flexDirection: 'row', alignItems: 'center', paddingVertical: 11, gap: 10 },
+  e1rmRowBorder:  { borderBottomWidth: 1, borderBottomColor: '#242424' },
+  e1rmRank:       { fontSize: 20, width: 28, textAlign: 'center', color: COLORS.textPrimary },
+  e1rmInfo:       { flex: 1, gap: 3 },
+  e1rmNameRow:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
+  e1rmName:       { fontSize: 15, color: COLORS.textPrimary, fontWeight: '600', flex: 1 },
+  e1rmDate:       { fontSize: 12, color: '#888', flexShrink: 0 },
+  e1rmSet:        { fontSize: 13, color: COLORS.textSecondary },
+  e1rmBadge:      { alignItems: 'flex-end', gap: 1 },
+  e1rmValue:      { fontSize: 17, fontWeight: '700', color: COLORS.gold },
+  e1rmLabel:      { fontSize: 11, color: COLORS.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
+  e1rmToggleBtn:  { alignItems: 'center', paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#242424', marginTop: 4 },
+  e1rmToggleText: { fontSize: 14, color: COLORS.gold, fontWeight: '600' },
+  e1rmHint:       { fontSize: 12, color: '#555', textAlign: 'center', marginTop: 10 },
+
+  // Info icon
+  infoIcon: { fontSize: 17, color: COLORS.gold, lineHeight: 18 },
+
+  // HI Info modal
+  infoOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  infoSheet: {
+    backgroundColor: '#141414',
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  infoTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+    marginBottom: 12,
+  },
+  infoBody: {
+    fontSize: 15,
+    color: COLORS.textSecondary,
+    lineHeight: 20,
+    marginBottom: 14,
+  },
+  infoHighlight: {
+    color: COLORS.gold,
+    fontWeight: '600',
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 10,
+  },
+  infoBullet: { fontSize: 16, lineHeight: 20 },
+  infoRowText: { flex: 1, fontSize: 15, color: COLORS.textSecondary, lineHeight: 20 },
+  infoFormula: {
+    fontSize: 13,
+    color: '#555',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginTop: 14,
+    marginBottom: 18,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.surfaceInner,
+    paddingTop: 12,
+  },
+  infoCloseBtn: {
+    backgroundColor: COLORS.gold,
+    borderRadius: 10,
+    paddingVertical: 11,
+    alignItems: 'center',
+  },
+  infoCloseBtnText: { fontSize: 16, fontWeight: '700', color: COLORS.background },
+
+  // HI disclaimer
+  infoDisclaimer: {
+    backgroundColor: COLORS.goldBg,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.gold,
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 18,
+  },
+  infoDisclaimerText: { fontSize: 14, color: COLORS.textSecondary, lineHeight: 18 },
 });

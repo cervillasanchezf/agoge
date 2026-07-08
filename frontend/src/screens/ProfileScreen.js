@@ -50,7 +50,7 @@ export default function ProfileScreen({ navigation }) {
             onPress={openMenu}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="ellipsis-vertical" size={20} color="#9A9A9A" />
+            <Ionicons name="ellipsis-vertical" size={20} color={COLORS.textSecondary} />
           </TouchableOpacity>
         </View>
 
@@ -62,7 +62,7 @@ export default function ProfileScreen({ navigation }) {
             activeOpacity={0.7}
           >
             <View style={styles.gridIconWrap}>
-              <Ionicons name="calendar-outline" size={26} color="#B11226" />
+              <Ionicons name="calendar-outline" size={26} color={COLORS.primary} />
             </View>
             <Text style={styles.gridLabel}>Historial</Text>
           </TouchableOpacity>
@@ -72,7 +72,7 @@ export default function ProfileScreen({ navigation }) {
             activeOpacity={0.7}
           >
             <View style={styles.gridIconWrap}>
-              <Ionicons name="body-outline" size={26} color="#B11226" />
+              <Ionicons name="body-outline" size={26} color={COLORS.primary} />
             </View>
             <Text style={styles.gridLabel}>Medidas</Text>
           </TouchableOpacity>
@@ -88,7 +88,7 @@ export default function ProfileScreen({ navigation }) {
               style={styles.dropdownItem}
               onPress={() => { setMenuVisible(false); navigation.navigate('EditProfile'); }}
             >
-              <Ionicons name="pencil-outline" size={16} color="#EAEAEA" />
+              <Ionicons name="pencil-outline" size={16} color={COLORS.textPrimary} />
               <Text style={styles.dropdownText}>Editar perfil</Text>
             </TouchableOpacity>
             <View style={styles.dropdownDivider} />
@@ -96,7 +96,7 @@ export default function ProfileScreen({ navigation }) {
               style={styles.dropdownItem}
               onPress={() => { setMenuVisible(false); logout(); }}
             >
-              <Ionicons name="log-out-outline" size={16} color="#FF3B3B" />
+              <Ionicons name="log-out-outline" size={16} color={COLORS.danger} />
               <Text style={[styles.dropdownText, { color: COLORS.danger }]}>Cerrar sesión</Text>
             </TouchableOpacity>
           </View>
@@ -135,18 +135,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: COLORS.borderInner,
   },
   gridIconWrap: {
     width: 36,
     height: 36,
     borderRadius: 8,
-    backgroundColor: '#1A0000',
+    backgroundColor: COLORS.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
   gridLabel: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     color: COLORS.textPrimary,
   },
@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   name: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
     color: COLORS.textPrimary,
     flexShrink: 1,
@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#2E2E2E',
+    borderColor: COLORS.border,
     minWidth: 180,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -207,13 +207,13 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
   },
   dropdownText: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     color: COLORS.textPrimary,
   },
   dropdownDivider: {
     height: 1,
-    backgroundColor: '#2E2E2E',
+    backgroundColor: COLORS.border,
     marginHorizontal: 12,
   },
 });

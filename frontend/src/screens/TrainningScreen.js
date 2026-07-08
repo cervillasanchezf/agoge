@@ -93,7 +93,7 @@ export default function TrainningScreen({ navigation }) {
         onPress={(e) => handleOpenMenu(item, e)}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
-        <Ionicons name="ellipsis-vertical" size={20} color="#6A6A6A" />
+        <Ionicons name="ellipsis-vertical" size={20} color={COLORS.textMuted} />
       </TouchableOpacity>
     </TouchableOpacity>
   );
@@ -109,7 +109,6 @@ export default function TrainningScreen({ navigation }) {
           style={styles.newTrainingButton}
           onPress={() => navigation.navigate('NewTrainning')}
         >
-          <Ionicons name="add" size={18} color="#EAEAEA" />
           <Text style={styles.newTrainingButtonText}>Nuevo entrenamiento</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.planButton} onPress={() => navigation.navigate('Plans')}>
@@ -118,26 +117,34 @@ export default function TrainningScreen({ navigation }) {
       </View>
 
       <TouchableOpacity
+        style={styles.freeSessionButton}
+        onPress={() => navigation.navigate('ActiveSession', { trainingId: null, trainingName: 'Sesión libre' })}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.freeSessionButtonText}>Empezar sesión libre</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
         style={styles.sectionHeader}
         onPress={() => setRutinasCollapsed((v) => !v)}
         activeOpacity={0.7}
       >
-        <Text style={styles.sectionTitle}>Rutinas</Text>
+        <Text style={styles.sectionTitle}>Entrenamientos</Text>
         <Ionicons
           name={rutinasCollapsed ? 'chevron-forward' : 'chevron-down'}
           size={18}
-          color="#9A9A9A"
+          color={COLORS.textSecondary}
         />
       </TouchableOpacity>
 
       {!rutinasCollapsed && (
         loading ? (
           <View style={styles.centered}>
-            <ActivityIndicator size="large" color="#B11226" />
+            <ActivityIndicator size="large" color={COLORS.primary} />
           </View>
         ) : trainings.length === 0 ? (
           <View style={styles.centeredSection}>
-            <Ionicons name="barbell-outline" size={48} color="#333333" />
+            <Ionicons name="barbell-outline" size={48} color={COLORS.iconInactive} />
             <Text style={styles.emptyText}>Aún no tienes entrenamientos</Text>
             <Text style={styles.emptySubtext}>Crea tu primer entrenamiento</Text>
           </View>
@@ -164,7 +171,7 @@ export default function TrainningScreen({ navigation }) {
         />
         <View style={[styles.dropdown, { top: menuPosition.y + 10 }]}>
           <TouchableOpacity style={styles.dropdownItem} onPress={handleEdit}>
-            <Ionicons name="pencil-outline" size={16} color="#9A9A9A" />
+            <Ionicons name="pencil-outline" size={16} color={COLORS.textSecondary} />
             <Text style={styles.dropdownItemText}>Editar entrenamiento</Text>
           </TouchableOpacity>
           <View style={styles.dropdownDivider} />
@@ -172,7 +179,7 @@ export default function TrainningScreen({ navigation }) {
             style={styles.dropdownItem}
             onPress={() => { setMenuVisible(false); handleDelete(menuTraining); }}
           >
-            <Ionicons name="trash-outline" size={16} color="#FF3B3B" />
+            <Ionicons name="trash-outline" size={16} color={COLORS.danger} />
             <Text style={[styles.dropdownItemText, { color: COLORS.danger }]}>Eliminar entrenamiento</Text>
           </TouchableOpacity>
         </View>
@@ -195,7 +202,7 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   title: {
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: 'bold',
     color: COLORS.textPrimary,
   },
@@ -207,7 +214,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
     color: COLORS.textSecondary,
     textTransform: 'uppercase',
@@ -225,14 +232,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   emptyText: {
-    fontSize: 18,
+    fontSize: 20,
     color: COLORS.textMuted,
     fontWeight: '600',
     marginTop: 12,
   },
   emptySubtext: {
-    fontSize: 14,
-    color: '#4A4A4A',
+    fontSize: 16,
+    color: COLORS.iconInactive,
   },
   list: {
     padding: 16,
@@ -254,13 +261,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cardTitle: {
-    fontSize: 17,
+    fontSize: 19,
     fontWeight: '700',
     color: COLORS.textPrimary,
     marginBottom: 4,
   },
   cardMeta: {
-    fontSize: 13,
+    fontSize: 15,
     color: COLORS.textSecondary,
   },
   topButtons: {
@@ -286,7 +293,7 @@ const styles = StyleSheet.create({
   },
   newTrainingButtonText: {
     color: COLORS.textPrimary,
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '700',
   },
   planButton: {
@@ -301,8 +308,26 @@ const styles = StyleSheet.create({
   },
   planButtonText: {
     color: COLORS.textSecondary,
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
+  },
+  freeSessionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: COLORS.goldBg,
+    borderWidth: 1,
+    borderColor: '#C9A44C55',
+  },
+  freeSessionButtonText: {
+    color: COLORS.gold,
+    fontSize: 16,
+    fontWeight: '700',
   },
   dropdown: {
     position: 'absolute',
@@ -325,7 +350,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   dropdownItemText: {
-    fontSize: 15,
+    fontSize: 17,
     color: COLORS.textPrimary,
   },
   dropdownDivider: {

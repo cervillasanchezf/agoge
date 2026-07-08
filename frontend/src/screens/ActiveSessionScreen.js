@@ -65,7 +65,7 @@ function DrumColumn({ values, initialIndex, onChange, label }) {
         <View pointerEvents="none" style={{
           position: 'absolute', left: 8, right: 8,
           top: DRUM_ITEM_H * 2, height: DRUM_ITEM_H,
-          borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#5A0000',
+          borderTopWidth: 1, borderBottomWidth: 1, borderColor: COLORS.primaryBorder,
           backgroundColor: 'rgba(139,0,0,0.1)', borderRadius: 6,
         }} />
       </View>
@@ -131,6 +131,17 @@ function buildInitialSets(templateSets, lastSets, repMode) {
         prev_s:     last?.s    ?? null,
       };
     }
+    if (repMode === 'time') {
+      return {
+        h:          tmpl.h ?? 0,
+        m:          tmpl.m ?? 0,
+        s:          tmpl.s ?? 0,
+        completed:  false,
+        prev_h:     last?.h  ?? null,
+        prev_m:     last?.m  ?? null,
+        prev_s:     last?.s  ?? null,
+      };
+    }
     const repsDisplay = repMode === 'range' && tmpl.reps && tmpl.repsTo
       ? `${tmpl.reps}-${tmpl.repsTo}`
       : String(tmpl.reps ?? '');
@@ -180,20 +191,38 @@ export default function ActiveSessionScreen({ route, navigation }) {
 
   useEffect(() => {
     const isRestoring = restoredSession != null;
+    const isFreeSession = !trainingId;
+
     if (isRestoring) {
       // Restore exercise data and recompute elapsed time from stored timestamp
       startTimestampRef.current = restoredSession.startTimestamp;
       setExerciseData(restoredSession.exerciseData);
       syncElapsedTime();
       setLoading(false);
-      // Load training metadata and rebuild snapshot
-      trainingService.getTrainingById(trainingId).then(r => {
-        setTraining(r.data);
-        originalSnapshotRef.current = {
-          exerciseIds: (r.data.exercises || []).map(e => String(e.exerciseId?._id ?? e.exerciseId)),
-          setCounts:   (r.data.exercises || []).map(e => e.sets?.length ?? 0),
-        };
-      }).catch(() => {});
+      // Load training metadata and rebuild snapshot (only for template-based sessions)
+      if (trainingId) {
+        trainingService.getTrainingById(trainingId).then(r => {
+          setTraining(r.data);
+          originalSnapshotRef.current = {
+            exerciseIds: (r.data.exercises || []).map(e => String(e.exerciseId?._id ?? e.exerciseId)),
+            setCounts:   (r.data.exercises || []).map(e => e.sets?.length ?? 0),
+          };
+        }).catch(() => {});
+      } else {
+        originalSnapshotRef.current = { exerciseIds: [], setCounts: [] };
+      }
+    } else if (isFreeSession) {
+      // Blank session — no template to load, start immediately
+      startTimestampRef.current = Date.now();
+      originalSnapshotRef.current = { exerciseIds: [], setCounts: [] };
+      setLoading(false);
+      // Save immediately so the banner appears even before exercises are added
+      saveToContext({
+        trainingId,
+        trainingName,
+        exerciseData: [],
+        startTimestamp: startTimestampRef.current,
+      });
     } else {
       startTimestampRef.current = Date.now();
       loadSession();
@@ -203,7 +232,7 @@ export default function ActiveSessionScreen({ route, navigation }) {
 
     // Auto-save each 10 s as crash insurance
     const autoSaveInterval = setInterval(() => {
-      if (!savingRef.current && exerciseDataRef.current.length > 0) {
+      if (!savingRef.current && (exerciseDataRef.current.length > 0 || isFreeSession)) {
         saveToContext({
           trainingId,
           trainingName,
@@ -222,7 +251,7 @@ export default function ActiveSessionScreen({ route, navigation }) {
         return;
       }
 
-      if (wasActive && exerciseDataRef.current.length > 0 && !savingRef.current) {
+      if (wasActive && (exerciseDataRef.current.length > 0 || isFreeSession) && !savingRef.current) {
         saveToContext({
           trainingId,
           trainingName,
@@ -238,7 +267,7 @@ export default function ActiveSessionScreen({ route, navigation }) {
       appStateSubscription.remove();
       // Save session to context on unmount (back press, tab switch, etc.)
       // unless the user explicitly finished and saved to the server.
-      if (!savingRef.current && exerciseDataRef.current.length > 0) {
+      if (!savingRef.current && (exerciseDataRef.current.length > 0 || isFreeSession)) {
         saveToContext({
           trainingId,
           trainingName,
@@ -275,9 +304,11 @@ export default function ActiveSessionScreen({ route, navigation }) {
         const lastEx   = lastExMap[exId] ?? null;
         const repMode  = item.repMode ?? 'reps';
         return {
-          exercise:  item.exerciseId,
+          exercise:     item.exerciseId,
           repMode,
-          note:      item.note || '',
+          phase:        item.phase ?? 'main',
+          supersetGroup: item.supersetGroup ?? null,
+          note:         item.note || '',
           sets: buildInitialSets(item.sets, lastEx?.sets, repMode),
         };
       });
@@ -315,7 +346,9 @@ export default function ActiveSessionScreen({ route, navigation }) {
         const autoComplete =
           repMode === 'cardio'
             ? merged.km !== ''
-            : merged.weight !== '' && merged.reps !== '';
+            : repMode === 'time'
+              ? (merged.h > 0 || merged.m > 0 || merged.s > 0)
+              : merged.weight !== '' && merged.reps !== '';
         if (autoComplete) merged.completed = true;
       }
 
@@ -382,7 +415,9 @@ export default function ActiveSessionScreen({ route, navigation }) {
       const effectiveRpe    = lastSet?.rpe    || lastSet?.rpe_default    || '';
       const newSet   = item.repMode === 'cardio'
         ? { km: '', km_default: effectiveKm, h: lastSet?.h ?? 0, m: lastSet?.m ?? 0, s: lastSet?.s ?? 0, completed: false, prev_km: null, prev_h: null, prev_m: null, prev_s: null }
-        : { weight: '', weight_default: effectiveWeight, reps: '', reps_default: effectiveReps, rpe: '', rpe_default: effectiveRpe, completed: false, prev_weight: null, prev_reps: null, prev_rpe: null };
+        : item.repMode === 'time'
+          ? { h: lastSet?.h ?? 0, m: lastSet?.m ?? 0, s: lastSet?.s ?? 0, completed: false, prev_h: null, prev_m: null, prev_s: null }
+          : { weight: '', weight_default: effectiveWeight, reps: '', reps_default: effectiveReps, rpe: '', rpe_default: effectiveRpe, completed: false, prev_weight: null, prev_reps: null, prev_rpe: null };
       updated[exIndex] = { ...item, sets: [...item.sets, newSet] };
       return updated;
     });
@@ -476,13 +511,15 @@ export default function ActiveSessionScreen({ route, navigation }) {
   };
 
   const handleFinish = () => {
+    const isFreeSession = !trainingId;
     Alert.alert(
       'Finalizar entrenamiento',
       '¿Quieres guardar esta sesión?',
       [
         { text: 'Seguir entrenando', style: 'cancel' },
         { text: 'Guardar', style: 'default', onPress: () => {
-          if (hasChanges()) {
+          // Free sessions have no template to update
+          if (!isFreeSession && hasChanges()) {
             Alert.alert(
               'Cambios detectados',
               'Has añadido o modificado ejercicios/series respecto a la plantilla original. ¿Quieres actualizar la plantilla con estos cambios?',
@@ -517,6 +554,9 @@ export default function ActiveSessionScreen({ route, navigation }) {
               if (item.repMode === 'cardio') {
                 return { km: parseFloat(s.km_default) || 0, h: s.h ?? 0, m: s.m ?? 0, s: s.s ?? 0 };
               }
+              if (item.repMode === 'time') {
+                return { h: s.h ?? 0, m: s.m ?? 0, s: s.s ?? 0 };
+              }
               return {
                 kg:  parseFloat(s.weight_default) || 0,
                 reps: parseInt(s.reps_default)    || 0,
@@ -529,7 +569,7 @@ export default function ActiveSessionScreen({ route, navigation }) {
       }
 
       const payload = {
-        trainingId,
+        ...(trainingId && { trainingId }),
         duration: sessionDuration,
         ...(scheduledDate && { date: new Date(`${scheduledDate}T12:00:00`).toISOString() }),
         exercises: exerciseData.map((item, idx) => ({
@@ -541,6 +581,15 @@ export default function ActiveSessionScreen({ route, navigation }) {
               const userEdited = s.km !== '' || s.h > 0 || s.m > 0 || s.s > 0;
               return {
                 km:        userEdited ? parseFloat(s.km) || 0 : 0,
+                h:         userEdited ? s.h ?? 0 : 0,
+                m:         userEdited ? s.m ?? 0 : 0,
+                s:         userEdited ? s.s ?? 0 : 0,
+                completed: s.completed && userEdited,
+              };
+            }
+            if (item.repMode === 'time') {
+              const userEdited = s.h > 0 || s.m > 0 || s.s > 0;
+              return {
                 h:         userEdited ? s.h ?? 0 : 0,
                 m:         userEdited ? s.m ?? 0 : 0,
                 s:         userEdited ? s.s ?? 0 : 0,
@@ -571,7 +620,8 @@ export default function ActiveSessionScreen({ route, navigation }) {
     } catch (err) {
       setSaving(false);
       savingRef.current = false;
-      Alert.alert('Error', 'No se pudo guardar la sesión');
+      const detail = err?.response?.data?.detail || err?.response?.data?.message || err?.message || 'Error desconocido';
+      Alert.alert('Error al guardar', detail);
     }
   };
 
@@ -579,7 +629,7 @@ export default function ActiveSessionScreen({ route, navigation }) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#8B0000" />
+          <ActivityIndicator size="large" color={COLORS.primaryDark} />
         </View>
       </SafeAreaView>
     );
@@ -589,12 +639,12 @@ export default function ActiveSessionScreen({ route, navigation }) {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Ionicons name="chevron-back" size={26} color="#EAEAEA" />
+          <Ionicons name="chevron-back" size={26} color={COLORS.textPrimary} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle} numberOfLines={1}>{trainingName}</Text>
           <View style={styles.timerBadge}>
-            <Ionicons name="time-outline" size={13} color="#8B0000" />
+            <Ionicons name="time-outline" size={13} color={COLORS.primaryDark} />
             <Text style={styles.timerText}>{formatTime(elapsedSeconds)}</Text>
           </View>
         </View>
@@ -604,7 +654,7 @@ export default function ActiveSessionScreen({ route, navigation }) {
           disabled={saving}
         >
           {saving
-            ? <ActivityIndicator size="small" color="#EAEAEA" />
+            ? <ActivityIndicator size="small" color={COLORS.textPrimary} />
             : <Text style={styles.finishBtnText}>Finalizar</Text>
           }
         </TouchableOpacity>
@@ -622,9 +672,20 @@ export default function ActiveSessionScreen({ route, navigation }) {
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
           automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+          ListEmptyComponent={
+            <TouchableOpacity
+              style={styles.emptySessionCta}
+              onPress={handleAddExercise}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="barbell-outline" size={40} color={COLORS.gold} />
+              <Text style={styles.emptySessionCtaTitle}>Sesión vacía</Text>
+              <Text style={styles.emptySessionCtaText}>Pulsa para añadir tu primer ejercicio</Text>
+            </TouchableOpacity>
+          }
           ListFooterComponent={
             <TouchableOpacity style={styles.addExerciseBtn} onPress={handleAddExercise}>
-              <Ionicons name="add-circle-outline" size={20} color="#8B0000" />
+              <Ionicons name="add-circle-outline" size={20} color={COLORS.primaryDark} />
               <Text style={styles.addExerciseBtnText}>Añadir ejercicio</Text>
             </TouchableOpacity>
           }
@@ -664,10 +725,13 @@ export default function ActiveSessionScreen({ route, navigation }) {
 const ExerciseBlock = memo(function ExerciseBlock({ item, exIndex, totalExercises, updateSet, toggleComplete, addSet, removeSet, removeExercise, onMoveUp, onMoveDown, onReplacePress, onOpenTiempo, note }) {
   const exercise = item.exercise;
   const repMode  = item.repMode ?? 'reps';
+  const phase    = item.phase ?? 'main';
+  const supersetGroup = item.supersetGroup ?? null;
   const primaryMuscle = exercise?.primaryMuscles?.[0];
   const [menuVisible, setMenuVisible] = useState(false);
 
   const isCardio = repMode === 'cardio';
+  const isTime   = repMode === 'time';
   const isRange  = repMode === 'range';
 
   const handleRemoveExercise = () => {
@@ -691,6 +755,25 @@ const ExerciseBlock = memo(function ExerciseBlock({ item, exIndex, totalExercise
             {primaryMuscle ? MUSCLE_LABELS[primaryMuscle] ?? primaryMuscle : ''}
             {exercise?.category ? `  ·  ${CATEGORY_LABELS[exercise.category] ?? exercise.category}` : ''}
           </Text>
+          {(phase !== 'main' || supersetGroup) && (
+            <View style={{ flexDirection: 'row', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+              {phase === 'warmup' && (
+                <View style={styles.phaseBadge}>
+                  <Text style={styles.phaseBadgeText}>🔥 Calentamiento</Text>
+                </View>
+              )}
+              {phase === 'cooldown' && (
+                <View style={[styles.phaseBadge, { backgroundColor: 'rgba(99,179,237,0.15)' }]}>
+                  <Text style={[styles.phaseBadgeText, { color: '#63b3ed' }]}>❄️ Vuelta a la calma</Text>
+                </View>
+              )}
+              {supersetGroup && (
+                <View style={[styles.phaseBadge, { backgroundColor: 'rgba(139,0,0,0.18)' }]}>
+                  <Text style={[styles.phaseBadgeText, { color: COLORS.primaryDark }]}>⚡ Superserie</Text>
+                </View>
+              )}
+            </View>
+          )}
           {!!note && (
             <Text style={styles.exNote}>{note}</Text>
           )}
@@ -700,7 +783,7 @@ const ExerciseBlock = memo(function ExerciseBlock({ item, exIndex, totalExercise
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           style={{ paddingLeft: 8 }}
         >
-          <Ionicons name="ellipsis-vertical" size={18} color="#6A6A6A" />
+          <Ionicons name="ellipsis-vertical" size={18} color={COLORS.textMuted} />
         </TouchableOpacity>
       </View>
 
@@ -723,7 +806,7 @@ const ExerciseBlock = memo(function ExerciseBlock({ item, exIndex, totalExercise
                 style={styles.exMenuItem}
                 onPress={() => { setMenuVisible(false); onMoveUp(); }}
               >
-                <Ionicons name="arrow-up-outline" size={16} color="#9A9A9A" />
+                <Ionicons name="arrow-up-outline" size={16} color={COLORS.textSecondary} />
                 <Text style={styles.exMenuItemText}>Mover arriba</Text>
               </TouchableOpacity>
               <View style={styles.exMenuDivider} />
@@ -735,7 +818,7 @@ const ExerciseBlock = memo(function ExerciseBlock({ item, exIndex, totalExercise
                 style={styles.exMenuItem}
                 onPress={() => { setMenuVisible(false); onMoveDown(); }}
               >
-                <Ionicons name="arrow-down-outline" size={16} color="#9A9A9A" />
+                <Ionicons name="arrow-down-outline" size={16} color={COLORS.textSecondary} />
                 <Text style={styles.exMenuItemText}>Mover abajo</Text>
               </TouchableOpacity>
               <View style={styles.exMenuDivider} />
@@ -745,12 +828,12 @@ const ExerciseBlock = memo(function ExerciseBlock({ item, exIndex, totalExercise
             style={styles.exMenuItem}
             onPress={() => { setMenuVisible(false); if (onReplacePress) onReplacePress(); }}
           >
-            <Ionicons name="swap-horizontal-outline" size={16} color="#9A9A9A" />
+            <Ionicons name="swap-horizontal-outline" size={16} color={COLORS.textSecondary} />
             <Text style={styles.exMenuItemText}>Reemplazar ejercicio</Text>
           </TouchableOpacity>
           <View style={styles.exMenuDivider} />
           <TouchableOpacity style={styles.exMenuItem} onPress={handleRemoveExercise}>
-            <Ionicons name="trash-outline" size={16} color="#CC3333" />
+            <Ionicons name="trash-outline" size={16} color={COLORS.danger} />
             <Text style={[styles.exMenuItemText, { color: COLORS.danger }]}>Eliminar ejercicio</Text>
           </TouchableOpacity>
         </View>
@@ -762,6 +845,13 @@ const ExerciseBlock = memo(function ExerciseBlock({ item, exIndex, totalExercise
           <Text style={[styles.colLabel, styles.colSet]}>SERIE</Text>
           <Text style={[styles.colLabel, styles.colPrev]}>ANTERIOR</Text>
           <Text style={[styles.colLabel, styles.colKm]}>KM</Text>
+          <Text style={[styles.colLabel, styles.colTiempo]}>TIEMPO</Text>
+          <Text style={[styles.colLabel, styles.colDone]}></Text>
+        </View>
+      ) : isTime ? (
+        <View style={styles.tableHeader}>
+          <Text style={[styles.colLabel, styles.colSet]}>SERIE</Text>
+          <Text style={[styles.colLabel, styles.colPrev]}>ANTERIOR</Text>
           <Text style={[styles.colLabel, styles.colTiempo]}>TIEMPO</Text>
           <Text style={[styles.colLabel, styles.colDone]}></Text>
         </View>
@@ -788,6 +878,17 @@ const ExerciseBlock = memo(function ExerciseBlock({ item, exIndex, totalExercise
             removeSet={removeSet}
             onOpenTiempo={() => onOpenTiempo(setIndex)}
           />
+        ) : isTime ? (
+          <TimeSetRow
+            key={setIndex}
+            set={set}
+            setIndex={setIndex}
+            exIndex={exIndex}
+            updateSet={updateSet}
+            toggleComplete={toggleComplete}
+            removeSet={removeSet}
+            onOpenTiempo={() => onOpenTiempo(setIndex)}
+          />
         ) : (
           <SetRow
             key={setIndex}
@@ -802,12 +903,37 @@ const ExerciseBlock = memo(function ExerciseBlock({ item, exIndex, totalExercise
       )}
 
       <TouchableOpacity style={styles.addSetBtn} onPress={() => addSet(exIndex)}>
-        <Ionicons name="add-circle-outline" size={18} color="#8B0000" />
+        <Ionicons name="add-circle-outline" size={18} color={COLORS.primaryDark} />
         <Text style={styles.addSetText}>Añadir serie</Text>
       </TouchableOpacity>
     </View>
   );
 });
+
+// ── OverlayInput: muestra el valor por defecto aunque el campo tenga foco ──
+function OverlayInput({ colStyle, inputStyle, defaultVal, value, ...rest }) {
+  const showOverlay = value === '' && defaultVal != null && String(defaultVal) !== '';
+  return (
+    <View style={[colStyle, { position: 'relative' }]}>
+      {showOverlay && (
+        <View
+          pointerEvents="none"
+          style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, justifyContent: 'center', alignItems: 'center', zIndex: 1 }}
+        >
+          <Text style={{ fontSize: 16, fontWeight: '600', color: COLORS.textMuted, textAlign: 'center' }}>
+            {String(defaultVal)}
+          </Text>
+        </View>
+      )}
+      <TextInput
+        style={[inputStyle, { width: '100%' }]}
+        value={value}
+        placeholder=""
+        {...rest}
+      />
+    </View>
+  );
+}
 
 const SetRow = memo(function SetRow({ set, setIndex, exIndex, updateSet, toggleComplete, removeSet }) {
   let prevLabel = '—';
@@ -823,33 +949,33 @@ const SetRow = memo(function SetRow({ set, setIndex, exIndex, updateSet, toggleC
           <Text style={styles.setNum}>{setIndex + 1}</Text>
         </View>
         <Text style={[styles.colPrev, styles.prevText]}>{prevLabel}</Text>
-        <TextInput
-          style={[styles.colKg, styles.input]}
+        <OverlayInput
+          colStyle={styles.colKg}
+          inputStyle={styles.input}
           value={set.weight}
+          defaultVal={set.weight_default}
           onChangeText={(v) => updateSet(exIndex, setIndex, 'weight', v)}
           keyboardType="decimal-pad"
-          placeholder={set.weight_default || '—'}
-          placeholderTextColor="#6A6A6A"
         />
-        <TextInput
-          style={[styles.colReps, styles.input]}
+        <OverlayInput
+          colStyle={styles.colReps}
+          inputStyle={styles.input}
           value={set.reps}
+          defaultVal={set.reps_default}
           onChangeText={(v) => updateSet(exIndex, setIndex, 'reps', v)}
           keyboardType="number-pad"
-          placeholder={set.reps_default || '—'}
-          placeholderTextColor="#6A6A6A"
         />
-        <TextInput
-          style={[styles.colRpe, styles.input]}
+        <OverlayInput
+          colStyle={styles.colRpe}
+          inputStyle={styles.input}
           value={set.rpe}
+          defaultVal={set.rpe_default}
           onChangeText={(v) => updateSet(exIndex, setIndex, 'rpe', v)}
           keyboardType="number-pad"
-          placeholder={set.rpe_default || '—'}
-          placeholderTextColor="#6A6A6A"
         />
         <TouchableOpacity style={styles.colDone} onPress={() => toggleComplete(exIndex, setIndex)}>
           <View style={[styles.checkCircle, set.completed && styles.checkCircleDone]}>
-            {set.completed && <Ionicons name="checkmark" size={14} color="#EAEAEA" />}
+            {set.completed && <Ionicons name="checkmark" size={14} color={COLORS.textPrimary} />}
           </View>
         </TouchableOpacity>
       </View>
@@ -873,25 +999,59 @@ const CardioSetRow = memo(function CardioSetRow({ set, setIndex, exIndex, update
           <Text style={styles.setNum}>{setIndex + 1}</Text>
         </View>
         <Text style={[styles.colPrev, styles.prevText]}>{prevLabel}</Text>
-        <TextInput
-          style={[styles.colKm, styles.input]}
+        <OverlayInput
+          colStyle={styles.colKm}
+          inputStyle={styles.input}
           value={set.km}
+          defaultVal={set.km_default}
           onChangeText={(v) => updateSet(exIndex, setIndex, 'km', v)}
           keyboardType="decimal-pad"
-          placeholder={set.km_default || '—'}
-          placeholderTextColor="#6A6A6A"
         />
         <TouchableOpacity
           style={[styles.colTiempo, styles.input, { alignItems: 'center', justifyContent: 'center' }]}
           onPress={onOpenTiempo}
         >
-          <Text style={{ fontSize: 13, fontWeight: '600', color: (set.h === 0 && set.m === 0 && set.s === 0) ? COLORS.textMuted : COLORS.textPrimary }}>
+          <Text style={{ fontSize: 15, fontWeight: '600', color: (set.h === 0 && set.m === 0 && set.s === 0) ? COLORS.textMuted : COLORS.textPrimary }}>
             {tiempoLabel}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.colDone} onPress={() => toggleComplete(exIndex, setIndex)}>
           <View style={[styles.checkCircle, set.completed && styles.checkCircleDone]}>
-            {set.completed && <Ionicons name="checkmark" size={14} color="#EAEAEA" />}
+            {set.completed && <Ionicons name="checkmark" size={14} color={COLORS.textPrimary} />}
+          </View>
+        </TouchableOpacity>
+      </View>
+    </SwipeableSetRow>
+  );
+});
+
+const TimeSetRow = memo(function TimeSetRow({ set, setIndex, exIndex, updateSet, toggleComplete, removeSet, onOpenTiempo }) {
+  const hasPrev = set.prev_h != null || set.prev_m != null || set.prev_s != null;
+  const prevLabel = hasPrev
+    ? `${String(set.prev_h ?? 0).padStart(2,'0')}:${String(set.prev_m ?? 0).padStart(2,'0')}:${String(set.prev_s ?? 0).padStart(2,'00')}`
+    : '—';
+  const tiempoLabel = (set.h === 0 && set.m === 0 && set.s === 0)
+    ? '—'
+    : `${String(set.h).padStart(2,'0')}:${String(set.m).padStart(2,'0')}:${String(set.s).padStart(2,'0')}`;
+
+  return (
+    <SwipeableSetRow onDelete={() => removeSet(exIndex, setIndex)}>
+      <View style={[styles.setRow, set.completed && styles.setRowDone]}>
+        <View style={[styles.colSet, styles.setNumBtn]}>
+          <Text style={styles.setNum}>{setIndex + 1}</Text>
+        </View>
+        <Text style={[styles.colPrev, styles.prevText]}>{prevLabel}</Text>
+        <TouchableOpacity
+          style={[styles.colTiempo, styles.input, { alignItems: 'center', justifyContent: 'center', flex: 1 }]}
+          onPress={onOpenTiempo}
+        >
+          <Text style={{ fontSize: 15, fontWeight: '600', color: (set.h === 0 && set.m === 0 && set.s === 0) ? COLORS.textMuted : COLORS.textPrimary }}>
+            {tiempoLabel}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.colDone} onPress={() => toggleComplete(exIndex, setIndex)}>
+          <View style={[styles.checkCircle, set.completed && styles.checkCircleDone]}>
+            {set.completed && <Ionicons name="checkmark" size={14} color={COLORS.textPrimary} />}
           </View>
         </TouchableOpacity>
       </View>
@@ -940,7 +1100,7 @@ const SwipeableSetRow = memo(function SwipeableSetRow({ children, onDelete }) {
     <View style={swipeStyles.wrapper}>
       <View style={swipeStyles.deleteAction}>
         <TouchableOpacity style={swipeStyles.deleteBtn} onPress={() => { close(); onDelete(); }}>
-          <Ionicons name="trash-outline" size={18} color="#EAEAEA" />
+          <Ionicons name="trash-outline" size={18} color={COLORS.textPrimary} />
           <Text style={swipeStyles.deleteBtnText}>Eliminar</Text>
         </TouchableOpacity>
       </View>
@@ -981,7 +1141,7 @@ const swipeStyles = StyleSheet.create({
   },
   deleteBtnText: {
     color: COLORS.textPrimary,
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '600',
   },
 });
@@ -1000,9 +1160,9 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   headerCenter: { flex: 1, alignItems: 'center' },
-  headerTitle: { fontSize: 16, fontWeight: '700', color: COLORS.textPrimary },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: COLORS.textPrimary },
   timerBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
-  timerText: { fontSize: 12, color: COLORS.primaryDark, fontWeight: '600' },
+  timerText: { fontSize: 14, color: COLORS.primaryDark, fontWeight: '600' },
   finishBtn: {
     backgroundColor: COLORS.primaryDark,
     borderRadius: 8,
@@ -1011,7 +1171,7 @@ const styles = StyleSheet.create({
     minWidth: 80,
     alignItems: 'center',
   },
-  finishBtnText: { color: COLORS.textPrimary, fontWeight: '700', fontSize: 14 },
+  finishBtnText: { color: COLORS.textPrimary, fontWeight: '700', fontSize: 16 },
   listContent: { padding: 16, gap: 16, paddingBottom: 120 },
   exCard: {
     backgroundColor: COLORS.surface,
@@ -1024,24 +1184,35 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   exHeader: { flexDirection: 'row', marginBottom: 12 },
-  exName: { fontSize: 16, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 2 },
-  exMeta: { fontSize: 12, color: COLORS.textMuted },
-  exNote: { fontSize: 12, color: COLORS.primaryDark, marginTop: 4, fontStyle: 'italic' },
+  exName: { fontSize: 18, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 2 },
+  exMeta: { fontSize: 14, color: COLORS.textMuted },
+  exNote: { fontSize: 14, color: COLORS.primaryDark, marginTop: 4, fontStyle: 'italic' },
+  phaseBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,165,0,0.15)',
+  },
+  phaseBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#ffa500',
+  },
   tableHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 6,
     paddingHorizontal: 2,
   },
-  colLabel: { fontSize: 11, color: COLORS.textMuted, fontWeight: '600', textAlign: 'center' },
+  colLabel: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600', textAlign: 'center' },
   // Columnas fuerza
-  colSet:      { width: 32 },
+  colSet:      { width: 37 },
   colPrev:     { flex: 1, textAlign: 'center' },
   colKg:       { width: 56, textAlign: 'center' },
   colReps:     { width: 52, textAlign: 'center' },
   colRepsRange:{ width: 96, textAlign: 'center' },
   colRpe:      { width: 44, textAlign: 'center' },
-  colDone:     { width: 32, alignItems: 'center' },
+  colDone:     { width: 37, alignItems: 'center' },
   // Columnas cardio
   colKm:    { width: 60, textAlign: 'center' },
   colTiempo:{ width: 80, textAlign: 'center' },
@@ -1052,11 +1223,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 2,
   },
-  setRowDone: { backgroundColor: '#0A1A0A' },
+  setRowDone: { backgroundColor: COLORS.successBg },
   setNumBtn: { alignItems: 'center', justifyContent: 'center' },
-  setNum: { fontSize: 13, fontWeight: '700', color: COLORS.primaryDark },
-  prevText: { fontSize: 12, color: COLORS.textMuted, textAlign: 'center' },
-  rangeSep: { fontSize: 12, color: COLORS.textMuted, fontWeight: '600' },
+  setNum: { fontSize: 15, fontWeight: '700', color: COLORS.primaryDark },
+  prevText: { fontSize: 14, color: COLORS.textMuted, textAlign: 'center' },
+  rangeSep: { fontSize: 14, color: COLORS.textMuted, fontWeight: '600' },
   input: {
     backgroundColor: COLORS.surfaceAlt,
     borderRadius: 8,
@@ -1064,7 +1235,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     paddingVertical: 6,
     paddingHorizontal: 4,
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     color: COLORS.textPrimary,
     textAlign: 'center',
@@ -1086,7 +1257,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: COLORS.surfaceDeep,
   },
-  addSetText: { fontSize: 13, color: COLORS.primaryDark, fontWeight: '600' },
+  addSetText: { fontSize: 15, color: COLORS.primaryDark, fontWeight: '600' },
   addExerciseBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1097,13 +1268,28 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: COLORS.borderInner,
     borderStyle: 'dashed',
   },
   addExerciseBtnText: {
-    fontSize: 15,
+    fontSize: 17,
     color: COLORS.primaryDark,
     fontWeight: '600',
+  },
+  emptySessionCta: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    gap: 10,
+  },
+  emptySessionCtaTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+  },
+  emptySessionCtaText: {
+    fontSize: 16,
+    color: COLORS.textSecondary,
   },
   // Drum picker
   drumSheet: {
@@ -1116,21 +1302,21 @@ const styles = StyleSheet.create({
     alignSelf: 'center', marginBottom: 16,
   },
   drumTitle: {
-    textAlign: 'center', fontSize: 16, fontWeight: '700',
+    textAlign: 'center', fontSize: 18, fontWeight: '700',
     color: COLORS.textPrimary, marginBottom: 12,
   },
   drumLabel: {
-    fontSize: 11, fontWeight: '700', color: COLORS.textMuted,
+    fontSize: 13, fontWeight: '700', color: COLORS.textMuted,
     letterSpacing: 0.5, marginBottom: 4, textAlign: 'center',
   },
-  drumItem:         { fontSize: 22, color: '#4A4A4A', fontWeight: '500' },
-  drumItemSelected: { fontSize: 26, color: COLORS.textPrimary, fontWeight: '700' },
+  drumItem:         { fontSize: 24, color: COLORS.iconInactive, fontWeight: '500' },
+  drumItemSelected: { fontSize: 28, color: COLORS.textPrimary, fontWeight: '700' },
   drumConfirmBtn: {
     marginHorizontal: 20, marginTop: 8,
     backgroundColor: COLORS.primaryDark, borderRadius: 10,
     padding: 16, alignItems: 'center',
   },
-  drumConfirmText: { color: COLORS.textPrimary, fontSize: 16, fontWeight: '700' },
+  drumConfirmText: { color: COLORS.textPrimary, fontSize: 18, fontWeight: '700' },
 
   // Exercise context menu
   exMenu: {
@@ -1154,6 +1340,6 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     gap: 10,
   },
-  exMenuItemText: { fontSize: 14, color: COLORS.textPrimary },
+  exMenuItemText: { fontSize: 16, color: COLORS.textPrimary },
   exMenuDivider:  { height: 1, backgroundColor: COLORS.border, marginHorizontal: 8 },
 });

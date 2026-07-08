@@ -52,6 +52,9 @@ exports.createTraining = async (req, res) => {
     const training = await Training.create({
       userId: req.userId,
       name: name.trim(),
+      ...(req.body.type    && { type:    req.body.type }),
+      ...(req.body.format  && { format:  req.body.format }),
+      ...(req.body.timeCap != null && { timeCap: req.body.timeCap }),
       exercises,
     });
 
@@ -76,6 +79,9 @@ exports.updateTraining = async (req, res) => {
 
     const { name, exercises } = req.body;
     if (name) training.name = name.trim();
+    if (req.body.type)         training.type    = req.body.type;
+    if (req.body.format)       training.format  = req.body.format;
+    if (req.body.timeCap != null) training.timeCap = req.body.timeCap;
     if (exercises) training.exercises = exercises;
 
     await training.save();

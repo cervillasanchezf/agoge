@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { planService, trainingService } from '../services/api';
+import { COLORS } from '../config/theme';
 
 const ITEM_H = 44;
 const MONTHS_ES = [
@@ -69,8 +70,8 @@ function DrumColumn({ items, selectedIndex, onSelect, pad = false, scrollTo }) {
             >
               <Text
                 style={{
-                  fontSize: 17,
-                  color: i === selectedIndex ? '#EAEAEA' : '#4A4A4A',
+                  fontSize: 19,
+                  color: i === selectedIndex ? COLORS.textPrimary : COLORS.iconInactive,
                   fontWeight: i === selectedIndex ? '700' : '400',
                 }}
               >
@@ -92,7 +93,7 @@ function DrumColumn({ items, selectedIndex, onSelect, pad = false, scrollTo }) {
           backgroundColor: 'rgba(255,255,255,0.06)',
           borderRadius: 8,
           borderWidth: 1,
-          borderColor: '#3A3A3A',
+          borderColor: COLORS.border,
         }}
       />
     </View>
@@ -158,23 +159,34 @@ const DAYS = [
   { num: 7, label: 'Domingo' },
 ];
 
-function initDayMap(existing) {
+function initWeekEntry(n) {
   const map = {};
   DAYS.forEach(({ num }) => { map[num] = []; });
-  if (existing) {
-    existing.days.forEach((d) => {
-      map[d.dayOfWeek] = d.trainings || [];
+  return { weekNumber: n, isDeload: false, label: '', dayMap: map };
+}
+
+function initPlanWeeks(existing) {
+  if (existing?.planWeeks?.length) {
+    return existing.planWeeks.map((w) => {
+      const map = {};
+      DAYS.forEach(({ num }) => { map[num] = []; });
+      (w.days || []).forEach((d) => {
+        map[d.dayOfWeek] = (d.trainings || []).map((t) =>
+          typeof t === 'object' && t._id ? { _id: t._id, name: t.name || '' } : t
+        );
+      });
+      return { weekNumber: w.weekNumber, isDeload: w.isDeload || false, label: w.label || '', dayMap: map };
     });
   }
-  return map;
+  return Array.from({ length: 6 }, (_, i) => initWeekEntry(i + 1));
 }
 
 export default function NewPlanScreen({ navigation, route }) {
   const existing = route.params?.plan || null;
 
   const [name, setName] = useState(existing?.name || '');
-  const [weeks, setWeeks] = useState(existing?.weeks ?? 6);
-  const [dayMap, setDayMap] = useState(() => initDayMap(existing));
+  const [planWeeks, setPlanWeeks] = useState(() => initPlanWeeks(existing));
+  const [selectedWeekIdx, setSelectedWeekIdx] = useState(0);
   const [measurementDay, setMeasurementDay] = useState(existing?.measurementDay ?? null);
   const [trainings, setTrainings] = useState([]);
   const [loadingTrainings, setLoadingTrainings] = useState(true);
@@ -184,6 +196,7 @@ export default function NewPlanScreen({ navigation, route }) {
     existing?.startDate ? new Date(existing.startDate) : new Date()
   );
   const [datePickerVisible, setDatePickerVisible] = useState(false);
+  const [copyModalVisible, setCopyModalVisible] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -199,23 +212,65 @@ export default function NewPlanScreen({ navigation, route }) {
     load();
   }, []);
 
+  const currentWeek = planWeeks[selectedWeekIdx];
+
+  const addWeek = () => {
+    setPlanWeeks((prev) => [...prev, initWeekEntry(prev.length + 1)]);
+  };
+
+  const removeWeek = () => {
+    const currentLen = planWeeks.length;
+    if (currentLen <= 1) return;
+    setPlanWeeks((prev) => prev.slice(0, -1));
+    setSelectedWeekIdx((idx) => (idx >= currentLen - 1 ? currentLen - 2 : idx));
+  };
+
+  const toggleDeload = () => {
+    setPlanWeeks((prev) =>
+      prev.map((w, i) => (i === selectedWeekIdx ? { ...w, isDeload: !w.isDeload } : w))
+    );
+  };
+
+  const copyFromWeek = (fromIdx) => {
+    setPlanWeeks((prev) =>
+      prev.map((w, i) => {
+        if (i !== selectedWeekIdx) return w;
+        const source = prev[fromIdx];
+        const newDayMap = {};
+        Object.entries(source.dayMap).forEach(([day, ts]) => { newDayMap[day] = [...ts]; });
+        return { ...w, dayMap: newDayMap };
+      })
+    );
+    setCopyModalVisible(false);
+  };
+
   const toggleTraining = (training) => {
-    setDayMap((prev) => {
-      const current = prev[pickerDay] || [];
-      const idx = current.findIndex((t) => t._id === training._id);
-      if (idx >= 0) {
-        return { ...prev, [pickerDay]: current.filter((t) => t._id !== training._id) };
-      }
-      if (current.length >= 2) {
-        Alert.alert('Máximo 2 sesiones', 'Puedes asignar hasta 2 rutinas por día');
-        return prev;
-      }
-      return { ...prev, [pickerDay]: [...current, { _id: training._id, name: training.name }] };
-    });
+    setPlanWeeks((prev) =>
+      prev.map((w, i) => {
+        if (i !== selectedWeekIdx) return w;
+        const current = w.dayMap[pickerDay] || [];
+        const idx = current.findIndex((t) => t._id === training._id);
+        let next;
+        if (idx >= 0) {
+          next = current.filter((t) => t._id !== training._id);
+        } else {
+          if (current.length >= 2) {
+            Alert.alert('Máximo 2 sesiones', 'Puedes asignar hasta 2 entrenamientos por día');
+            return w;
+          }
+          next = [...current, { _id: training._id, name: training.name }];
+        }
+        return { ...w, dayMap: { ...w.dayMap, [pickerDay]: next } };
+      })
+    );
   };
 
   const clearDay = () => {
-    setDayMap((prev) => ({ ...prev, [pickerDay]: [] }));
+    setPlanWeeks((prev) =>
+      prev.map((w, i) =>
+        i === selectedWeekIdx ? { ...w, dayMap: { ...w.dayMap, [pickerDay]: [] } } : w
+      )
+    );
   };
 
   const handleSave = async () => {
@@ -227,15 +282,19 @@ export default function NewPlanScreen({ navigation, route }) {
     try {
       const payload = {
         name: name.trim(),
-        weeks,
         startDate: startDate.toISOString(),
         measurementDay: measurementDay ?? null,
-        days: Object.entries(dayMap)
-          .filter(([, ts]) => ts.length > 0)
-          .map(([dayOfWeek, ts]) => ({
-            dayOfWeek: Number(dayOfWeek),
-            trainings: ts.map((t) => t._id),
-          })),
+        planWeeks: planWeeks.map((w) => ({
+          weekNumber: w.weekNumber,
+          isDeload: w.isDeload,
+          label: w.label,
+          days: Object.entries(w.dayMap)
+            .filter(([, ts]) => ts.length > 0)
+            .map(([dayOfWeek, ts]) => ({
+              dayOfWeek: Number(dayOfWeek),
+              trainings: ts.map((t) => t._id),
+            })),
+        })),
       };
       if (existing) {
         await planService.updatePlan(existing._id, payload);
@@ -250,7 +309,7 @@ export default function NewPlanScreen({ navigation, route }) {
     }
   };
 
-  const pickerDaySelected = pickerDay ? (dayMap[pickerDay] || []) : [];
+  const pickerDaySelected = pickerDay ? (currentWeek?.dayMap[pickerDay] || []) : [];
   const pickerDayLabel = pickerDay ? DAYS.find((d) => d.num === pickerDay)?.label : '';
 
   return (
@@ -266,28 +325,22 @@ export default function NewPlanScreen({ navigation, route }) {
           style={styles.input}
           value={name}
           onChangeText={setName}
-          placeholder="Ej: Volumen Bloque 1"
-          placeholderTextColor="#4A4A4A"
+          placeholder="Ej: Spartan Beast 12 semanas"
+          placeholderTextColor={COLORS.iconInactive}
           maxLength={50}
         />
 
-        {/* Semanas */}
+        {/* Duración */}
         <Text style={styles.label}>Duración</Text>
         <View style={styles.weeksRow}>
-          <TouchableOpacity
-            style={styles.weeksBtn}
-            onPress={() => setWeeks((w) => Math.max(1, w - 1))}
-          >
-            <Ionicons name="remove" size={20} color="#EAEAEA" />
+          <TouchableOpacity style={styles.weeksBtn} onPress={removeWeek}>
+            <Ionicons name="remove" size={20} color={COLORS.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.weeksValue}>
-            {weeks} semana{weeks !== 1 ? 's' : ''}
+            {planWeeks.length} semana{planWeeks.length !== 1 ? 's' : ''}
           </Text>
-          <TouchableOpacity
-            style={styles.weeksBtn}
-            onPress={() => setWeeks((w) => Math.min(52, w + 1))}
-          >
-            <Ionicons name="add" size={20} color="#EAEAEA" />
+          <TouchableOpacity style={styles.weeksBtn} onPress={addWeek}>
+            <Ionicons name="add" size={20} color={COLORS.textPrimary} />
           </TouchableOpacity>
         </View>
 
@@ -298,19 +351,67 @@ export default function NewPlanScreen({ navigation, route }) {
           onPress={() => setDatePickerVisible(true)}
           activeOpacity={0.7}
         >
-          <Ionicons name="calendar-outline" size={18} color="#6A6A6A" />
+          <Ionicons name="calendar-outline" size={18} color={COLORS.textMuted} />
           <Text style={styles.dateText}>{formatDate(startDate)}</Text>
-          <Ionicons name="chevron-forward" size={16} color="#4A4A4A" />
+          <Ionicons name="chevron-forward" size={16} color={COLORS.iconInactive} />
         </TouchableOpacity>
 
-        {/* Días */}
+        {/* Selector de semana */}
+        <Text style={styles.label}>Semanas</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.weekStrip}
+          contentContainerStyle={styles.weekStripContent}
+        >
+          {planWeeks.map((w, i) => (
+            <TouchableOpacity
+              key={i}
+              style={[styles.weekTab, i === selectedWeekIdx && styles.weekTabActive]}
+              onPress={() => setSelectedWeekIdx(i)}
+            >
+              <Text style={[styles.weekTabText, i === selectedWeekIdx && styles.weekTabTextActive]}>
+                Sem {w.weekNumber}
+              </Text>
+              {w.isDeload && <View style={styles.deloadDot} />}
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* Cabecera de la semana activa */}
+        {currentWeek && (
+          <View style={[styles.weekHeader, currentWeek.isDeload && styles.weekHeaderDeload]}>
+            <Text style={styles.weekTitle}>Semana {currentWeek.weekNumber}</Text>
+            <View style={styles.weekActions}>
+              <TouchableOpacity
+                style={[styles.deloadPill, currentWeek.isDeload && styles.deloadPillActive]}
+                onPress={toggleDeload}
+              >
+                <Text style={[styles.deloadPillText, currentWeek.isDeload && styles.deloadPillTextActive]}>
+                  Deload
+                </Text>
+              </TouchableOpacity>
+              {planWeeks.length > 1 && (
+                <TouchableOpacity
+                  style={styles.copyBtn}
+                  onPress={() => setCopyModalVisible(true)}
+                >
+                  <Ionicons name="copy-outline" size={16} color={COLORS.textSecondary} />
+                  <Text style={styles.copyBtnText}>Copiar de…</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* Días de la semana activa */}
         <Text style={styles.label}>Días</Text>
         {loadingTrainings ? (
-          <ActivityIndicator color="#B11226" style={{ marginVertical: 24 }} />
+          <ActivityIndicator color={COLORS.primary} style={{ marginVertical: 24 }} />
         ) : (
           <View style={styles.daysCard}>
             {DAYS.map(({ num, label }, index) => {
-              const assigned = dayMap[num] || [];
+              const assigned = currentWeek?.dayMap[num] || [];
               return (
                 <React.Fragment key={num}>
                   {index > 0 && <View style={styles.dayDivider} />}
@@ -332,7 +433,7 @@ export default function NewPlanScreen({ navigation, route }) {
                           ))}
                         </View>
                       )}
-                      <Ionicons name="chevron-forward" size={16} color="#4A4A4A" style={styles.chevron} />
+                      <Ionicons name="chevron-forward" size={16} color={COLORS.iconInactive} style={styles.chevron} />
                     </View>
                   </TouchableOpacity>
                 </React.Fragment>
@@ -354,17 +455,17 @@ export default function NewPlanScreen({ navigation, route }) {
                   onPress={() => setMeasurementDay(isSelected ? null : num)}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.dayLabel, isSelected && { color: '#B11226' }]}>{label}</Text>
+                  <Text style={[styles.dayLabel, isSelected && { color: COLORS.primary }]}>{label}</Text>
                   <View style={styles.dayRight}>
                     {isSelected ? (
-                      <View style={[styles.chip, { backgroundColor: '#2A1515', borderColor: '#B11226' }]}>
-                        <Text style={[styles.chipText, { color: '#B11226' }]}>Medidas</Text>
+                      <View style={[styles.chip, { backgroundColor: COLORS.dangerBg, borderColor: COLORS.primary }]}>
+                        <Text style={[styles.chipText, { color: COLORS.primary }]}>Medidas</Text>
                       </View>
                     ) : (
                       <Text style={styles.restLabel}>—</Text>
                     )}
                     <View style={[styles.checkbox, isSelected && styles.checkboxSelected, { marginLeft: 8 }]}>
-                      {isSelected && <Ionicons name="checkmark" size={14} color="#EAEAEA" />}
+                      {isSelected && <Ionicons name="checkmark" size={14} color={COLORS.textPrimary} />}
                     </View>
                   </View>
                 </TouchableOpacity>
@@ -383,7 +484,7 @@ export default function NewPlanScreen({ navigation, route }) {
           disabled={saving}
         >
           {saving ? (
-            <ActivityIndicator color="#EAEAEA" />
+            <ActivityIndicator color={COLORS.textPrimary} />
           ) : (
             <Text style={styles.saveBtnText}>
               {existing ? 'Guardar cambios' : 'Crear planificación'}
@@ -399,7 +500,7 @@ export default function NewPlanScreen({ navigation, route }) {
         onClose={() => setDatePickerVisible(false)}
       />
 
-      {/* Day picker modal */}
+      {/* Modal picker de entrenamientos por día */}
       <Modal
         visible={pickerDay !== null}
         transparent
@@ -419,11 +520,11 @@ export default function NewPlanScreen({ navigation, route }) {
               <Text style={styles.clearText}>Limpiar</Text>
             </TouchableOpacity>
           </View>
-          <Text style={styles.modalSubtitle}>Selecciona hasta 2 rutinas para este día</Text>
+          <Text style={styles.modalSubtitle}>Selecciona hasta 2 entrenamientos para este día</Text>
 
           {trainings.length === 0 ? (
             <View style={styles.noTrainingsMsg}>
-              <Text style={styles.noTrainingsText}>No tienes rutinas creadas todavía</Text>
+              <Text style={styles.noTrainingsText}>No tienes entrenamientos creados todavía</Text>
             </View>
           ) : (
             <FlatList
@@ -445,7 +546,7 @@ export default function NewPlanScreen({ navigation, route }) {
                       </Text>
                     </View>
                     <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
-                      {isSelected && <Ionicons name="checkmark" size={14} color="#EAEAEA" />}
+                      {isSelected && <Ionicons name="checkmark" size={14} color={COLORS.textPrimary} />}
                     </View>
                   </TouchableOpacity>
                 );
@@ -454,11 +555,60 @@ export default function NewPlanScreen({ navigation, route }) {
             />
           )}
 
-          <TouchableOpacity
-            style={styles.modalDoneBtn}
-            onPress={() => setPickerDay(null)}
-          >
+          <TouchableOpacity style={styles.modalDoneBtn} onPress={() => setPickerDay(null)}>
             <Text style={styles.modalDoneBtnText}>Hecho</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
+      {/* Modal copiar semana */}
+      <Modal
+        visible={copyModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCopyModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          onPress={() => setCopyModalVisible(false)}
+          activeOpacity={1}
+        />
+        <View style={styles.modalSheet}>
+          <View style={styles.modalHandle} />
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Copiar de semana…</Text>
+          </View>
+          <Text style={styles.modalSubtitle}>
+            Los días de la semana {currentWeek?.weekNumber} se reemplazarán con los de la semana elegida
+          </Text>
+          <FlatList
+            data={planWeeks.filter((_, i) => i !== selectedWeekIdx)}
+            keyExtractor={(w) => String(w.weekNumber)}
+            style={styles.trainingList}
+            renderItem={({ item }) => {
+              const fromIdx = planWeeks.findIndex((w) => w.weekNumber === item.weekNumber);
+              return (
+                <TouchableOpacity
+                  style={styles.trainingItem}
+                  onPress={() => copyFromWeek(fromIdx)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.trainingItemBody}>
+                    <Text style={styles.trainingItemName}>
+                      Semana {item.weekNumber}{item.isDeload ? ' — Deload' : ''}
+                    </Text>
+                    <Text style={styles.trainingItemMeta}>
+                      {Object.values(item.dayMap).filter((ts) => ts.length > 0).length} días con entrenamiento
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={COLORS.iconInactive} />
+                </TouchableOpacity>
+              );
+            }}
+            ItemSeparatorComponent={() => <View style={styles.trainingDivider} />}
+          />
+          <TouchableOpacity style={styles.modalDoneBtn} onPress={() => setCopyModalVisible(false)}>
+            <Text style={styles.modalDoneBtnText}>Cancelar</Text>
           </TouchableOpacity>
         </View>
       </Modal>
@@ -469,38 +619,38 @@ export default function NewPlanScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0D0D0D',
+    backgroundColor: COLORS.background,
   },
   scroll: {
     padding: 20,
     paddingBottom: 40,
   },
   label: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '700',
-    color: '#6A6A6A',
+    color: COLORS.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginBottom: 10,
     marginTop: 20,
   },
   input: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    fontSize: 16,
-    color: '#EAEAEA',
+    fontSize: 18,
+    color: COLORS.textPrimary,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: COLORS.borderInner,
   },
   weeksRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: COLORS.borderInner,
     overflow: 'hidden',
   },
   weeksBtn: {
@@ -512,20 +662,20 @@ const styles = StyleSheet.create({
   weeksValue: {
     flex: 1,
     textAlign: 'center',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
   },
   daysCard: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: COLORS.borderInner,
   },
   dayDivider: {
     height: 1,
-    backgroundColor: '#252525',
+    backgroundColor: COLORS.borderSubtle,
     marginHorizontal: 16,
   },
   dayRow: {
@@ -535,8 +685,8 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   dayLabel: {
-    fontSize: 15,
-    color: '#EAEAEA',
+    fontSize: 17,
+    color: COLORS.textPrimary,
     width: 90,
     fontWeight: '500',
   },
@@ -547,8 +697,8 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   restLabel: {
-    fontSize: 14,
-    color: '#3A3A3A',
+    fontSize: 16,
+    color: COLORS.border,
     fontStyle: 'italic',
     flex: 1,
   },
@@ -560,29 +710,29 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   chip: {
-    backgroundColor: '#2A1515',
+    backgroundColor: COLORS.dangerBg,
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderWidth: 1,
-    borderColor: '#5A1A1A',
+    borderColor: COLORS.dangerBorder,
   },
   chipText: {
-    fontSize: 12,
-    color: '#CC6666',
+    fontSize: 14,
+    color: COLORS.danger,
     fontWeight: '600',
   },
   chevron: {
     marginLeft: 8,
   },
   saveBtn: {
-    backgroundColor: '#B11226',
+    backgroundColor: COLORS.primary,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 32,
-    shadowColor: '#B11226',
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.4,
     shadowRadius: 6,
@@ -592,9 +742,9 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   saveBtnText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
   },
   // Modal
   modalOverlay: {
@@ -602,7 +752,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
   modalSheet: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '65%',
@@ -611,7 +761,7 @@ const styles = StyleSheet.create({
   modalHandle: {
     width: 36,
     height: 4,
-    backgroundColor: '#3A3A3A',
+    backgroundColor: COLORS.border,
     borderRadius: 2,
     alignSelf: 'center',
     marginTop: 12,
@@ -625,18 +775,18 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
   },
   clearText: {
-    fontSize: 14,
-    color: '#9A9A9A',
+    fontSize: 16,
+    color: COLORS.textSecondary,
     fontWeight: '600',
   },
   modalSubtitle: {
-    fontSize: 13,
-    color: '#6A6A6A',
+    fontSize: 15,
+    color: COLORS.textMuted,
     paddingHorizontal: 20,
     marginBottom: 12,
   },
@@ -645,8 +795,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   noTrainingsText: {
-    color: '#6A6A6A',
-    fontSize: 14,
+    color: COLORS.textMuted,
+    fontSize: 16,
   },
   trainingList: {
     maxHeight: 300,
@@ -661,18 +811,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   trainingItemName: {
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: '600',
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
     marginBottom: 2,
   },
   trainingItemMeta: {
-    fontSize: 12,
-    color: '#6A6A6A',
+    fontSize: 14,
+    color: COLORS.textMuted,
   },
   trainingDivider: {
     height: 1,
-    backgroundColor: '#252525',
+    backgroundColor: COLORS.borderSubtle,
     marginHorizontal: 20,
   },
   checkbox: {
@@ -680,49 +830,145 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 6,
     borderWidth: 2,
-    borderColor: '#3A3A3A',
+    borderColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkboxSelected: {
-    backgroundColor: '#B11226',
-    borderColor: '#B11226',
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   dateRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: COLORS.borderInner,
     paddingHorizontal: 16,
     paddingVertical: 14,
     gap: 10,
   },
   dateText: {
     flex: 1,
-    fontSize: 16,
-    color: '#EAEAEA',
+    fontSize: 18,
+    color: COLORS.textPrimary,
     fontWeight: '500',
   },
   measurementHint: {
-    fontSize: 12,
-    color: '#5A5A5A',
+    fontSize: 14,
+    color: COLORS.iconInactive,
     marginTop: 8,
     marginHorizontal: 2,
     fontStyle: 'italic',
   },
+  // Week strip
+  weekStrip: {
+    marginBottom: 2,
+  },
+  weekStripContent: {
+    gap: 6,
+    paddingBottom: 4,
+  },
+  weekTab: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.borderInner,
+    backgroundColor: COLORS.surface,
+    alignItems: 'center',
+    position: 'relative',
+  },
+  weekTabActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.dangerBg,
+  },
+  weekTabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textMuted,
+  },
+  weekTabTextActive: {
+    color: COLORS.primary,
+  },
+  deloadDot: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: COLORS.gold || '#F5A623',
+  },
+  weekHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: COLORS.surface,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.borderInner,
+    marginBottom: 10,
+  },
+  weekHeaderDeload: {
+    borderColor: COLORS.gold || '#F5A623',
+    backgroundColor: 'rgba(245,166,35,0.08)',
+  },
+  weekTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+  },
+  weekActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  deloadPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  deloadPillActive: {
+    borderColor: COLORS.gold || '#F5A623',
+    backgroundColor: 'rgba(245,166,35,0.15)',
+  },
+  deloadPillText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.textMuted,
+  },
+  deloadPillTextActive: {
+    color: COLORS.gold || '#F5A623',
+  },
+  copyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  copyBtnText: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    fontWeight: '600',
+  },
   modalDoneBtn: {
     marginHorizontal: 20,
     marginTop: 14,
-    backgroundColor: '#B11226',
+    backgroundColor: COLORS.primary,
     borderRadius: 10,
     paddingVertical: 14,
     alignItems: 'center',
   },
   modalDoneBtnText: {
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: '700',
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
   },
 });

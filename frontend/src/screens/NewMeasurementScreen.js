@@ -18,6 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { measurementService } from '../services/api';
+import { COLORS } from '../config/theme';
 
 // ---------- helpers ----------
 function padZ(n) {
@@ -164,6 +165,21 @@ export default function NewMeasurementScreen({ route, navigation }) {
   const [values, setValues] = useState(initialValues);
 
   const [saving, setSaving] = useState(false);
+  const [previous, setPrevious] = useState(null);
+
+  useEffect(() => {
+    measurementService.getMeasurements()
+      .then(res => {
+        const all = (res.data || []).sort((a, b) => new Date(b.date) - new Date(a.date));
+        if (isEdit) {
+          const idx = all.findIndex(m => m._id === existing._id);
+          if (idx >= 0 && idx + 1 < all.length) setPrevious(all[idx + 1]);
+        } else {
+          if (all.length > 0) setPrevious(all[0]);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // ---------- fotos ----------
   const pickPhoto = async () => {
@@ -239,9 +255,9 @@ export default function NewMeasurementScreen({ route, navigation }) {
           onPress={() => setDatePickerOpen(true)}
           activeOpacity={0.7}
         >
-          <Ionicons name="calendar-outline" size={18} color="#B11226" />
+          <Ionicons name="calendar-outline" size={18} color={COLORS.primary} />
           <Text style={styles.dateText}>{dateToDisplay(date)}</Text>
-          <Ionicons name="chevron-down" size={16} color="#9A9A9A" />
+          <Ionicons name="chevron-down" size={16} color={COLORS.textSecondary} />
         </TouchableOpacity>
 
         {/* ── FOTOS ── */}
@@ -259,12 +275,12 @@ export default function NewMeasurementScreen({ route, navigation }) {
                 style={styles.photoRemove}
                 onPress={() => removePhoto(idx)}
               >
-                <Ionicons name="close-circle" size={20} color="#FF3B3B" />
+                <Ionicons name="close-circle" size={20} color={COLORS.danger} />
               </TouchableOpacity>
             </View>
           ))}
           <TouchableOpacity style={styles.photoAdd} onPress={pickPhoto} activeOpacity={0.7}>
-            <Ionicons name="add" size={28} color="#B11226" />
+            <Ionicons name="add" size={28} color={COLORS.primary} />
             <Text style={styles.photoAddLabel}>Añadir</Text>
           </TouchableOpacity>
         </ScrollView>
@@ -272,23 +288,33 @@ export default function NewMeasurementScreen({ route, navigation }) {
         {/* ── MEDIDAS ── */}
         <Text style={styles.sectionTitle}>Medidas</Text>
         <View style={styles.fieldsGrid}>
-          {FIELDS.map(({ key, label, unit }) => (
-            <View key={key} style={styles.fieldRow}>
-              <Text style={styles.fieldLabel}>{label}</Text>
-              <View style={styles.fieldInputWrap}>
-                <TextInput
-                  style={styles.fieldInput}
-                  value={values[key]}
-                  onChangeText={(v) => setValues((prev) => ({ ...prev, [key]: v }))}
-                  keyboardType="decimal-pad"
-                  placeholder="—"
-                  placeholderTextColor="#6A6A6A"
-                  returnKeyType="next"
-                />
-                <Text style={styles.fieldUnit}>{unit}</Text>
+          {FIELDS.map(({ key, label, unit }) => {
+            const prev = previous?.[key];
+            return (
+              <View key={key} style={styles.fieldBox}>
+                <Text style={styles.fieldBoxLabel}>{label}</Text>
+                <View style={styles.fieldBoxInputRow}>
+                  <View style={{ flex: 1 }}>
+                    {values[key] === '' && prev != null && (
+                      <View style={styles.prevOverlayWrap} pointerEvents="none">
+                        <Text style={styles.prevOverlayText}>{String(prev)}</Text>
+                      </View>
+                    )}
+                    <TextInput
+                      style={styles.fieldBoxInput}
+                      value={values[key]}
+                      onChangeText={(v) => setValues((p) => ({ ...p, [key]: v }))}
+                      keyboardType="decimal-pad"
+                      placeholder={prev == null ? '—' : ''}
+                      placeholderTextColor={COLORS.iconInactive}
+                      returnKeyType="next"
+                    />
+                  </View>
+                  <Text style={styles.fieldBoxUnit}>{unit}</Text>
+                </View>
               </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
 
         {/* ── GUARDAR ── */}
@@ -323,15 +349,15 @@ export default function NewMeasurementScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0D0D0D',
+    backgroundColor: COLORS.background,
   },
   scroll: {
     padding: 16,
     paddingBottom: 40,
   },
   sectionTitle: {
-    color: '#9A9A9A',
-    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontSize: 14,
     fontWeight: '700',
     letterSpacing: 1,
     textTransform: 'uppercase',
@@ -342,18 +368,18 @@ const styles = StyleSheet.create({
   dateButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: COLORS.border,
     gap: 10,
   },
   dateText: {
     flex: 1,
-    color: '#EAEAEA',
-    fontSize: 15,
+    color: COLORS.textPrimary,
+    fontSize: 17,
     fontWeight: '600',
   },
   // Fotos
@@ -372,68 +398,86 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -6,
     right: -6,
-    backgroundColor: '#0D0D0D',
+    backgroundColor: COLORS.background,
     borderRadius: 10,
   },
   photoAdd: {
     width: 90,
     height: 90,
     borderRadius: 10,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: COLORS.border,
     borderStyle: 'dashed',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 4,
   },
   photoAddLabel: {
-    color: '#B11226',
-    fontSize: 12,
+    color: COLORS.primary,
+    fontSize: 14,
     fontWeight: '600',
   },
-  // Campos de medidas
+  // Campos de medidas — grid 2 columnas
   fieldsGrid: {
-    gap: 4,
-  },
-  fieldRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#1A1A1A',
+    flexWrap: 'wrap',
+    gap: 10,
   },
-  fieldLabel: {
-    flex: 1,
-    color: '#EAEAEA',
-    fontSize: 14,
-  },
-  fieldInputWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  fieldBox: {
+    width: '48%',
+    backgroundColor: COLORS.surface,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 12,
     gap: 6,
   },
-  fieldInput: {
-    backgroundColor: '#1A1A1A',
-    color: '#EAEAEA',
-    fontSize: 15,
-    fontWeight: '600',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    minWidth: 70,
-    textAlign: 'right',
-    borderWidth: 1,
-    borderColor: '#333',
-  },
-  fieldUnit: {
-    color: '#6A6A6A',
+  fieldBoxLabel: {
+    color: COLORS.textSecondary,
     fontSize: 13,
-    width: 24,
+    fontWeight: '600',
+  },
+  fieldBoxInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  fieldBoxInput: {
+    flex: 1,
+    backgroundColor: COLORS.surfaceDeep,
+    color: COLORS.textPrimary,
+    fontSize: 18,
+    fontWeight: '700',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    textAlign: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  fieldBoxUnit: {
+    color: COLORS.textMuted,
+    fontSize: 13,
+    fontWeight: '600',
+    width: 22,
+  },
+  prevOverlayWrap: {
+    position: 'absolute',
+    top: 0, bottom: 0, left: 0, right: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  prevOverlayText: {
+    color: COLORS.iconInactive,
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   // Guardar
   saveButton: {
-    backgroundColor: '#B11226',
+    backgroundColor: COLORS.primary,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
@@ -443,8 +487,8 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   saveButtonText: {
-    color: '#fff',
-    fontSize: 16,
+    color: COLORS.textPrimary,
+    fontSize: 18,
     fontWeight: '700',
   },
 });
@@ -458,16 +502,16 @@ const dp = StyleSheet.create({
     alignItems: 'center',
   },
   box: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderRadius: 16,
     padding: 24,
     width: 300,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: COLORS.border,
   },
   title: {
-    color: '#EAEAEA',
-    fontSize: 16,
+    color: COLORS.textPrimary,
+    fontSize: 18,
     fontWeight: '700',
     textAlign: 'center',
     marginBottom: 20,
@@ -483,26 +527,26 @@ const dp = StyleSheet.create({
     alignItems: 'center',
   },
   colLabel: {
-    color: '#9A9A9A',
-    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontSize: 14,
     marginBottom: 6,
   },
   input: {
-    backgroundColor: '#252525',
-    color: '#EAEAEA',
-    fontSize: 20,
+    backgroundColor: COLORS.surfaceDeep,
+    color: COLORS.textPrimary,
+    fontSize: 22,
     fontWeight: '700',
     borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 6,
     textAlign: 'center',
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: COLORS.border,
     width: '100%',
   },
   sep: {
-    color: '#6A6A6A',
-    fontSize: 22,
+    color: COLORS.textMuted,
+    fontSize: 24,
     fontWeight: '300',
     marginBottom: 8,
   },
@@ -512,26 +556,26 @@ const dp = StyleSheet.create({
   },
   btnCancel: {
     flex: 1,
-    backgroundColor: '#252525',
+    backgroundColor: COLORS.surfaceDeep,
     borderRadius: 10,
     paddingVertical: 11,
     alignItems: 'center',
   },
   btnCancelText: {
-    color: '#9A9A9A',
-    fontSize: 14,
+    color: COLORS.textSecondary,
+    fontSize: 16,
     fontWeight: '600',
   },
   btnConfirm: {
     flex: 1,
-    backgroundColor: '#B11226',
+    backgroundColor: COLORS.primary,
     borderRadius: 10,
     paddingVertical: 11,
     alignItems: 'center',
   },
   btnConfirmText: {
-    color: '#fff',
-    fontSize: 14,
+    color: COLORS.textPrimary,
+    fontSize: 16,
     fontWeight: '700',
   },
 });

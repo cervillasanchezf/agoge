@@ -10,7 +10,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { sessionService, planService } from '../services/api';
+import { sessionService, planService, measurementService } from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import { COLORS } from '../config/theme';
 
 // ─── Muscle group mapping ────────────────────────────────────────────────────
 // Maps Exercise.primaryMuscles strings → Spanish canonical group
@@ -112,15 +114,18 @@ function fmtVolume(kg) {
   return `${Math.round(kg)} kg`;
 }
 
-const PERIODS = [
-  { key: '1w', label: 'Semana' },
-  { key: '4w', label: '4 semanas' },
-  { key: 'cycle', label: 'Ciclo' },
+const BASE_PERIODS = [
+  { key: '1w',    label: 'Semana' },
+  { key: '4w',    label: '4 semanas' },
+  { key: '3m',    label: '3 meses' },
+  { key: 'cycle', label: 'Planificación' },
 ];
 
 export default function StatsScreen({ route, navigation }) {
+  const { user } = useAuth();
   const [sessions, setSessions] = useState(route.params?.sessions ?? []);
   const [activePlan, setActivePlan] = useState(route.params?.activePlan ?? null);
+  const [measurements, setMeasurements] = useState([]);
   const [loading, setLoading] = useState(false);
 
   useFocusEffect(
@@ -129,14 +134,16 @@ export default function StatsScreen({ route, navigation }) {
       const load = async () => {
         setLoading(true);
         try {
-          const [sessRes, planRes] = await Promise.all([
+          const [sessRes, planRes, measRes] = await Promise.all([
             sessionService.getAllSessions({ populate: true }),
             planService.getPlans(),
+            measurementService.getMeasurements(),
           ]);
           if (cancelled) return;
           setSessions(sessRes?.data ?? sessRes ?? []);
           const plans = planRes?.data ?? planRes ?? [];
           setActivePlan(plans.find(p => p.active) ?? null);
+          setMeasurements(Array.isArray(measRes) ? measRes : (measRes?.data ?? []));
         } catch (e) {
           // silently keep previous data
         } finally {
@@ -150,29 +157,42 @@ export default function StatsScreen({ route, navigation }) {
 
   const [period, setPeriod] = useState('4w');
 
+  const periods = activePlan
+    ? BASE_PERIODS
+    : BASE_PERIODS.filter(p => p.key !== 'cycle');
+
+  // If plan disappears while 'cycle' is selected, fall back to '3m'
+  const effectivePeriod = period === 'cycle' && !activePlan ? '3m' : period;
+
   // ─── Filter sessions by period ──────────────────────────────────────────────
   const filteredSessions = useMemo(() => {
     const now = new Date();
-    if (period === '1w') {
+    if (effectivePeriod === '1w') {
       const cutoff = new Date(now);
       const jsDay = cutoff.getDay();
       cutoff.setDate(cutoff.getDate() - (jsDay === 0 ? 6 : jsDay - 1));
       cutoff.setHours(0, 0, 0, 0);
       return sessions.filter(s => new Date(s.date) >= cutoff);
     }
-    if (period === '4w') {
+    if (effectivePeriod === '4w') {
       const cutoff = new Date(now);
       cutoff.setDate(cutoff.getDate() - 27);
       cutoff.setHours(0, 0, 0, 0);
       return sessions.filter(s => new Date(s.date) >= cutoff);
     }
-    if (period === 'cycle' && activePlan?.startDate) {
+    if (effectivePeriod === '3m') {
+      const cutoff = new Date(now);
+      cutoff.setDate(cutoff.getDate() - 89);
+      cutoff.setHours(0, 0, 0, 0);
+      return sessions.filter(s => new Date(s.date) >= cutoff);
+    }
+    if (effectivePeriod === 'cycle' && activePlan?.startDate) {
       const cutoff = new Date(activePlan.startDate);
       cutoff.setHours(0, 0, 0, 0);
       return sessions.filter(s => new Date(s.date) >= cutoff);
     }
     return sessions;
-  }, [sessions, period, activePlan]);
+  }, [sessions, effectivePeriod, activePlan]);
 
   // ─── KPIs ───────────────────────────────────────────────────────────────────
   const totalSessions = filteredSessions.length;
@@ -221,9 +241,11 @@ export default function StatsScreen({ route, navigation }) {
 
   // ─── Adherence ───────────────────────────────────────────────────────────────
   const adherence = useMemo(() => {
-    if (!activePlan?.startDate || !activePlan?.days) return null;
+    if (!activePlan?.startDate || !activePlan?.planWeeks?.length) return null;
     const start = new Date(activePlan.startDate);
     start.setHours(0, 0, 0, 0);
+    const totalWeeks = activePlan.planWeeks.length;
+    const planEnd = new Date(start.getTime() + totalWeeks * 7 * 24 * 3600 * 1000);
     const now = new Date();
     now.setHours(0, 0, 0, 0);
     // Exclude today from the denominator: the day is still in progress,
@@ -231,20 +253,19 @@ export default function StatsScreen({ route, navigation }) {
     const cutoff = new Date(now);
     cutoff.setDate(cutoff.getDate() - 1);
 
-    // Filter out null refs (deleted trainings populated as null by Mongoose)
-    const planDaysWithTraining = new Set(
-      (activePlan.days || [])
-        .filter(d => (d.trainings || []).filter(Boolean).length > 0)
-        .map(d => d.dayOfWeek)
-    );
-
-    function jsToPlanDay(jsDay) { return jsDay === 0 ? 7 : jsDay; }
+    function jsToDow(jsDay) { return jsDay === 0 ? 7 : jsDay; }
 
     let planned = 0;
     const cursor = new Date(start);
-    while (cursor <= cutoff) {
-      if (planDaysWithTraining.has(jsToPlanDay(cursor.getDay()))) {
-        planned++;
+    while (cursor <= cutoff && cursor < planEnd) {
+      const weekIdx = Math.floor((cursor - start) / (7 * 24 * 3600 * 1000));
+      const week = activePlan.planWeeks[weekIdx];
+      if (week) {
+        const dow = jsToDow(cursor.getDay());
+        const dayEntry = (week.days || []).find(d => d.dayOfWeek === dow);
+        if (dayEntry && (dayEntry.trainings || []).filter(Boolean).length > 0) {
+          planned++;
+        }
       }
       cursor.setDate(cursor.getDate() + 1);
     }
@@ -255,6 +276,34 @@ export default function StatsScreen({ route, navigation }) {
     return { done, planned: Math.max(planned, done), pct: planned > 0 ? Math.round((done / planned) * 100) : 100 };
   }, [activePlan, sessions]);
 
+  // ─── Physical summary ─────────────────────────────────────────────────────
+  const physicalSummary = useMemo(() => {
+    const sorted = [...measurements].sort((a, b) => new Date(b.date) - new Date(a.date));
+    const latest  = sorted[0] ?? null;
+    const previous = sorted[1] ?? null;
+    if (!latest) return null;
+
+    const peso = latest.peso ?? null;
+    const pesoPrev = previous?.peso ?? null;
+    const pesoDelta = peso != null && pesoPrev != null ? peso - pesoPrev : null;
+
+    let imc = null;
+    let imcLabel = null;
+    if (peso && user?.height) {
+      const hm = user.height / 100;
+      const v = peso / (hm * hm);
+      imc = v;
+      imcLabel = v < 18.5 ? 'Bajo peso' : v < 25 ? 'Normal' : v < 30 ? 'Sobrepeso' : 'Obesidad';
+    }
+
+    const oldest = sorted[sorted.length - 1];
+    const totalDelta = peso != null && oldest?.peso != null && oldest !== latest
+      ? peso - oldest.peso
+      : null;
+
+    return { peso, pesoDelta, imc, imcLabel, totalDelta, count: sorted.length };
+  }, [measurements, user]);
+
   // ─── Hypertrophy summary ────────────────────────────────────────────────────
   const topMuscle = useMemo(() => {
     const withSets = muscleSetData.filter(d => d.sets > 0);
@@ -264,9 +313,9 @@ export default function StatsScreen({ route, navigation }) {
   const dominantPPL = useMemo(() => {
     const { push, pull, legs } = pplData;
     if (push === 0 && pull === 0 && legs === 0) return null;
-    if (push >= pull && push >= legs) return { label: 'Push', color: '#B11226' };
-    if (pull >= push && pull >= legs) return { label: 'Pull', color: '#C9A44C' };
-    return { label: 'Piernas', color: '#4A7FA5' };
+    if (push >= pull && push >= legs) return { label: 'Push' };
+    if (pull >= push && pull >= legs) return { label: 'Pull' };
+    return { label: 'Piernas' };
   }, [pplData]);
 
   return (
@@ -274,7 +323,7 @@ export default function StatsScreen({ route, navigation }) {
       {loading && (
         <ActivityIndicator
           size="small"
-          color="#C9A44C"
+          color={COLORS.gold}
           style={{ position: 'absolute', top: 12, right: 16, zIndex: 10 }}
         />
       )}
@@ -295,7 +344,7 @@ export default function StatsScreen({ route, navigation }) {
                 <View
                   style={[
                     styles.progressBarFill,
-                    { width: `${adherence.pct}%`, backgroundColor: adherence.pct >= 80 ? '#C9A44C' : adherence.pct >= 60 ? '#B11226' : '#5A0000' },
+                    { width: `${adherence.pct}%`, backgroundColor: COLORS.gold },
                   ]}
                 />
               </View>
@@ -310,35 +359,34 @@ export default function StatsScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* Period selector */}
-        <View style={styles.periodRow}>
-          {PERIODS.map(p => (
-            <TouchableOpacity
-              key={p.key}
-              style={[styles.periodBtn, period === p.key && styles.periodBtnActive]}
-              onPress={() => setPeriod(p.key)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.periodBtnText, period === p.key && styles.periodBtnTextActive]}>
-                {p.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
         {/* ── Fuerza & Hipertrofia ── */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Fuerza & Hipertrofia</Text>
-          <View style={styles.card}>
+          <TouchableOpacity style={styles.card} activeOpacity={0.85} onPress={() => navigation.navigate('HypertrophyStats', { sessions, activePlan })}>
+            {/* Period selector */}
+            <View style={styles.periodRow}>
+              {periods.map(p => (
+                <TouchableOpacity
+                  key={p.key}
+                  style={[styles.periodBtn, period === p.key && styles.periodBtnActive]}
+                  onPress={() => setPeriod(p.key)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.periodBtnText, period === p.key && styles.periodBtnTextActive]}>
+                    {p.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
             <View style={styles.hypertrophyMetrics}>
               <View style={styles.hypertrophyMetric}>
-                <Ionicons name="trending-up-outline" size={20} color="#C9A44C" />
+                <Ionicons name="trending-up-outline" size={20} color={COLORS.gold} />
                 <Text style={styles.hypertrophyMetricValue}>{fmtVolume(totalVolume)}</Text>
                 <Text style={styles.hypertrophyMetricLabel}>Volumen</Text>
               </View>
               <View style={styles.hypertrophyDivider} />
               <View style={styles.hypertrophyMetric}>
-                <Ionicons name="body-outline" size={20} color="#C9A44C" />
+                <Ionicons name="body-outline" size={20} color={COLORS.gold} />
                 <Text style={styles.hypertrophyMetricValue} numberOfLines={1}>
                   {topMuscle ?? '—'}
                 </Text>
@@ -346,8 +394,8 @@ export default function StatsScreen({ route, navigation }) {
               </View>
               <View style={styles.hypertrophyDivider} />
               <View style={styles.hypertrophyMetric}>
-                <Ionicons name="swap-horizontal-outline" size={20} color="#C9A44C" />
-                <Text style={[styles.hypertrophyMetricValue, dominantPPL && { color: dominantPPL.color }]}>
+                <Ionicons name="swap-horizontal-outline" size={20} color={COLORS.gold} />
+                <Text style={styles.hypertrophyMetricValue}>
                   {dominantPPL?.label ?? '—'}
                 </Text>
                 <Text style={styles.hypertrophyMetricLabel}>Tipo dom.</Text>
@@ -358,11 +406,56 @@ export default function StatsScreen({ route, navigation }) {
               onPress={() => navigation.navigate('HypertrophyStats', { sessions, activePlan })}
               activeOpacity={0.7}
             >
-              <Ionicons name="analytics-outline" size={15} color="#C9A44C" />
+              <Ionicons name="analytics-outline" size={15} color={COLORS.gold} />
               <Text style={styles.hypertrophyBtnText}>Ver análisis detallado</Text>
-              <Ionicons name="chevron-forward" size={14} color="#C9A44C" />
+              <Ionicons name="chevron-forward" size={14} color={COLORS.gold} />
             </TouchableOpacity>
-          </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Físico & Medidas ── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Físico & Medidas</Text>
+          <TouchableOpacity style={styles.card} activeOpacity={0.85} onPress={() => navigation.navigate('PhysicalStats')}>
+            {physicalSummary ? (
+              <View style={styles.hypertrophyMetrics}>
+                <View style={styles.hypertrophyMetric}>
+                  <Ionicons name="scale-outline" size={20} color={COLORS.gold} />
+                  <Text style={styles.hypertrophyMetricValue}>
+                    {physicalSummary.peso != null ? `${physicalSummary.peso.toFixed(1)} kg` : '—'}
+                  </Text>
+                  <Text style={styles.hypertrophyMetricLabel}>Peso actual</Text>
+                </View>
+                <View style={styles.hypertrophyDivider} />
+                <View style={styles.hypertrophyMetric}>
+                  <Ionicons name="analytics-outline" size={20} color={COLORS.gold} />
+                  <Text style={styles.hypertrophyMetricValue} numberOfLines={1}>
+                    {physicalSummary.imc != null ? physicalSummary.imc.toFixed(1) : '—'}
+                  </Text>
+                  <Text style={styles.hypertrophyMetricLabel}>IMC</Text>
+                </View>
+                <View style={styles.hypertrophyDivider} />
+                <View style={styles.hypertrophyMetric}>
+                  <Ionicons name="git-compare-outline" size={20} color={COLORS.gold} />
+                  <Text style={styles.hypertrophyMetricValue}>
+                    {physicalSummary.pesoDelta != null
+                      ? `${physicalSummary.pesoDelta > 0 ? '+' : ''}${physicalSummary.pesoDelta.toFixed(1)} kg`
+                      : '—'}
+                  </Text>
+                  <Text style={styles.hypertrophyMetricLabel}>vs anterior</Text>
+                </View>
+              </View>
+            ) : null}
+            <TouchableOpacity
+              style={styles.hypertrophyBtn}
+              onPress={() => navigation.navigate('PhysicalStats')}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="body-outline" size={15} color={COLORS.gold} />
+              <Text style={styles.hypertrophyBtnText}>Ver composición, simetría y progresión</Text>
+              <Ionicons name="chevron-forward" size={14} color={COLORS.gold} />
+            </TouchableOpacity>
+          </TouchableOpacity>
         </View>
 
         <View style={{ height: 24 }} />
@@ -372,55 +465,55 @@ export default function StatsScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container:      { flex: 1, backgroundColor: '#0D0D0D' },
+  container:      { flex: 1, backgroundColor: COLORS.background },
   scroll:         { paddingHorizontal: 16, paddingTop: 12 },
 
-  // Period selector
-  periodRow:      { flexDirection: 'row', backgroundColor: '#1A1A1A', borderRadius: 10, padding: 3, marginBottom: 16 },
+  // Period selector (inside Fuerza & Hipertrofia card)
+  periodRow:      { flexDirection: 'row', backgroundColor: '#242424', borderRadius: 8, padding: 3, marginBottom: 14 },
   periodBtn:      { flex: 1, paddingVertical: 7, alignItems: 'center', borderRadius: 8 },
-  periodBtnActive:{ backgroundColor: '#2E2E2E' },
-  periodBtnText:  { fontSize: 13, color: '#9A9A9A', fontWeight: '500' },
-  periodBtnTextActive: { color: '#EAEAEA', fontWeight: '700' },
+  periodBtnActive:{ backgroundColor: COLORS.border },
+  periodBtnText:  { fontSize: 15, color: COLORS.textSecondary, fontWeight: '500' },
+  periodBtnTextActive: { color: COLORS.textPrimary, fontWeight: '700' },
 
   // KPI row
   kpiRow:         { flexDirection: 'row', gap: 8, marginBottom: 16 },
   kpiCard: {
     flex: 1,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderRadius: 12,
     padding: 12,
     alignItems: 'center',
     gap: 4,
   },
-  kpiValue:       { fontSize: 14, fontWeight: '700', color: '#EAEAEA' },
-  kpiLabel:       { fontSize: 10, color: '#9A9A9A', textAlign: 'center' },
+  kpiValue:       { fontSize: 16, fontWeight: '700', color: COLORS.textPrimary },
+  kpiLabel:       { fontSize: 12, color: COLORS.textSecondary, textAlign: 'center' },
 
   // Sections
   section:        { marginBottom: 16 },
-  sectionTitle:   { fontSize: 15, fontWeight: '700', color: '#EAEAEA', marginBottom: 10 },
-  card:           { backgroundColor: '#1A1A1A', borderRadius: 12, padding: 16 },
-  emptyText:      { fontSize: 13, color: '#9A9A9A', textAlign: 'center', paddingVertical: 8 },
+  sectionTitle:   { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 10 },
+  card:           { backgroundColor: COLORS.surface, borderRadius: 12, padding: 16 },
+  emptyText:      { fontSize: 15, color: COLORS.textSecondary, textAlign: 'center', paddingVertical: 8 },
 
   // Adherence
   adherenceHeader:{ alignItems: 'center', marginBottom: 12 },
-  adherencePct:   { fontSize: 40, fontWeight: '700', color: '#EAEAEA' },
-  adherenceSubtitle: { fontSize: 13, color: '#9A9A9A', marginTop: 4 },
+  adherencePct:   { fontSize: 42, fontWeight: '700', color: COLORS.textPrimary },
+  adherenceSubtitle: { fontSize: 15, color: COLORS.textSecondary, marginTop: 4 },
   progressBarBg: {
     height: 8,
-    backgroundColor: '#2A2A2A',
+    backgroundColor: COLORS.surfaceInner,
     borderRadius: 4,
     overflow: 'hidden',
     marginBottom: 10,
   },
   progressBarFill:{ height: '100%', borderRadius: 4 },
-  adherenceHint:  { fontSize: 13, color: '#9A9A9A', textAlign: 'center', lineHeight: 20 },
+  adherenceHint:  { fontSize: 15, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 20 },
 
   // Hypertrophy summary card
   hypertrophyMetrics: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
   hypertrophyMetric:  { flex: 1, alignItems: 'center', gap: 4 },
-  hypertrophyMetricValue: { fontSize: 14, fontWeight: '700', color: '#EAEAEA', textAlign: 'center' },
-  hypertrophyMetricLabel: { fontSize: 10, color: '#9A9A9A', textAlign: 'center' },
-  hypertrophyDivider: { width: 1, backgroundColor: '#2E2E2E', marginHorizontal: 8 },
+  hypertrophyMetricValue: { fontSize: 16, fontWeight: '700', color: COLORS.textPrimary, textAlign: 'center' },
+  hypertrophyMetricLabel: { fontSize: 12, color: COLORS.textSecondary, textAlign: 'center' },
+  hypertrophyDivider: { width: 1, backgroundColor: COLORS.border, marginHorizontal: 8 },
   hypertrophyBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -432,5 +525,5 @@ const styles = StyleSheet.create({
     borderColor: '#C9A44C22',
     backgroundColor: '#C9A44C11',
   },
-  hypertrophyBtnText: { fontSize: 13, color: '#C9A44C', fontWeight: '600' },
+  hypertrophyBtnText: { fontSize: 15, color: COLORS.gold, fontWeight: '600' },
 });

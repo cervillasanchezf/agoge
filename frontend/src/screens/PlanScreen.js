@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { planService } from '../services/api';
+import { COLORS } from '../config/theme';
 
 const DAYS = [
   { num: 1, label: 'Lunes' },
@@ -30,9 +31,10 @@ function formatDate(dateStr) {
   return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-function WeeklyGrid({ days }) {
+function WeeklyGrid({ planWeeks, weekIdx }) {
+  const week = planWeeks?.[weekIdx];
   const dayMap = {};
-  (days || []).forEach((d) => { dayMap[d.dayOfWeek] = d.trainings || []; });
+  (week?.days || []).forEach((d) => { dayMap[d.dayOfWeek] = d.trainings || []; });
 
   return (
     <View style={styles.grid}>
@@ -67,6 +69,16 @@ export default function PlanScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [menuPlan, setMenuPlan] = useState(null);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
+  const [viewWeekIdx, setViewWeekIdx] = useState(0);
+  const weekIdxInitialized = useRef(null);
+
+  useEffect(() => {
+    const active = plans.find((p) => p.active);
+    if (!active?.currentWeek) return;
+    if (weekIdxInitialized.current === active._id) return;
+    setViewWeekIdx(Math.max(0, active.currentWeek - 1));
+    weekIdxInitialized.current = active._id;
+  }, [plans]);
 
   useFocusEffect(
     useCallback(() => {
@@ -149,11 +161,6 @@ export default function PlanScreen({ navigation }) {
     setMenuPosition({ y: pageY });
   };
 
-  const getWeeksElapsed = (startDate) => {
-    const ms = Date.now() - new Date(startDate).getTime();
-    return Math.max(0, Math.floor(ms / (7 * 24 * 60 * 60 * 1000)));
-  };
-
   const activePlan = plans.find((p) => p.active);
   const pastPlans = plans.filter((p) => !p.active);
 
@@ -161,7 +168,7 @@ export default function PlanScreen({ navigation }) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#B11226" />
+          <ActivityIndicator size="large" color={COLORS.primary} />
         </View>
       </SafeAreaView>
     );
@@ -175,20 +182,20 @@ export default function PlanScreen({ navigation }) {
           style={styles.addBtn}
           onPress={() => navigation.navigate('NewPlan')}
         >
-          <Ionicons name="add" size={24} color="#EAEAEA" />
+          <Ionicons name="add" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
       </View>
 
       {plans.length === 0 ? (
         <View style={styles.emptyState}>
-          <Ionicons name="calendar-outline" size={56} color="#333333" />
+          <Ionicons name="calendar-outline" size={56} color={COLORS.border} />
           <Text style={styles.emptyText}>Sin planificaciones</Text>
           <Text style={styles.emptySubtext}>Organiza tu entrenamiento por mesociclos</Text>
           <TouchableOpacity
             style={styles.emptyCreateBtn}
             onPress={() => navigation.navigate('NewPlan')}
           >
-            <Ionicons name="add" size={16} color="#EAEAEA" />
+            <Ionicons name="add" size={16} color={COLORS.textPrimary} />
             <Text style={styles.emptyCreateBtnText}>Nueva planificación</Text>
           </TouchableOpacity>
         </View>
@@ -197,10 +204,10 @@ export default function PlanScreen({ navigation }) {
 
           {/* Active plan */}
           {activePlan ? (() => {
-            const elapsed = getWeeksElapsed(activePlan.startDate);
-            const progress = Math.min(elapsed / activePlan.weeks, 1);
-            const isNearEnd = elapsed >= activePlan.weeks - 1;
-            const currentWeek = Math.min(elapsed + 1, activePlan.weeks);
+            const totalWeeks = activePlan.planWeeks?.length || activePlan.weeks || 1;
+            const currentWeek = activePlan.currentWeek ?? 1;
+            const progress = Math.min(currentWeek / totalWeeks, 1);
+            const isNearEnd = currentWeek >= totalWeeks;
 
             return (
               <View style={styles.section}>
@@ -216,11 +223,11 @@ export default function PlanScreen({ navigation }) {
                   <View style={styles.progressBlock}>
                     <View style={styles.progressRow}>
                       <Text style={styles.progressLabel}>
-                        Semana {currentWeek} de {activePlan.weeks}
+                        Semana {currentWeek} de {totalWeeks}
                       </Text>
                       {isNearEnd && (
                         <View style={styles.endWarning}>
-                          <Ionicons name="flag-outline" size={12} color="#C9A44C" />
+                          <Ionicons name="flag-outline" size={12} color={COLORS.gold} />
                           <Text style={styles.endWarningText}>Fin de ciclo</Text>
                         </View>
                       )}
@@ -231,21 +238,61 @@ export default function PlanScreen({ navigation }) {
                     <Text style={styles.startDateText}>Inicio: {formatDate(activePlan.startDate)}</Text>
                   </View>
 
-                  <WeeklyGrid days={activePlan.days} />
+                  {/* Navegador de semana */}
+                  <View style={styles.weekNav}>
+                    <TouchableOpacity
+                      style={styles.weekNavBtn}
+                      disabled={viewWeekIdx === 0}
+                      onPress={() => setViewWeekIdx((v) => v - 1)}
+                    >
+                      <Ionicons
+                        name="chevron-back"
+                        size={20}
+                        color={viewWeekIdx === 0 ? COLORS.border : COLORS.textSecondary}
+                      />
+                    </TouchableOpacity>
+                    <View style={styles.weekNavCenter}>
+                      <Text style={styles.weekNavText}>
+                        Semana {viewWeekIdx + 1} de {activePlan.planWeeks?.length || 0}
+                      </Text>
+                      {activePlan.planWeeks?.[viewWeekIdx]?.isDeload && (
+                        <View style={styles.deloadBadge}>
+                          <Text style={styles.deloadBadgeText}>Deload</Text>
+                        </View>
+                      )}
+                      {viewWeekIdx + 1 === activePlan.currentWeek && (
+                        <View style={styles.todayBadge}>
+                          <Text style={styles.todayBadgeText}>ACTUAL</Text>
+                        </View>
+                      )}
+                    </View>
+                    <TouchableOpacity
+                      style={styles.weekNavBtn}
+                      disabled={viewWeekIdx >= (activePlan.planWeeks?.length || 1) - 1}
+                      onPress={() => setViewWeekIdx((v) => v + 1)}
+                    >
+                      <Ionicons
+                        name="chevron-forward"
+                        size={20}
+                        color={viewWeekIdx >= (activePlan.planWeeks?.length || 1) - 1 ? COLORS.border : COLORS.textSecondary}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                  <WeeklyGrid planWeeks={activePlan.planWeeks} weekIdx={viewWeekIdx} />
 
                   <View style={styles.activePlanActions}>
                     <TouchableOpacity
                       style={styles.editBtn}
                       onPress={() => navigation.navigate('NewPlan', { plan: activePlan })}
                     >
-                      <Ionicons name="pencil-outline" size={14} color="#9A9A9A" />
+                      <Ionicons name="pencil-outline" size={14} color={COLORS.textSecondary} />
                       <Text style={styles.editBtnText}>Editar</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.finishBtn}
                       onPress={() => handleFinish(activePlan)}
                     >
-                      <Ionicons name="checkmark-circle-outline" size={14} color="#EAEAEA" />
+                      <Ionicons name="checkmark-circle-outline" size={14} color={COLORS.textPrimary} />
                       <Text style={styles.finishBtnText}>Finalizar planificación</Text>
                     </TouchableOpacity>
                   </View>
@@ -254,7 +301,7 @@ export default function PlanScreen({ navigation }) {
             );
           })() : (
             <View style={styles.noActiveBanner}>
-              <Ionicons name="calendar-outline" size={16} color="#6A6A6A" />
+              <Ionicons name="calendar-outline" size={16} color={COLORS.textMuted} />
               <Text style={styles.noActiveText}>No hay ningún plan activo</Text>
             </View>
           )}
@@ -268,7 +315,7 @@ export default function PlanScreen({ navigation }) {
                   <View style={styles.pastCardBody}>
                     <Text style={styles.pastPlanName}>{plan.name}</Text>
                     <Text style={styles.pastPlanMeta}>
-                      {plan.weeks} semanas · Inicio {formatDate(plan.startDate)}
+                      {plan.planWeeks?.length || plan.weeks || 0} semanas · Inicio {formatDate(plan.startDate)}
                       {plan.endDate ? ` · Fin ${formatDate(plan.endDate)}` : ''}
                     </Text>
                   </View>
@@ -276,7 +323,7 @@ export default function PlanScreen({ navigation }) {
                     onPress={(e) => handleOpenMenu(plan, e)}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
-                    <Ionicons name="ellipsis-vertical" size={20} color="#6A6A6A" />
+                    <Ionicons name="ellipsis-vertical" size={20} color={COLORS.textMuted} />
                   </TouchableOpacity>
                 </View>
               ))}
@@ -302,7 +349,7 @@ export default function PlanScreen({ navigation }) {
             style={styles.dropdownItem}
             onPress={() => handleActivate(menuPlan)}
           >
-            <Ionicons name="play-circle-outline" size={16} color="#9A9A9A" />
+            <Ionicons name="play-circle-outline" size={16} color={COLORS.textSecondary} />
             <Text style={styles.dropdownItemText}>Activar plan</Text>
           </TouchableOpacity>
           <View style={styles.dropdownDivider} />
@@ -310,7 +357,7 @@ export default function PlanScreen({ navigation }) {
             style={styles.dropdownItem}
             onPress={() => { navigation.navigate('NewPlan', { plan: menuPlan }); setMenuPlan(null); }}
           >
-            <Ionicons name="pencil-outline" size={16} color="#9A9A9A" />
+            <Ionicons name="pencil-outline" size={16} color={COLORS.textSecondary} />
             <Text style={styles.dropdownItemText}>Editar</Text>
           </TouchableOpacity>
           <View style={styles.dropdownDivider} />
@@ -318,8 +365,8 @@ export default function PlanScreen({ navigation }) {
             style={styles.dropdownItem}
             onPress={() => handleDelete(menuPlan)}
           >
-            <Ionicons name="trash-outline" size={16} color="#FF3B3B" />
-            <Text style={[styles.dropdownItemText, { color: '#FF3B3B' }]}>Eliminar</Text>
+            <Ionicons name="trash-outline" size={16} color={COLORS.danger} />
+            <Text style={[styles.dropdownItemText, { color: COLORS.danger }]}>Eliminar</Text>
           </TouchableOpacity>
         </View>
       </Modal>
@@ -330,7 +377,7 @@ export default function PlanScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0D0D0D',
+    backgroundColor: COLORS.background,
   },
   centered: {
     flex: 1,
@@ -346,9 +393,9 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   title: {
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: 'bold',
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
   },
   addBtn: {
     padding: 4,
@@ -365,14 +412,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
   emptyText: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
-    color: '#6A6A6A',
+    color: COLORS.textMuted,
     marginTop: 12,
   },
   emptySubtext: {
-    fontSize: 14,
-    color: '#4A4A4A',
+    fontSize: 16,
+    color: COLORS.iconInactive,
     textAlign: 'center',
   },
   emptyCreateBtn: {
@@ -380,23 +427,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#B11226',
+    backgroundColor: COLORS.primary,
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 10,
   },
   emptyCreateBtnText: {
-    color: '#EAEAEA',
-    fontSize: 15,
+    color: COLORS.textPrimary,
+    fontSize: 17,
     fontWeight: '700',
   },
   section: {
     marginBottom: 8,
   },
   sectionLabel: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '700',
-    color: '#6A6A6A',
+    color: COLORS.textMuted,
     letterSpacing: 1.2,
     marginBottom: 10,
     marginLeft: 2,
@@ -405,24 +452,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderRadius: 10,
     padding: 14,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: COLORS.borderInner,
   },
   noActiveText: {
-    color: '#6A6A6A',
-    fontSize: 14,
+    color: COLORS.textMuted,
+    fontSize: 16,
   },
   // Active plan card
   activePlanCard: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderRadius: 14,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#2E2E2E',
+    borderColor: COLORS.border,
   },
   activePlanTop: {
     flexDirection: 'row',
@@ -432,9 +479,9 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   activePlanName: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
     flex: 1,
     marginRight: 8,
   },
@@ -447,9 +494,9 @@ const styles = StyleSheet.create({
     borderColor: '#2E5E2E',
   },
   activeBadgeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '700',
-    color: '#4CAF50',
+    color: COLORS.success,
     letterSpacing: 0.8,
   },
   progressBlock: {
@@ -463,8 +510,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   progressLabel: {
-    fontSize: 13,
-    color: '#9A9A9A',
+    fontSize: 15,
+    color: COLORS.textSecondary,
     fontWeight: '600',
   },
   endWarning: {
@@ -473,25 +520,74 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   endWarningText: {
-    fontSize: 12,
-    color: '#C9A44C',
+    fontSize: 14,
+    color: COLORS.gold,
     fontWeight: '600',
   },
   progressBarBg: {
     height: 6,
-    backgroundColor: '#2A2A2A',
+    backgroundColor: COLORS.surfaceInner,
     borderRadius: 3,
     overflow: 'hidden',
     marginBottom: 8,
   },
   progressBarFill: {
     height: 6,
-    backgroundColor: '#B11226',
+    backgroundColor: COLORS.primary,
     borderRadius: 3,
   },
   startDateText: {
-    fontSize: 12,
-    color: '#4A4A4A',
+    fontSize: 14,
+    color: COLORS.iconInactive,
+  },
+  // Week navigator
+  weekNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: 16,
+    marginBottom: 8,
+  },
+  weekNavBtn: {
+    padding: 4,
+  },
+  weekNavCenter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+    justifyContent: 'center',
+  },
+  weekNavText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+  },
+  deloadBadge: {
+    backgroundColor: 'rgba(245,166,35,0.15)',
+    borderRadius: 5,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(245,166,35,0.4)',
+  },
+  deloadBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.gold || '#F5A623',
+  },
+  todayBadge: {
+    backgroundColor: '#1A3A1A',
+    borderRadius: 5,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: '#2E5E2E',
+  },
+  todayBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.success || '#4CAF50',
   },
   // Weekly grid
   grid: {
@@ -513,8 +609,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   gridDayLabel: {
-    fontSize: 13,
-    color: '#9A9A9A',
+    fontSize: 15,
+    color: COLORS.textSecondary,
     width: 80,
     fontWeight: '500',
   },
@@ -525,7 +621,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   restText: {
-    fontSize: 13,
+    fontSize: 15,
     color: '#3A3A3A',
     fontStyle: 'italic',
   },
@@ -538,7 +634,7 @@ const styles = StyleSheet.create({
     borderColor: '#5A1A1A',
   },
   chipText: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#CC6666',
     fontWeight: '600',
   },
@@ -546,7 +642,7 @@ const styles = StyleSheet.create({
   activePlanActions: {
     flexDirection: 'row',
     borderTopWidth: 1,
-    borderTopColor: '#2A2A2A',
+    borderTopColor: COLORS.borderInner,
   },
   editBtn: {
     flex: 1,
@@ -556,11 +652,11 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 13,
     borderRightWidth: 1,
-    borderRightColor: '#2A2A2A',
+    borderRightColor: COLORS.borderInner,
   },
   editBtnText: {
-    fontSize: 14,
-    color: '#9A9A9A',
+    fontSize: 16,
+    color: COLORS.textSecondary,
     fontWeight: '600',
   },
   finishBtn: {
@@ -572,39 +668,39 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
   },
   finishBtnText: {
-    fontSize: 14,
-    color: '#EAEAEA',
+    fontSize: 16,
+    color: COLORS.textPrimary,
     fontWeight: '600',
   },
   // Past plan cards
   pastCard: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderRadius: 12,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: COLORS.borderInner,
   },
   pastCardBody: {
     flex: 1,
   },
   pastPlanName: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
     marginBottom: 4,
   },
   pastPlanMeta: {
-    fontSize: 13,
-    color: '#6A6A6A',
+    fontSize: 15,
+    color: COLORS.textMuted,
   },
   // Dropdown menu
   dropdown: {
     position: 'absolute',
     right: 16,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderRadius: 10,
     paddingVertical: 4,
     minWidth: 190,
@@ -622,12 +718,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   dropdownItemText: {
-    fontSize: 15,
-    color: '#EAEAEA',
+    fontSize: 17,
+    color: COLORS.textPrimary,
   },
   dropdownDivider: {
     height: 1,
-    backgroundColor: '#333333',
+    backgroundColor: COLORS.border,
     marginHorizontal: 8,
   },
 });

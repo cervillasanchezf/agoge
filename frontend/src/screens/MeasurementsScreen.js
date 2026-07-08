@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import Svg, { Path, Circle, Line, Text as SvgText, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { measurementService } from '../services/api';
+import { COLORS } from '../config/theme';
 
 function formatDate(dateStr) {
   const d = new Date(dateStr);
@@ -54,17 +55,18 @@ const MEASUREMENT_LABELS = {
 const MEASUREMENT_UNITS = { peso: 'kg' };
 
 // ─── Gráfica SVG ────────────────────────────────────────────
-const CHART_H = 180;
-const PADDING = { top: 16, bottom: 16, left: 16, right: 16 };
+const CHART_H = 200;
+const CHART_PAD = { top: 28, bottom: 30, left: 40, right: 30 };
+const X_INSET = 16;
 
 function LineChart({ data, fieldKey }) {
   const screenWidth = Dimensions.get('window').width;
-  const chartWidth = screenWidth - 32; // padding horizontal de la pantalla
+  const chartWidth = screenWidth - 32;
 
   const points = data
     .map((m) => ({ value: m[fieldKey], date: m.date }))
     .filter((p) => p.value != null)
-    .reverse(); // orden cronológico ascendente
+    .reverse();
 
   if (points.length < 2) {
     return (
@@ -81,68 +83,65 @@ function LineChart({ data, fieldKey }) {
   const values = points.map((p) => p.value);
   const rawMin = Math.min(...values);
   const rawMax = Math.max(...values);
-  const rawRange = rawMax - rawMin || 1;
+  const rawRange = rawMax - rawMin || rawMax || 1;
 
-  // Calcular un step "redondo" para el eje Y
   const roughStep = rawRange / 3;
   const magnitude = Math.pow(10, Math.floor(Math.log10(roughStep || 1)));
-  const normalized = roughStep / magnitude;
+  const norm = roughStep / magnitude;
   let niceStep;
-  if (normalized < 1.5) niceStep = 1 * magnitude;
-  else if (normalized < 3) niceStep = 2 * magnitude;
-  else if (normalized < 7) niceStep = 5 * magnitude;
-  else niceStep = 10 * magnitude;
+  if (norm < 1.5)      niceStep = 1  * magnitude;
+  else if (norm < 3)   niceStep = 2  * magnitude;
+  else if (norm < 7)   niceStep = 5  * magnitude;
+  else                 niceStep = 10 * magnitude;
 
-  // Eje Y: siempre un tick por debajo del min y por encima del max
   const minVal = Math.floor(rawMin / niceStep - 0.0001) * niceStep;
-  const maxVal = Math.ceil(rawMax / niceStep + 0.0001) * niceStep;
-  const range = maxVal - minVal;
+  const maxVal = Math.ceil(rawMax  / niceStep + 0.0001) * niceStep;
+  const range  = maxVal - minVal || 1;
 
-  const innerW = chartWidth - PADDING.left - PADDING.right;
-  const innerH = CHART_H - PADDING.top - PADDING.bottom;
+  const innerW = chartWidth - CHART_PAD.left - CHART_PAD.right;
+  const innerH = CHART_H    - CHART_PAD.top  - CHART_PAD.bottom;
+  const n = points.length;
 
-  // Inset horizontal para que los puntos extremos no estén al borde
-  const X_INSET = 16;
-  const xFor = (i) => PADDING.left + X_INSET + (i / (points.length - 1)) * (innerW - 2 * X_INSET);
-  const yFor = (v) => PADDING.top + innerH - ((v - minVal) / range) * innerH;
+  const xFor = (i) =>
+    CHART_PAD.left + X_INSET +
+    (n === 1 ? innerW / 2 : (i / (n - 1)) * (innerW - 2 * X_INSET));
+  const yFor = (v) =>
+    CHART_PAD.top + innerH - ((v - minVal) / range) * innerH;
 
-  // Construir path de la línea
   const linePath = points
     .map((p, i) => `${i === 0 ? 'M' : 'L'}${xFor(i).toFixed(1)},${yFor(p.value).toFixed(1)}`)
     .join(' ');
-
-  // Construir path del área rellena
+  const baseY = (CHART_PAD.top + innerH).toFixed(1);
   const areaPath =
     linePath +
-    ` L${xFor(points.length - 1).toFixed(1)},${(PADDING.top + innerH).toFixed(1)}` +
-    ` L${xFor(0).toFixed(1)},${(PADDING.top + innerH).toFixed(1)} Z`;
+    ` L${xFor(n - 1).toFixed(1)},${baseY}` +
+    ` L${xFor(0).toFixed(1)},${baseY} Z`;
 
-  // Etiquetas Y: ticks redondos de minVal a maxVal
   const yTicks = [];
   for (let v = minVal; v <= maxVal + niceStep * 0.001; v += niceStep) {
     yTicks.push(parseFloat(v.toFixed(6)));
   }
-  const yLabels = yTicks.map((v) => ({ value: v % 1 === 0 ? String(v) : v.toFixed(1), y: yFor(v) }));
 
-  // Etiquetas X: hasta 4 fechas distribuidas
-  const xLabelIndices = points.length <= 4
+  const xLabelIndices = n <= 4
     ? points.map((_, i) => i)
-    : [0, Math.floor((points.length - 1) / 3), Math.floor((2 * (points.length - 1)) / 3), points.length - 1];
+    : [0, Math.floor((n - 1) / 3), Math.floor(2 * (n - 1) / 3), n - 1];
+
+  const maxIdx  = values.indexOf(Math.max(...values));
+  const lastIdx = n - 1;
 
   const unit = MEASUREMENT_UNITS[fieldKey] || 'cm';
-  const latest = points[points.length - 1];
-  const prev = points[points.length - 2];
-  const diff = (latest.value - prev.value).toFixed(1);
+  const latest = points[lastIdx];
+  const prev   = points[lastIdx - 1];
+  const diff   = (latest.value - prev.value).toFixed(1);
   const diffPrefix = diff > 0 ? '+' : '';
 
   return (
     <View>
-      {/* Resumen último valor */}
       <View style={chartStyles.summary}>
         <Text style={chartStyles.summaryValue}>
           {latest.value} <Text style={chartStyles.summaryUnit}>{unit}</Text>
         </Text>
-        <Text style={[chartStyles.summaryDiff, { color: '#9A9A9A' }]}>
+        <Text style={[chartStyles.summaryDiff, { color: COLORS.textSecondary }]}>
           {diffPrefix}{diff} {unit} vs anterior
         </Text>
       </View>
@@ -150,67 +149,103 @@ function LineChart({ data, fieldKey }) {
       <Svg width={chartWidth} height={CHART_H}>
         <Defs>
           <LinearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor="#B11226" stopOpacity="0.35" />
-            <Stop offset="1" stopColor="#B11226" stopOpacity="0" />
+            <Stop offset="0"   stopColor={COLORS.primary} stopOpacity="0.35" />
+            <Stop offset="0.65" stopColor={COLORS.primary} stopOpacity="0.10" />
+            <Stop offset="1"   stopColor={COLORS.primary} stopOpacity="0" />
           </LinearGradient>
         </Defs>
 
-        {/* Líneas guía horizontales */}
-        {yLabels.map((l, i) => (
+        {/* Y guide lines + labels */}
+        {yTicks.map((v, i) => (
           <React.Fragment key={i}>
             <Line
-              x1={PADDING.left}
-              y1={l.y}
-              x2={chartWidth - PADDING.right}
-              y2={l.y}
-              stroke="#252525"
-              strokeWidth="1"
+              x1={CHART_PAD.left}
+              y1={yFor(v)}
+              x2={chartWidth - CHART_PAD.right}
+              y2={yFor(v)}
+              stroke={COLORS.borderSubtle}
+              strokeWidth={1}
             />
             <SvgText
-              x={PADDING.left - 4}
-              y={l.y + 4}
-              fontSize="9"
-              fill="#6A6A6A"
+              x={CHART_PAD.left - 5}
+              y={yFor(v) + 4}
+              fontSize={12}
+              fill={COLORS.textMuted}
               textAnchor="end"
             >
-              {l.value}
+              {v % 1 === 0 ? String(v) : v.toFixed(1)}
             </SvgText>
           </React.Fragment>
         ))}
 
-        {/* Área rellena */}
+        {/* X baseline */}
+        <Line
+          x1={CHART_PAD.left}
+          y1={CHART_PAD.top + innerH}
+          x2={chartWidth - CHART_PAD.right}
+          y2={CHART_PAD.top + innerH}
+          stroke="#3A3A3A"
+          strokeWidth={1.5}
+        />
+
+        {/* Area fill */}
         <Path d={areaPath} fill="url(#areaGrad)" />
 
-        {/* Línea de la gráfica */}
-        <Path d={linePath} stroke="#B11226" strokeWidth="2" fill="none" strokeLinejoin="round" strokeLinecap="round" />
+        {/* Line */}
+        <Path
+          d={linePath}
+          stroke={COLORS.primary}
+          strokeWidth={2}
+          fill="none"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
 
-        {/* Puntos */}
-        {points.map((p, i) => (
-          <Circle
-            key={i}
-            cx={xFor(i)}
-            cy={yFor(p.value)}
-            r="3.5"
-            fill="#B11226"
-            stroke="#0D0D0D"
-            strokeWidth="1.5"
-          />
-        ))}
+        {/* Dots — label on max and last */}
+        {points.map((p, i) => {
+          const isMax  = i === maxIdx;
+          const isLast = i === lastIdx;
+          const showLabel = isMax || (isLast && !isMax);
+          const cx = xFor(i);
+          const cy = yFor(p.value);
+          const label = p.value % 1 === 0 ? String(p.value) : p.value.toFixed(1);
+          return (
+            <React.Fragment key={i}>
+              <Circle
+                cx={cx} cy={cy}
+                r={isMax ? 5.5 : 3.5}
+                fill={COLORS.primary}
+                stroke={COLORS.background}
+                strokeWidth={isMax ? 2 : 1.5}
+              />
+              {showLabel && (
+                <SvgText
+                  x={cx} y={cy - 10}
+                  fontSize={13}
+                  fill={COLORS.primary}
+                  textAnchor="middle"
+                  fontWeight="bold"
+                >
+                  {label}
+                </SvgText>
+              )}
+            </React.Fragment>
+          );
+        })}
 
-        {/* Etiquetas eje X */}
+        {/* X labels */}
         {xLabelIndices.map((i) => (
           <SvgText
             key={i}
             x={xFor(i)}
-            y={CHART_H - 4}
-            fontSize="9"
-            fill="#6A6A6A"
+            y={CHART_H - 6}
+            fontSize={11}
+            fill={COLORS.textMuted}
             textAnchor="middle"
           >
             {formatDateShort(points[i].date)}
           </SvgText>
         ))}
-
       </Svg>
     </View>
   );
@@ -242,7 +277,7 @@ function RangeDropdown({ selected, onSelect }) {
         activeOpacity={0.7}
       >
         <Text style={selectorStyles.dropdownBtnText}>{current.label}</Text>
-        <Ionicons name="chevron-down" size={13} color="#9A9A9A" />
+        <Ionicons name="chevron-down" size={13} color={COLORS.textSecondary} />
       </TouchableOpacity>
 
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
@@ -265,7 +300,7 @@ function RangeDropdown({ selected, onSelect }) {
                   {r.label}
                 </Text>
                 {selected === r.key && (
-                  <Ionicons name="checkmark" size={14} color="#B11226" />
+                  <Ionicons name="checkmark" size={14} color={COLORS.primary} />
                 )}
               </TouchableOpacity>
             ))}
@@ -293,7 +328,7 @@ function FieldDropdown({ selected, onSelect, measurements }) {
         activeOpacity={0.7}
       >
         <Text style={selectorStyles.dropdownBtnText}>{MEASUREMENT_LABELS[selected]}</Text>
-        <Ionicons name="chevron-down" size={13} color="#9A9A9A" />
+        <Ionicons name="chevron-down" size={13} color={COLORS.textSecondary} />
       </TouchableOpacity>
 
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
@@ -317,7 +352,7 @@ function FieldDropdown({ selected, onSelect, measurements }) {
                     {MEASUREMENT_LABELS[k]}
                   </Text>
                   {selected === k && (
-                    <Ionicons name="checkmark" size={14} color="#B11226" />
+                    <Ionicons name="checkmark" size={14} color={COLORS.primary} />
                   )}
                 </TouchableOpacity>
               ))}
@@ -338,7 +373,7 @@ function MeasurementCard({ item, onDelete, onPress }) {
           onPress={onDelete}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Ionicons name="trash-outline" size={18} color="#FF3B3B" />
+          <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
         </TouchableOpacity>
       </View>
 
@@ -410,7 +445,7 @@ export default function MeasurementsScreen({ navigation }) {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#B11226" />
+        <ActivityIndicator size="large" color={COLORS.primary} />
       </View>
     );
   }
@@ -419,7 +454,7 @@ export default function MeasurementsScreen({ navigation }) {
     <SafeAreaView style={styles.container} edges={['bottom']}>
       {measurements.length === 0 ? (
         <View style={styles.emptyWrap}>
-          <Ionicons name="body-outline" size={52} color="#333" />
+          <Ionicons name="body-outline" size={52} color={COLORS.border} />
           <Text style={styles.emptyTitle}>Sin registros</Text>
           <Text style={styles.emptySubtitle}>
             Pulsa el botón + para añadir tu primer registro de medidas
@@ -471,11 +506,11 @@ export default function MeasurementsScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0D0D0D',
+    backgroundColor: COLORS.background,
   },
   centered: {
     flex: 1,
-    backgroundColor: '#0D0D0D',
+    backgroundColor: COLORS.background,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -484,12 +519,12 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   card: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderRadius: 12,
     padding: 14,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#2E2E2E',
+    borderColor: COLORS.border,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -498,8 +533,8 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   cardDate: {
-    color: '#EAEAEA',
-    fontSize: 15,
+    color: COLORS.textPrimary,
+    fontSize: 17,
     fontWeight: '600',
   },
   photoThumb: {
@@ -514,20 +549,20 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   metricChip: {
-    backgroundColor: '#252525',
+    backgroundColor: COLORS.surfaceDeep,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 6,
     alignItems: 'center',
   },
   metricLabel: {
-    color: '#9A9A9A',
-    fontSize: 11,
+    color: COLORS.textSecondary,
+    fontSize: 13,
     marginBottom: 2,
   },
   metricValue: {
-    color: '#EAEAEA',
-    fontSize: 13,
+    color: COLORS.textPrimary,
+    fontSize: 15,
     fontWeight: '600',
   },
   addFab: {
@@ -535,7 +570,7 @@ const styles = StyleSheet.create({
     bottom: 24,
     right: 24,
     zIndex: 10,
-    backgroundColor: '#B11226',
+    backgroundColor: COLORS.primary,
     width: 52,
     height: 52,
     borderRadius: 26,
@@ -554,25 +589,25 @@ const styles = StyleSheet.create({
     padding: 40,
   },
   emptyTitle: {
-    color: '#EAEAEA',
-    fontSize: 18,
+    color: COLORS.textPrimary,
+    fontSize: 20,
     fontWeight: '700',
     marginTop: 16,
     marginBottom: 8,
   },
   emptySubtitle: {
-    color: '#6A6A6A',
-    fontSize: 14,
+    color: COLORS.textMuted,
+    fontSize: 16,
     textAlign: 'center',
     lineHeight: 20,
   },
   chartCard: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderRadius: 12,
     padding: 14,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#2E2E2E',
+    borderColor: COLORS.border,
   },
   chartCardHeader: {
     flexDirection: 'row',
@@ -581,8 +616,8 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   sectionTitle: {
-    color: '#9A9A9A',
-    fontSize: 11,
+    color: COLORS.textSecondary,
+    fontSize: 13,
     fontWeight: '700',
     letterSpacing: 1,
     textTransform: 'uppercase',
@@ -600,8 +635,8 @@ const chartStyles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyText: {
-    color: '#6A6A6A',
-    fontSize: 13,
+    color: COLORS.textMuted,
+    fontSize: 15,
     textAlign: 'center',
   },
   summary: {
@@ -612,17 +647,17 @@ const chartStyles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   summaryValue: {
-    color: '#EAEAEA',
-    fontSize: 22,
+    color: COLORS.textPrimary,
+    fontSize: 24,
     fontWeight: '700',
   },
   summaryUnit: {
-    color: '#9A9A9A',
-    fontSize: 14,
+    color: COLORS.textSecondary,
+    fontSize: 16,
     fontWeight: '400',
   },
   summaryDiff: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '600',
   },
 });
@@ -637,16 +672,16 @@ const selectorStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: '#252525',
+    backgroundColor: COLORS.surfaceDeep,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: COLORS.border,
   },
   dropdownBtnText: {
-    color: '#EAEAEA',
-    fontSize: 12,
+    color: COLORS.textPrimary,
+    fontSize: 14,
     fontWeight: '600',
   },
   overlay: {
@@ -658,10 +693,10 @@ const selectorStyles = StyleSheet.create({
     paddingRight: 16,
   },
   dropdownMenu: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: COLORS.border,
     minWidth: 130,
     overflow: 'hidden',
   },
@@ -672,37 +707,37 @@ const selectorStyles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 11,
     borderBottomWidth: 1,
-    borderBottomColor: '#252525',
+    borderBottomColor: COLORS.borderSubtle,
   },
   dropdownItemActive: {
-    backgroundColor: '#1A0000',
+    backgroundColor: COLORS.primaryLight,
   },
   dropdownItemText: {
-    color: '#9A9A9A',
-    fontSize: 13,
+    color: COLORS.textSecondary,
+    fontSize: 15,
     fontWeight: '600',
   },
   dropdownItemTextActive: {
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
   },
   chip: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
-    backgroundColor: '#252525',
+    backgroundColor: COLORS.surfaceDeep,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: COLORS.border,
   },
   chipActive: {
-    backgroundColor: '#1A0000',
-    borderColor: '#B11226',
+    backgroundColor: COLORS.primaryLight,
+    borderColor: COLORS.primary,
   },
   chipText: {
-    color: '#9A9A9A',
-    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontSize: 14,
     fontWeight: '600',
   },
   chipTextActive: {
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
   },
 });

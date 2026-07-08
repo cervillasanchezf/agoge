@@ -178,7 +178,7 @@ export default function CompleteProfileScreen({ navigation }) {
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={COLORS.textPrimary} />
           ) : (
             <Text style={styles.submitButtonText}>Guardar perfil</Text>
           )}
@@ -199,14 +199,14 @@ const styles = StyleSheet.create({
     paddingTop: 40,
   },
   title: {
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: 'bold',
     color: COLORS.textPrimary,
     marginBottom: 10,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 18,
     color: COLORS.textSecondary,
     marginBottom: 30,
     textAlign: 'center',
@@ -231,14 +231,14 @@ const styles = StyleSheet.create({
   },
   changeImageText: {
     color: COLORS.textPrimary,
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
   },
   inputGroup: {
     marginBottom: 20,
   },
   label: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: COLORS.textPrimary,
     marginBottom: 8,
@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     borderRadius: 10,
     padding: 15,
-    fontSize: 16,
+    fontSize: 18,
     borderWidth: 1,
     borderColor: COLORS.border,
     color: COLORS.textPrimary,
@@ -262,10 +262,10 @@ const styles = StyleSheet.create({
   },
   goalButtonSelected: {
     borderColor: COLORS.primary,
-    backgroundColor: '#1A0000',
+    backgroundColor: COLORS.primaryLight,
   },
   goalButtonText: {
-    fontSize: 16,
+    fontSize: 18,
     color: COLORS.textSecondary,
     textAlign: 'center',
     fontWeight: '500',
@@ -287,7 +287,7 @@ const styles = StyleSheet.create({
   },
   submitButtonText: {
     color: COLORS.textPrimary,
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
   },
 });

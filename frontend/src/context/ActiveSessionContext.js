@@ -18,7 +18,7 @@ export function ActiveSessionProvider({ children }) {
         }
 
         const parsedSession = JSON.parse(storedSession);
-        if (parsedSession?.trainingId && parsedSession?.startTimestamp) {
+        if (parsedSession?.startTimestamp) {
           setSession(parsedSession);
         }
       } catch (error) {

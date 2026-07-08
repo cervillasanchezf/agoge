@@ -16,6 +16,9 @@ const setSchema = new mongoose.Schema({
   // Ejercicios pliométricos
   height:   { type: Number, default: 0 }, // cm — altura de caja/plataforma
   distance: { type: Number, default: 0 }, // cm — distancia de salto (broad jump, etc.)
+  // Intervalos / series funcionales
+  restSeconds: { type: Number, default: 0 }, // descanso tras esta serie (segundos)
+  effort:      { type: Number, default: 0 }, // intensidad objetivo en % (0 = sin especificar)
 }, { _id: false });
 
 const trainingSchema = new mongoose.Schema({
@@ -42,7 +45,11 @@ const trainingSchema = new mongoose.Schema({
         required: true,
       },
       order:   { type: Number, required: true },
-      repMode: { type: String, enum: ['reps', 'range', 'cardio', 'plyometric'], default: 'reps' },
+      // warmup / main / cooldown — permite distinguir calentamiento y vuelta a la calma
+      phase:   { type: String, enum: ['warmup', 'main', 'cooldown'], default: 'main' },
+      repMode: { type: String, enum: ['reps', 'range', 'cardio', 'plyometric', 'time'], default: 'reps' },
+      // Identificador de superserie; ejercicios con el mismo valor se ejecutan juntos
+      supersetGroup: { type: String, default: null },
       sets:    { type: [setSchema], default: [] },
       note:    { type: String, default: '' },
     },

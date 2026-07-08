@@ -74,15 +74,17 @@ exports.createSession = async (req, res) => {
       }
     }
 
-    // Verificar que la plantilla pertenece al usuario
-    const training = await Training.findOne({ _id: trainingId, userId: req.userId });
-    if (!training) {
-      return res.status(404).json({ success: false, message: 'Entrenamiento no encontrado' });
+    // Verificar que la plantilla pertenece al usuario (solo si se proporciona)
+    if (trainingId) {
+      const training = await Training.findOne({ _id: trainingId, userId: req.userId });
+      if (!training) {
+        return res.status(404).json({ success: false, message: 'Entrenamiento no encontrado' });
+      }
     }
 
     const session = await TrainingSession.create({
       userId: req.userId,
-      trainingId,
+      trainingId: trainingId || null,
       exercises,
       notes: notes || '',
       date: date ? new Date(date) : new Date(),
@@ -93,8 +95,10 @@ exports.createSession = async (req, res) => {
 
     res.status(201).json({ success: true, data: populated });
   } catch (error) {
-    console.error('Error al guardar sesión:', error);
-    res.status(500).json({ success: false, message: 'Error al guardar sesión' });
+    console.error('Error al guardar sesión:', error.message);
+    console.error('Validation errors:', JSON.stringify(error.errors ?? {}));
+    console.error('Body recibido:', JSON.stringify(req.body).slice(0, 500));
+    res.status(500).json({ success: false, message: 'Error al guardar sesión', detail: error.message });
   }
 };
 
@@ -144,15 +148,16 @@ exports.getAllSessions = async (req, res) => {
 // @access  Private
 exports.updateSession = async (req, res) => {
   try {
-    const { date, exercises, notes, duration } = req.body;
+    const { date, exercises, notes, duration, sessionName } = req.body;
     const session = await TrainingSession.findOne({ _id: req.params.id, userId: req.userId });
     if (!session) {
       return res.status(404).json({ success: false, message: 'Sesión no encontrada' });
     }
-    if (date !== undefined)      session.date      = new Date(date);
-    if (exercises !== undefined) session.exercises = exercises;
-    if (notes !== undefined)     session.notes     = notes;
-    if (duration !== undefined)  session.duration  = duration;
+    if (date !== undefined)        session.date        = new Date(date);
+    if (exercises !== undefined)   session.exercises   = exercises;
+    if (notes !== undefined)       session.notes       = notes;
+    if (duration !== undefined)    session.duration    = duration;
+    if (sessionName !== undefined) session.sessionName = sessionName;
     await session.save();
     res.json({ success: true, data: session });
   } catch (error) {

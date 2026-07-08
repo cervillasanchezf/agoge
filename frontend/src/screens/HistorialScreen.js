@@ -64,7 +64,7 @@ function calcSessionStats(session) {
 // Memoized card — recalculates stats only when the session object changes
 const SessionCard = memo(({ item, onPress, onDelete }) => {
   const { totalVolume, completedSets } = useMemo(() => calcSessionStats(item), [item]);
-  const trainingName = item.trainingId?.name || 'Entrenamiento';
+  const trainingName = item.sessionName || item.trainingId?.name || 'Entrenamiento';
 
   return (
     <TouchableOpacity
@@ -81,23 +81,23 @@ const SessionCard = memo(({ item, onPress, onDelete }) => {
           onPress={() => onDelete(item)}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Ionicons name="trash-outline" size={18} color="#FF3B3B" />
+          <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
         </TouchableOpacity>
       </View>
 
       <View style={styles.statsRow}>
         <View style={styles.statItem}>
-          <Ionicons name="time-outline" size={14} color="#B11226" />
+          <Ionicons name="time-outline" size={14} color={COLORS.primary} />
           <Text style={styles.statValue}>{formatDuration(item.duration)}</Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
-          <Ionicons name="checkmark-circle-outline" size={14} color="#22c55e" />
+          <Ionicons name="checkmark-circle-outline" size={14} color={COLORS.success} />
           <Text style={styles.statValue}>{completedSets} series</Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
-          <Ionicons name="barbell-outline" size={14} color="#C9A44C" />
+          <Ionicons name="barbell-outline" size={14} color={COLORS.gold} />
           <Text style={styles.statValue}>
             {totalVolume > 0 ? `${totalVolume.toLocaleString('es-ES')} kg` : '—'}
           </Text>
@@ -184,7 +184,7 @@ export default function HistorialScreen({ navigation }) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#B11226" />
+          <ActivityIndicator size="large" color={COLORS.primary} />
         </View>
       </SafeAreaView>
     );
@@ -216,11 +216,11 @@ export default function HistorialScreen({ navigation }) {
         onEndReachedThreshold={0.3}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Ionicons name="calendar-outline" size={48} color="#333333" />
+            <Ionicons name="calendar-outline" size={48} color={COLORS.border} />
             <Text style={styles.emptyText}>Aún no hay sesiones registradas</Text>
           </View>
         }
-        ListFooterComponent={loadingMore ? <ActivityIndicator style={{ margin: 16 }} color="#B11226" /> : null}
+        ListFooterComponent={loadingMore ? <ActivityIndicator style={{ margin: 16 }} color={COLORS.primary} /> : null}
       />
     </SafeAreaView>
   );
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primaryDark,
   },
   periodBtnText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
     color: COLORS.textMuted,
   },
@@ -270,8 +270,8 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   cardTop: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 12 },
-  cardTitle: { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 2 },
-  cardDate: { fontSize: 12, color: COLORS.textMuted },
+  cardTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 2 },
+  cardDate: { fontSize: 14, color: COLORS.textMuted },
   statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -281,8 +281,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   statItem: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
-  statValue: { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary },
+  statValue: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary },
   statDivider: { width: 1, height: 16, backgroundColor: COLORS.border },
   empty: { alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: 12 },
-  emptyText: { fontSize: 15, color: COLORS.textMuted, fontWeight: '500' },
+  emptyText: { fontSize: 17, color: COLORS.textMuted, fontWeight: '500' },
 });

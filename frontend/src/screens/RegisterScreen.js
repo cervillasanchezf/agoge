@@ -136,14 +136,14 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   title: {
-    fontSize: 32,
+    fontSize: 34,
     fontWeight: 'bold',
     color: COLORS.textPrimary,
     marginBottom: 10,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 18,
     color: COLORS.textSecondary,
     marginBottom: 40,
     textAlign: 'center',
@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     borderRadius: 10,
     padding: 15,
-    fontSize: 16,
+    fontSize: 18,
     marginBottom: 15,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: COLORS.textPrimary,
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
   },
   loginContainer: {
@@ -183,11 +183,11 @@ const styles = StyleSheet.create({
   },
   loginText: {
     color: COLORS.textSecondary,
-    fontSize: 14,
+    fontSize: 16,
   },
   loginLink: {
     color: COLORS.primary,
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: 'bold',
   },
 });

@@ -60,35 +60,59 @@ function bestE1RM(sets, /* historicalE1RM = null */) {
   return best; // null when no valid set found
 }
 
-// intensity_factor based on relative intensity (weight / e1RM).
-// Bands match standard strength-training zones:
-//   < 0.60  → low intensity  → 0.6
-//   0.60–0.74 → moderate       → 0.8
-//   ≥ 0.75  → high intensity  → 1.0
+// ── Hypertrophy Intensity Index ───────────────────────────────────────────────
+// Combines relative intensity (% e1RM) with RPE proximity-to-failure.
 //
-// Extension point: swap the stepped return for a continuous mapping in the
-// future, or pass a pre-computed e1RM to incorporate historical bests.
+// Relative intensity curve (peaks at 70–80 % e1RM, the hypertrophy sweet-spot):
+//   < 0.50  → 0.50  (too light, little mechanical tension)
+//   0.50–1.0 → continuous triangle peaking at 0.75 → 1.0
+//   > 1.0   → 0.60  (shouldn't happen with Epley, but guards edge cases)
+//
+// RPE component: linear scale (RPE / 10), clamped [0.5, 1.0].
+// Sets with too few reps (<= 4) are penalised (strength, not hypertrophy zone).
+// High-rep sets (> 20) get a small penalty but are still counted.
 export function computeIntensityFactor(sets) {
-  // Edge case: missing data → neutral factor
   if (!sets || sets.length === 0) return 0.7;
 
   const validSets = sets.filter(s => s.completed && (s.reps || 0) > 0 && (s.weight || 0) > 0);
   if (!validSets.length) return 0.7;
 
-  // High-rep sets are unreliable for e1RM estimation → fixed factor
-  const avgReps = validSets.reduce((a, s) => a + s.reps, 0) / validSets.length;
-  if (avgReps > 15) return 0.7;
+  const n = validSets.length;
+  const avgReps   = validSets.reduce((a, s) => a + s.reps,          0) / n;
+  const avgWeight = validSets.reduce((a, s) => a + s.weight,        0) / n;
+  const avgRpe    = validSets.reduce((a, s) => a + (s.rpe || 8),    0) / n;
 
-  const e1rm = bestE1RM(validSets);
-  if (!e1rm) return 0.7;
+  // ── Relative-intensity component ───────────────────────────────────────────
+  let relIntensityScore;
+  if (avgReps <= 4) {
+    // Strength zone — low hypertrophic stimulus regardless of load
+    relIntensityScore = 0.55;
+  } else if (avgReps > 20) {
+    // Endurance zone — metabolic stress, less mechanical tension
+    const e1rm = bestE1RM(validSets);
+    const rel  = e1rm ? avgWeight / e1rm : 0.55;
+    relIntensityScore = 0.55 + rel * 0.2; // max ~0.75
+  } else {
+    const e1rm = bestE1RM(validSets);
+    if (!e1rm) {
+      relIntensityScore = 0.7; // neutral fallback
+    } else {
+      const rel = avgWeight / e1rm; // typically 0.5–1.0
+      // Continuous triangle: rises from 0.5 at rel=0.5, peaks at 1.0 at rel=0.75,
+      // then falls back toward 0.85 at rel=1.0 (very heavy → more strength).
+      if (rel < 0.5)       relIntensityScore = 0.5;
+      else if (rel <= 0.75) relIntensityScore = 0.5 + (rel - 0.5) / 0.25 * 0.5;  // 0.5→1.0
+      else if (rel <= 1.0)  relIntensityScore = 1.0  - (rel - 0.75) / 0.25 * 0.15; // 1.0→0.85
+      else                  relIntensityScore = 0.85;
+    }
+  }
 
-  // Use the avg weight of completed sets as the representative load
-  const avgWeight = validSets.reduce((a, s) => a + s.weight, 0) / validSets.length;
-  const intensity = avgWeight / e1rm; // typically 0.5–1.0
+  // ── RPE / proximity-to-failure component ───────────────────────────────────
+  // Linear: RPE 6 → 0.60, RPE 8 → 0.80, RPE 10 → 1.00
+  const rpeScore = Math.min(1.0, Math.max(0.5, avgRpe / 10));
 
-  if (intensity < 0.6)  return 0.6;
-  if (intensity < 0.75) return 0.8;
-  return 1.0;
+  // ── Combined index (geometric mean keeps both components balanced) ──────────
+  return Math.sqrt(relIntensityScore * rpeScore);
 }
 
 function mechanicFactor(mechanic) {

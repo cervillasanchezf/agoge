@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { trainingService } from '../services/api';
 import { MUSCLE_LABELS, CATEGORY_LABELS, getExerciseName } from '../config/translations';
+import { COLORS } from '../config/theme';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -148,7 +149,7 @@ export default function TrainingSummaryScreen({ route, navigation }) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#B11226" />
+          <ActivityIndicator size="large" color={COLORS.primary} />
         </View>
       </SafeAreaView>
     );
@@ -162,7 +163,7 @@ export default function TrainingSummaryScreen({ route, navigation }) {
           onPress={() => navigation.goBack()}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Ionicons name="chevron-back" size={26} color="#EAEAEA" />
+          <Ionicons name="chevron-back" size={26} color={COLORS.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{trainingName}</Text>
         <View style={{ width: 26 }} />
@@ -203,7 +204,7 @@ export default function TrainingSummaryScreen({ route, navigation }) {
         )}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Ionicons name="barbell-outline" size={40} color="#333333" />
+            <Ionicons name="barbell-outline" size={40} color={COLORS.border} />
             <Text style={styles.emptyText}>Este entrenamiento no tiene ejercicios</Text>
           </View>
         }
@@ -212,7 +213,7 @@ export default function TrainingSummaryScreen({ route, navigation }) {
       {/* Start button */}
       <View style={styles.footer}>
         <TouchableOpacity style={styles.startBtn} onPress={handleStart} activeOpacity={0.85}>
-          <Ionicons name="play" size={20} color="#EAEAEA" style={{ marginRight: 8 }} />
+          <Ionicons name="play" size={20} color={COLORS.textPrimary} style={{ marginRight: 8 }} />
           <Text style={styles.startBtnText}>Comenzar entrenamiento</Text>
         </TouchableOpacity>
       </View>
@@ -223,7 +224,7 @@ export default function TrainingSummaryScreen({ route, navigation }) {
 // ─── Estilos ─────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0D0D0D' },
+  container: { flex: 1, backgroundColor: COLORS.background },
   centered:  { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
   // Header
@@ -232,16 +233,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#1F1F1F',
+    backgroundColor: COLORS.surfaceElevated,
     borderBottomWidth: 1,
-    borderBottomColor: '#252525',
+    borderBottomColor: COLORS.borderSubtle,
     gap: 10,
   },
   headerTitle: {
     flex: 1,
-    fontSize: 17,
+    fontSize: 19,
     fontWeight: '700',
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
     textAlign: 'center',
   },
 
@@ -249,34 +250,34 @@ const styles = StyleSheet.create({
   statsStrip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.surface,
     marginHorizontal: 16,
     marginTop: 16,
     borderRadius: 12,
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: '#252525',
+    borderColor: COLORS.borderSubtle,
   },
   statItem: {
     flex: 1,
     alignItems: 'center',
   },
   statValue: {
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: '700',
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
     marginBottom: 2,
   },
   statLabel: {
-    fontSize: 11,
-    color: '#6A6A6A',
+    fontSize: 13,
+    color: COLORS.textMuted,
     fontWeight: '500',
   },
   statDivider: {
     width: 1,
     height: 30,
-    backgroundColor: '#2E2E2E',
+    backgroundColor: COLORS.border,
     marginHorizontal: 8,
   },
 
@@ -289,13 +290,13 @@ const styles = StyleSheet.create({
 
   // Exercise card
   exCard: {
-    backgroundColor: '#1F1F1F',
+    backgroundColor: COLORS.surfaceElevated,
     borderRadius: 12,
     padding: 14,
     flexDirection: 'row',
     gap: 12,
     borderWidth: 1,
-    borderColor: '#252525',
+    borderColor: COLORS.borderSubtle,
   },
   exCardLeft: {
     alignItems: 'center',
@@ -305,16 +306,16 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#2A0008',
+    backgroundColor: COLORS.surfaceInner,
     borderWidth: 1,
-    borderColor: '#5A0000',
+    borderColor: '#3A3A3A',
     alignItems: 'center',
     justifyContent: 'center',
   },
   exIndexText: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '700',
-    color: '#B11226',
+    color: COLORS.textPrimary,
   },
   exCardBody: {
     flex: 1,
@@ -327,9 +328,9 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   exName: {
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: '700',
-    color: '#EAEAEA',
+    color: COLORS.textPrimary,
     flexShrink: 1,
   },
   repModeBadge: {
@@ -341,17 +342,17 @@ const styles = StyleSheet.create({
     borderColor: '#2A4A2A',
   },
   repModeBadgeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '600',
-    color: '#4CAF50',
+    color: COLORS.success,
   },
   exMeta: {
-    fontSize: 12,
-    color: '#6A6A6A',
+    fontSize: 14,
+    color: COLORS.textMuted,
   },
   exNote: {
-    fontSize: 12,
-    color: '#8B0000',
+    fontSize: 14,
+    color: COLORS.gold,
     fontStyle: 'italic',
   },
   setsContainer: {
@@ -359,14 +360,14 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   setsCount: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#9A9A9A',
+    color: COLORS.textSecondary,
     marginBottom: 2,
   },
   summaryLine: {
-    fontSize: 12,
-    color: '#6A6A6A',
+    fontSize: 14,
+    color: COLORS.textSecondary,
     fontVariant: ['tabular-nums'],
   },
 
@@ -377,8 +378,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   emptyText: {
-    fontSize: 14,
-    color: '#6A6A6A',
+    fontSize: 16,
+    color: COLORS.textMuted,
     textAlign: 'center',
   },
 
@@ -386,12 +387,12 @@ const styles = StyleSheet.create({
   footer: {
     padding: 16,
     paddingBottom: 24,
-    backgroundColor: '#0D0D0D',
+    backgroundColor: COLORS.background,
     borderTopWidth: 1,
-    borderTopColor: '#1F1F1F',
+    borderTopColor: COLORS.surfaceElevated,
   },
   startBtn: {
-    backgroundColor: '#B11226',
+    backgroundColor: COLORS.primary,
     borderRadius: 12,
     paddingVertical: 16,
     flexDirection: 'row',
@@ -399,8 +400,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   startBtnText: {
-    color: '#EAEAEA',
-    fontSize: 16,
+    color: COLORS.textPrimary,
+    fontSize: 18,
     fontWeight: '700',
   },
 });

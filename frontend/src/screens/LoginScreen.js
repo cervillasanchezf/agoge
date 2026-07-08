@@ -64,7 +64,7 @@ export default function LoginScreen({ navigation }) {
           <TextInput
             style={styles.input}
             placeholder="Email"
-            placeholderTextColor="#7A7A7A"
+            placeholderTextColor={COLORS.textMuted}
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
@@ -76,7 +76,7 @@ export default function LoginScreen({ navigation }) {
             <TextInput
               style={styles.passwordInput}
               placeholder="Contraseña"
-              placeholderTextColor="#7A7A7A"
+              placeholderTextColor={COLORS.textMuted}
               value={password}
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
@@ -90,7 +90,7 @@ export default function LoginScreen({ navigation }) {
               <Ionicons
                 name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                 size={22}
-                color="#6A6A6A"
+                color={COLORS.textMuted}
               />
             </TouchableOpacity>
           </View>
@@ -101,7 +101,7 @@ export default function LoginScreen({ navigation }) {
             disabled={loading}
           >
             {loading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={COLORS.textPrimary} />
             ) : (
               <Text style={styles.buttonText}>Iniciar Sesión</Text>
             )}
@@ -138,7 +138,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 18,
     color: COLORS.textSecondary,
     marginBottom: 40,
     textAlign: 'center',
@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     borderRadius: 10,
     padding: 15,
-    fontSize: 16,
+    fontSize: 18,
     marginBottom: 15,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
   passwordInput: {
     flex: 1,
     padding: 15,
-    fontSize: 16,
+    fontSize: 18,
     color: COLORS.textPrimary,
   },
   eyeButton: {
@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: COLORS.textPrimary,
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
   },
   registerContainer: {
@@ -197,11 +197,11 @@ const styles = StyleSheet.create({
   },
   registerText: {
     color: COLORS.textSecondary,
-    fontSize: 14,
+    fontSize: 16,
   },
   registerLink: {
     color: COLORS.primary,
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: 'bold',
   },
 });

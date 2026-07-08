@@ -24,6 +24,7 @@ import PlanScreen from './src/screens/PlanScreen';
 import NewPlanScreen from './src/screens/NewPlanScreen';
 import StatsScreen from './src/screens/StatsScreen';
 import HypertrophyStatsScreen from './src/screens/HypertrophyStatsScreen';
+import PhysicalStatsScreen from './src/screens/PhysicalStatsScreen';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { ActiveSessionProvider, useActiveSession } from './src/context/ActiveSessionContext';
 
@@ -177,6 +178,11 @@ function HomeStack() {
         name="HypertrophyStats"
         component={HypertrophyStatsScreen}
         options={{ title: 'Fuerza & Hipertrofia' }}
+      />
+      <Stack.Screen
+        name="PhysicalStats"
+        component={PhysicalStatsScreen}
+        options={{ title: 'Físico & Medidas' }}
       />
       <Stack.Screen
         name="HomeSessionDetail"

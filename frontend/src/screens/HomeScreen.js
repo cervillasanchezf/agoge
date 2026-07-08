@@ -95,10 +95,36 @@ function fmtVolume(kg) {
   return `${Math.round(kg)} kg`;
 }
 
+// Devuelve el array de días de la semana activa del plan, o [] si no aplica
+function getActivePlanDays(plan) {
+  if (!plan?.planWeeks?.length) return [];
+  const totalWeeks = plan.planWeeks.length;
+  const currentWeek = plan.currentWeek ?? 1;
+  const idx = Math.max(0, Math.min(currentWeek - 1, totalWeeks - 1));
+  return plan.planWeeks[idx]?.days || [];
+}
+
+// Devuelve el objeto de día planificado para una fecha concreta,
+// teniendo en cuenta la semana del plan que corresponde a esa fecha.
+function getPlanDayForDate(plan, date) {
+  if (!plan?.planWeeks?.length || !plan?.startDate) return null;
+  const msElapsed = date - new Date(plan.startDate);
+  if (msElapsed < 0) return null; // fecha anterior al inicio del plan
+  const totalWeeks = plan.planWeeks.length;
+  const weekIdx = Math.min(
+    Math.floor(msElapsed / (7 * 24 * 3600 * 1000)),
+    totalWeeks - 1,
+  );
+  const days = plan.planWeeks[weekIdx]?.days || [];
+  const planDayNum = date.getDay() === 0 ? 7 : date.getDay();
+  return days.find(d => d.dayOfWeek === planDayNum && d.trainings?.length > 0) || null;
+}
+
 function getNextPlanDay(plan, todayPlanDay) {
+  const days = getActivePlanDays(plan);
   for (let i = 1; i <= 7; i++) {
     const checkDay = ((todayPlanDay - 1 + i) % 7) + 1;
-    const found = (plan.days || []).find(
+    const found = days.find(
       d => d.dayOfWeek === checkDay && d.trainings.length > 0,
     );
     if (found) return { ...found, daysFromNow: i };
@@ -262,26 +288,21 @@ export default function HomeScreen({ navigation }) {
     return map;
   }, [sessions]);
 
-  // Map from plan dayOfWeek (1=Mon…7=Sun) -> plan day object
+  // Map from plan dayOfWeek (1=Mon…7=Sun) -> plan day object (semana activa)
   const planDayMap = useMemo(() => {
     if (!activePlan) return {};
     const map = {};
-    (activePlan.days || []).forEach(d => {
+    getActivePlanDays(activePlan).forEach(d => {
       if ((d.trainings || []).filter(Boolean).length > 0) map[d.dayOfWeek] = d;
     });
     return map;
   }, [activePlan]);
 
   const planProgress = useMemo(() => {
-    if (!activePlan?.startDate || !activePlan?.weeks) return null;
-    const elapsed = Math.max(
-      0,
-      Math.floor(
-        (Date.now() - new Date(activePlan.startDate).getTime()) /
-        (7 * 24 * 3600 * 1000),
-      ),
-    );
-    return { elapsed, weeks: activePlan.weeks };
+    if (!activePlan?.startDate || !activePlan?.planWeeks?.length) return null;
+    const totalWeeks = activePlan.planWeeks.length;
+    const currentWeek = activePlan.currentWeek ?? 1;
+    return { elapsed: currentWeek - 1, weeks: totalWeeks };
   }, [activePlan]);
 
   const isLastPlanWeek = planProgress
@@ -290,7 +311,7 @@ export default function HomeScreen({ navigation }) {
 
   const todayTrainings = useMemo(() => {
     if (!activePlan) return null;
-    return (activePlan.days || []).find(d => d.dayOfWeek === todayPlanDay) || null;
+    return getActivePlanDays(activePlan).find(d => d.dayOfWeek === todayPlanDay) || null;
   }, [activePlan, todayPlanDay]);
 
   const nextPlanDay = useMemo(() => {
@@ -315,11 +336,11 @@ export default function HomeScreen({ navigation }) {
 
   // Plan date bounds for calendar navigation
   const planBounds = useMemo(() => {
-    if (!activePlan?.startDate || !activePlan?.weeks) return null;
+    if (!activePlan?.startDate || !activePlan?.planWeeks?.length) return null;
     const start = new Date(activePlan.startDate);
     start.setHours(0, 0, 0, 0);
     const end = new Date(start);
-    end.setDate(end.getDate() + activePlan.weeks * 7 - 1);
+    end.setDate(end.getDate() + activePlan.planWeeks.length * 7 - 1);
     end.setHours(23, 59, 59, 999);
     return { start, end };
   }, [activePlan]);
@@ -344,37 +365,37 @@ export default function HomeScreen({ navigation }) {
   function openCalendar() {
     setCalYear(today.getFullYear());
     setCalMonth(today.getMonth());
-    setSelectedDayKey(null);
+    setSelectedDayKey(todayKey);
     setShowCalendar(true);
   }
 
-  // Returns the Set of planned dayOfWeek numbers for a given date,
-  // using the versioned dayHistory so past stats are not retroactively affected.
+  // Devuelve el Set de dayOfWeek planificados para una fecha dada,
+  // calculando qué semana del plan corresponde a esa fecha.
   const getPlannedDaysSet = useCallback((date) => {
-    if (!activePlan) return new Set();
-    const history = [...(activePlan.dayHistory || [])]
-      .map(h => ({ effectiveFrom: new Date(h.effectiveFrom), days: h.days }))
-      .sort((a, b) => a.effectiveFrom - b.effectiveFrom);
-    if (history.length === 0) {
-      history.push({ effectiveFrom: new Date(activePlan.startDate), days: activePlan.days });
+    if (!activePlan?.startDate || !activePlan?.planWeeks?.length) return new Set();
+    const msElapsed = date - new Date(activePlan.startDate);
+    // Fuera de los límites del plan → sin días planificados
+    if (msElapsed < 0 || msElapsed >= activePlan.planWeeks.length * 7 * 24 * 3600 * 1000) {
+      return new Set();
     }
-    let activeDays = history[0].days;
-    for (const entry of history) {
-      if (entry.effectiveFrom <= date) activeDays = entry.days;
-      else break;
-    }
+    const weekIdx = Math.min(
+      Math.floor(msElapsed / (7 * 24 * 3600 * 1000)),
+      activePlan.planWeeks.length - 1,
+    );
+    const days = activePlan.planWeeks[weekIdx]?.days || [];
     return new Set(
-      (activeDays || []).filter(d => d.trainings?.length > 0).map(d => d.dayOfWeek)
+      days.filter(d => d.trainings?.length > 0).map(d => d.dayOfWeek)
     );
   }, [activePlan]);
 
   function openDaySheet(d) {
     const key = toKey(d);
-    let planDay = planDayMap[jsToPlanDay(d.getDay())] || null;
+    let planDay = getPlanDayForDate(activePlan, d);
     const daySessions = sessionsByDate[key] || [];
     // Filter out planned trainings already done this week (on any day, including this one)
     if (planDay) {
-      const pendingTrainings = planDay.trainings.filter(t => !weekDoneTrainingIds.has(String(t._id)));
+      const weekDoneIds = weekTrainingIdMap[toKey(getMonday(d))] || new Set();
+      const pendingTrainings = planDay.trainings.filter(t => !weekDoneIds.has(String(t._id)));
       planDay = pendingTrainings.length > 0 ? { ...planDay, trainings: pendingTrainings } : null;
     }
     const isMeasDay = !!(activePlan?.measurementDay && planBounds)
@@ -412,13 +433,13 @@ export default function HomeScreen({ navigation }) {
   const selectedDayPlanDay = useMemo(() => {
     if (!selectedDayKey || !activePlan) return null;
     const d = new Date(`${selectedDayKey}T12:00:00`);
-    const planDay = planDayMap[jsToPlanDay(d.getDay())] || null;
+    const planDay = getPlanDayForDate(activePlan, d);
     if (!planDay) return null;
     // Filter out planned trainings already done this week (on any day, including this one)
     const weekDoneIds = weekTrainingIdMap[toKey(getMonday(d))] || new Set();
     const pendingTrainings = planDay.trainings.filter(t => !weekDoneIds.has(String(t._id)));
     return pendingTrainings.length > 0 ? { ...planDay, trainings: pendingTrainings } : null;
-  }, [selectedDayKey, activePlan, planDayMap, weekTrainingIdMap]);
+  }, [selectedDayKey, activePlan, weekTrainingIdMap]);
 
   const selectedDayIsMeasurementDay = useMemo(() => {
     if (!selectedDayKey || !activePlan?.measurementDay || !planBounds) return false;
@@ -435,7 +456,7 @@ export default function HomeScreen({ navigation }) {
 
   if (loading) return (
     <SafeAreaView style={styles.container}>
-      <ActivityIndicator size="large" color="#B11226" style={styles.loader} />
+      <ActivityIndicator size="large" color={COLORS.primary} style={styles.loader} />
     </SafeAreaView>
   );
 
@@ -462,7 +483,7 @@ export default function HomeScreen({ navigation }) {
         {/* End-of-cycle banner */}
         {isLastPlanWeek && (
           <View style={styles.endBanner}>
-            <Ionicons name="flag-outline" size={16} color="#C9A44C" />
+            <Ionicons name="flag-outline" size={16} color={COLORS.gold} />
             <Text style={styles.endBannerText}>
               Última semana de la planificación "{activePlan.name}". ¡Aprieta fuerte!
             </Text>
@@ -484,7 +505,7 @@ export default function HomeScreen({ navigation }) {
               onPress={openCalendar}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Ionicons name="calendar-outline" size={22} color="#C9A44C" />
+              <Ionicons name="calendar-outline" size={22} color={COLORS.gold} />
             </TouchableOpacity>
           </View>
           <View style={styles.strip}>
@@ -510,7 +531,7 @@ export default function HomeScreen({ navigation }) {
               const barColor = hasSess
                 ? COLORS.gold
                 : hasPlanned && isPast && key !== todayKey && !trainingCoveredElsewhere
-                  ? '#5A0000'
+                  ? COLORS.primaryBorder
                   : hasPlanned && !trainingCoveredElsewhere
                     ? '#3A1010'
                     : null;
@@ -530,13 +551,13 @@ export default function HomeScreen({ navigation }) {
                   <View style={[styles.stripBar, barColor && { backgroundColor: barColor }]} />
                   {hasPendingPlanned && (
                     <View style={[styles.stripBar, {
-                      backgroundColor: isPast && key !== todayKey ? '#5A0000' : '#3A1010',
+                      backgroundColor: isPast && key !== todayKey ? COLORS.primaryBorder : '#3A1010',
                       marginTop: 2,
                     }]} />
                   )}
                   {isMeasDay && (
                     <View style={[styles.stripBar, {
-                      backgroundColor: hasMeasurement ? COLORS.primary : '#7A7A7A',
+                      backgroundColor: hasMeasurement ? COLORS.primary : COLORS.textSecondary,
                       marginTop: 2,
                     }]} />
                   )}
@@ -550,26 +571,25 @@ export default function HomeScreen({ navigation }) {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Hoy</Text>
           {!activePlan ? (
-            <View style={styles.card}>
+            <TouchableOpacity
+              style={styles.card}
+              activeOpacity={0.8}
+              onPress={() => navigation.navigate('TrainningTab', { screen: 'Plans' })}
+            >
               <Ionicons
                 name="calendar-clear-outline"
                 size={28}
-                color="#9A9A9A"
+                      color={COLORS.textSecondary}
                 style={styles.cardIcon}
               />
               <Text style={styles.cardEmptyTitle}>Sin planificación activa</Text>
               <Text style={styles.cardEmptyDesc}>
                 Crea una planificación para ver aquí tu entrenamiento del día.
               </Text>
-              <TouchableOpacity
-                style={styles.primaryBtn}
-                onPress={() =>
-                  navigation.navigate('TrainningTab', { screen: 'Plans' })
-                }
-              >
+              <View style={styles.primaryBtn}>
                 <Text style={styles.primaryBtnText}>Crear planificación</Text>
-              </TouchableOpacity>
-            </View>
+              </View>
+            </TouchableOpacity>
           ) : todayTrainings && todayTrainings.trainings.length > 0 ? (() => {
             const pendingTraining = todayTrainings.trainings[todayDone.length] || null;
             const CardWrapper = pendingTraining ? TouchableOpacity : View;
@@ -589,13 +609,13 @@ export default function HomeScreen({ navigation }) {
                 {todayDone.length > 0 ? (
                   <>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-                      <Ionicons name="checkmark-circle" size={16} color="#C9A44C" />
+                      <Ionicons name="checkmark-circle" size={16} color={COLORS.gold} />
                       <Text style={[styles.microLabel, { marginBottom: 0, marginLeft: 6 }]}>COMPLETADO HOY</Text>
                     </View>
                     {todayDone.map((s, i) => (
                       <View key={i} style={{ marginBottom: i < todayDone.length - 1 ? 10 : 0 }}>
                         <Text style={styles.todayName} numberOfLines={1}>
-                          {s.trainingId?.name || 'Entrenamiento'}
+                          {s.sessionName || s.trainingId?.name || 'Entrenamiento'}
                         </Text>
                         <Text style={styles.sessionRowMeta}>
                           {Math.floor((s.duration || 0) / 60)} min · {(s.exercises || []).length} ejercicios
@@ -603,7 +623,7 @@ export default function HomeScreen({ navigation }) {
                       </View>
                     ))}
                     {pendingTraining && (
-                      <View style={[styles.rowBetween, { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#2E2E2E' }]}>
+                      <View style={[styles.rowBetween, { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: COLORS.border }]}>
                         <View style={{ flex: 1, marginRight: 12 }}>
                           <Text style={[styles.microLabel, { marginBottom: 2 }]}>PENDIENTE</Text>
                           <Text style={styles.todayName} numberOfLines={1}>
@@ -611,7 +631,7 @@ export default function HomeScreen({ navigation }) {
                           </Text>
                         </View>
                         <View style={styles.playBtn}>
-                          <Ionicons name="play" size={20} color="#EAEAEA" />
+                          <Ionicons name="play" size={20} color={COLORS.textPrimary} />
                         </View>
                       </View>
                     )}
@@ -631,7 +651,7 @@ export default function HomeScreen({ navigation }) {
                         )}
                       </View>
                       <View style={styles.playBtn}>
-                        <Ionicons name="play" size={20} color="#EAEAEA" />
+                        <Ionicons name="play" size={20} color={COLORS.textPrimary} />
                       </View>
                     </View>
                   </>
@@ -666,7 +686,7 @@ export default function HomeScreen({ navigation }) {
                 activeOpacity={0.8}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
-                  <Ionicons name="checkmark-circle" size={16} color="#B11226" />
+                  <Ionicons name="checkmark-circle" size={16} color={COLORS.primary} />
                   <Text style={[styles.microLabel, { marginBottom: 0, marginLeft: 6 }]}>TOMA DE MEDIDAS</Text>
                 </View>
                 <Text style={[styles.todayName, { color: COLORS.textPrimary }]}>Realizada hoy</Text>
@@ -683,7 +703,7 @@ export default function HomeScreen({ navigation }) {
                     <Text style={styles.todayName}>Pendiente de registrar</Text>
                   </View>
                   <View style={[styles.playBtn, { backgroundColor: COLORS.primaryLight, borderWidth: 1, borderColor: COLORS.primary }]}>
-                    <Ionicons name="body-outline" size={20} color="#B11226" />
+                    <Ionicons name="body-outline" size={20} color={COLORS.primary} />
                   </View>
                 </View>
               </TouchableOpacity>
@@ -702,7 +722,7 @@ export default function HomeScreen({ navigation }) {
               activeOpacity={0.7}
               onPress={() => navigation.navigate('HomeStats', { sessions, activePlan })}
             >
-              <Ionicons name="bicycle-outline" size={22} color="#B11226" />
+              <Ionicons name="bicycle-outline" size={22} color={COLORS.primary} />
               <Text style={styles.statValue}>{fmtCardioHours(weeklyCardioHours)}</Text>
               <Text style={styles.statLabel}>{'Cardio\nsemana'}</Text>
             </TouchableOpacity>
@@ -711,7 +731,7 @@ export default function HomeScreen({ navigation }) {
               activeOpacity={0.7}
               onPress={() => navigation.navigate('HomeStats', { sessions, activePlan })}
             >
-              <Ionicons name="checkmark-circle-outline" size={22} color="#C9A44C" />
+              <Ionicons name="checkmark-circle-outline" size={22} color={COLORS.gold} />
               <Text style={styles.statValue}>{weekSessions.length}</Text>
               <Text style={styles.statLabel}>{'Sesiones\nsemana'}</Text>
             </TouchableOpacity>
@@ -720,7 +740,7 @@ export default function HomeScreen({ navigation }) {
               activeOpacity={0.7}
               onPress={() => navigation.navigate('HomeStats', { sessions, activePlan })}
             >
-              <Ionicons name="barbell-outline" size={22} color="#9A9A9A" />
+              <Ionicons name="barbell-outline" size={22} color={COLORS.textSecondary} />
               <Text style={styles.statValue}>{fmtVolume(weeklyVolume)}</Text>
               <Text style={styles.statLabel}>{'Volumen\nsemana'}</Text>
             </TouchableOpacity>
@@ -735,9 +755,9 @@ export default function HomeScreen({ navigation }) {
             }
             activeOpacity={0.7}
           >
-            <Ionicons name="analytics-outline" size={16} color="#C9A44C" />
+            <Ionicons name="analytics-outline" size={16} color={COLORS.gold} />
             <Text style={styles.statsAdvBtnText}>Ver estadísticas avanzadas</Text>
-            <Ionicons name="chevron-forward" size={14} color="#C9A44C" />
+            <Ionicons name="chevron-forward" size={14} color={COLORS.gold} />
           </TouchableOpacity>
         </View>
 
@@ -796,7 +816,7 @@ export default function HomeScreen({ navigation }) {
               onPress={() => setShowCalendar(false)}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
-              <Ionicons name="close" size={24} color="#EAEAEA" />
+              <Ionicons name="close" size={24} color={COLORS.textPrimary} />
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Calendario</Text>
             <View style={{ width: 24 }} />
@@ -806,17 +826,17 @@ export default function HomeScreen({ navigation }) {
             {/* Month navigation */}
             {(() => {
               let weekRangeLabel = null;
-              if (planBounds && activePlan?.weeks) {
+              if (planBounds && activePlan?.planWeeks?.length) {
                 const firstOfMonth = new Date(calYear, calMonth, 1);
                 const lastOfMonth = new Date(calYear, calMonth + 1, 0);
                 const wFirst = Math.floor((firstOfMonth - planBounds.start) / (7 * 24 * 3600 * 1000)) + 1;
                 const wLast = Math.floor((lastOfMonth - planBounds.start) / (7 * 24 * 3600 * 1000)) + 1;
                 const wFrom = Math.max(1, wFirst);
-                const wTo = Math.min(activePlan.weeks, wLast);
-                if (wFrom <= activePlan.weeks && wTo >= 1) {
+                const wTo = Math.min(activePlan.planWeeks.length, wLast);
+                if (wFrom <= activePlan.planWeeks.length && wTo >= 1) {
                   weekRangeLabel = wFrom === wTo
-                    ? `Semana ${wFrom} de ${activePlan.weeks}`
-                    : `Semanas ${wFrom}–${wTo} de ${activePlan.weeks}`;
+                    ? `Semana ${wFrom} de ${activePlan.planWeeks.length}`
+                    : `Semanas ${wFrom}–${wTo} de ${activePlan.planWeeks.length}`;
                 }
               }
               return (
@@ -825,7 +845,7 @@ export default function HomeScreen({ navigation }) {
                     onPress={prevMonth}
                     hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   >
-                    <Ionicons name="chevron-back" size={22} color="#EAEAEA" />
+                    <Ionicons name="chevron-back" size={22} color={COLORS.textPrimary} />
                   </TouchableOpacity>
                   <View style={{ alignItems: 'center' }}>
                     <Text style={styles.monthTitle}>{MONTHS_ES[calMonth]} {calYear}</Text>
@@ -837,7 +857,7 @@ export default function HomeScreen({ navigation }) {
                     onPress={nextMonth}
                     hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   >
-                    <Ionicons name="chevron-forward" size={22} color="#EAEAEA" />
+                    <Ionicons name="chevron-forward" size={22} color={COLORS.textPrimary} />
                   </TouchableOpacity>
                 </View>
               );
@@ -859,10 +879,10 @@ export default function HomeScreen({ navigation }) {
                 const rowCells = calendarGrid.slice(row * 7, row * 7 + 7);
                 const firstDay = rowCells.find(d => d !== null);
                 let weekNum = null;
-                if (firstDay && planBounds && activePlan?.weeks) {
+                if (firstDay && planBounds && activePlan?.planWeeks?.length) {
                   const firstDate = new Date(calYear, calMonth, firstDay);
                   const weekIdx = Math.floor((firstDate - planBounds.start) / (7 * 24 * 3600 * 1000));
-                  if (weekIdx >= 0 && weekIdx < activePlan.weeks) weekNum = weekIdx + 1;
+                  if (weekIdx >= 0 && weekIdx < activePlan.planWeeks.length) weekNum = weekIdx + 1;
                 }
                 return (
                   <View key={row} style={styles.calRow}>
@@ -948,7 +968,7 @@ export default function HomeScreen({ navigation }) {
                                 {isMeasDay && (
                                   <View style={[
                                     styles.calDot,
-                                    { backgroundColor: hasMeasurement ? COLORS.textSecondary : '#444' },
+                                    { backgroundColor: hasMeasurement ? COLORS.textSecondary : COLORS.border },
                                     (isToday || isSelected) && { backgroundColor: COLORS.textPrimary },
                                   ]} />
                                 )}
@@ -979,7 +999,7 @@ export default function HomeScreen({ navigation }) {
                     <Text style={styles.dayPanelSectionLabel}>PLANIFICADO</Text>
                     {selectedDayPlanDay.trainings.map((t, i) => (
                       <View key={i} style={styles.sessionRow}>
-                        <Ionicons name="calendar-outline" size={16} color="#B11226" />
+                        <Ionicons name="calendar-outline" size={16} color={COLORS.primary} />
                         <View style={{ marginLeft: 10, flex: 1 }}>
                           <Text style={styles.sessionRowName}>{t.name}</Text>
                         </View>
@@ -1000,7 +1020,7 @@ export default function HomeScreen({ navigation }) {
                               });
                             }}
                           >
-                            <Ionicons name="play" size={14} color="#EAEAEA" />
+                            <Ionicons name="play" size={14} color={COLORS.textPrimary} />
                           </TouchableOpacity>
                         )}
                       </View>
@@ -1022,23 +1042,17 @@ export default function HomeScreen({ navigation }) {
                         }}
                         activeOpacity={0.7}
                       >
-                        <Ionicons name="barbell-outline" size={16} color="#C9A44C" />
+                        <Ionicons name="barbell-outline" size={16} color={COLORS.gold} />
                         <View style={{ marginLeft: 10, flex: 1 }}>
                           <Text style={styles.sessionRowName}>
-                            {s.trainingId?.name || 'Entrenamiento'}
+                            {s.sessionName || s.trainingId?.name || 'Entrenamiento'}
                           </Text>
                           <Text style={styles.sessionRowMeta}>
                             {Math.floor((s.duration || 0) / 60)} min ·{' '}
                             {(s.exercises || []).length} ejercicios
                           </Text>
                         </View>
-                        <Ionicons name="chevron-forward" size={16} color="#555" />
-                        <TouchableOpacity
-                          style={[styles.editDateBtn, { marginLeft: 4 }]}
-                          onPress={(e) => { e.stopPropagation(); setShowCalendar(false); openDatePicker(s); }}
-                        >
-                          <Ionicons name="calendar-outline" size={14} color="#C9A44C" />
-                        </TouchableOpacity>
+                        <Ionicons name="chevron-forward" size={16} color={COLORS.iconInactive} />
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -1066,7 +1080,7 @@ export default function HomeScreen({ navigation }) {
                           {measurementsByDate[selectedDayKey] ? 'Realizada' : 'Pendiente de registrar'}
                         </Text>
                       </View>
-                      <Ionicons name="chevron-forward" size={16} color="#555" />
+                      <Ionicons name="chevron-forward" size={16} color={COLORS.iconInactive} />
                     </TouchableOpacity>
                   </View>
                 )}
@@ -1126,7 +1140,7 @@ export default function HomeScreen({ navigation }) {
                         });
                       }}
                     >
-                      <Ionicons name="play" size={16} color="#EAEAEA" />
+                      <Ionicons name="play" size={16} color={COLORS.textPrimary} />
                     </TouchableOpacity>
                   )}
                 </View>
@@ -1150,18 +1164,18 @@ export default function HomeScreen({ navigation }) {
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={styles.sheetSessionName}>
-                      {s.trainingId?.name || 'Entrenamiento'}
+                      {s.sessionName || s.trainingId?.name || 'Entrenamiento'}
                     </Text>
                     <Text style={styles.sheetSessionMeta}>
                       {Math.floor((s.duration || 0) / 60)} min · {(s.exercises || []).length} ejercicios
                     </Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={16} color="#555" style={{ marginRight: 4 }} />
+                  <Ionicons name="chevron-forward" size={16} color={COLORS.iconInactive} style={{ marginRight: 4 }} />
                   <TouchableOpacity
                     style={styles.editDateBtn}
                     onPress={(e) => { e.stopPropagation(); openDatePicker(s); }}
                   >
-                    <Ionicons name="calendar-outline" size={14} color="#C9A44C" />
+                    <Ionicons name="calendar-outline" size={14} color={COLORS.gold} />
                   </TouchableOpacity>
                 </TouchableOpacity>
               ))}
@@ -1190,7 +1204,7 @@ export default function HomeScreen({ navigation }) {
                     {daySheet.hasMeasurement ? 'Realizada' : 'Pendiente de registrar'}
                   </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={16} color="#555" />
+                <Ionicons name="chevron-forward" size={16} color={COLORS.iconInactive} />
               </TouchableOpacity>
             </View>
           )}
@@ -1229,7 +1243,7 @@ export default function HomeScreen({ navigation }) {
                 else setPickMonth(m => m - 1);
               }}
             >
-              <Ionicons name="chevron-back" size={22} color="#EAEAEA" />
+              <Ionicons name="chevron-back" size={22} color={COLORS.textPrimary} />
             </TouchableOpacity>
             <Text style={styles.monthTitle}>{MONTHS_ES[pickMonth]} {pickYear}</Text>
             <TouchableOpacity
@@ -1239,7 +1253,7 @@ export default function HomeScreen({ navigation }) {
                 else setPickMonth(m => m + 1);
               }}
             >
-              <Ionicons name="chevron-forward" size={22} color="#EAEAEA" />
+              <Ionicons name="chevron-forward" size={22} color={COLORS.textPrimary} />
             </TouchableOpacity>
           </View>
 
@@ -1314,22 +1328,22 @@ const styles = StyleSheet.create({
   // Header
   header: { marginBottom: 12 },
   logoContainer: { alignItems: 'center', paddingTop: 0, paddingBottom: 12 },
-  greeting: { fontSize: 22, fontWeight: '700', color: COLORS.textPrimary },
-  dateText: { fontSize: 13, color: COLORS.textSecondary, marginTop: 3, textTransform: 'capitalize' },
+  greeting: { fontSize: 24, fontWeight: '700', color: COLORS.textPrimary },
+  dateText: { fontSize: 15, color: COLORS.textSecondary, marginTop: 3, textTransform: 'capitalize' },
 
   // End-of-cycle banner
   endBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#1D1700',
+    backgroundColor: COLORS.goldBg,
     borderLeftWidth: 3,
     borderLeftColor: COLORS.gold,
     borderRadius: 8,
     padding: 12,
     marginBottom: 16,
   },
-  endBannerText: { flex: 1, fontSize: 13, color: COLORS.gold },
+  endBannerText: { flex: 1, fontSize: 15, color: COLORS.gold },
 
   // Measurement cards
   measurementCardDone: {
@@ -1357,7 +1371,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10,
   },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 8, marginTop: 8 },
+  sectionTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 8, marginTop: 8 },
 
   // Weekly strip
   strip: { flexDirection: 'row' },
@@ -1369,12 +1383,12 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   stripDayToday: {
-    backgroundColor: '#1A0000',
+    backgroundColor: COLORS.primaryLight,
     borderWidth: 1,
     borderColor: COLORS.primary,
   },
-  stripLabel: { fontSize: 11, color: COLORS.textSecondary, marginBottom: 6 },
-  stripNum: { fontSize: 15, fontWeight: '600', color: COLORS.textPrimary },
+  stripLabel: { fontSize: 13, color: COLORS.textSecondary, marginBottom: 6 },
+  stripNum: { fontSize: 17, fontWeight: '600', color: COLORS.textPrimary },
   redText: { color: COLORS.primary, fontWeight: '700' },
   stripBar: {
     width: '60%',
@@ -1395,13 +1409,13 @@ const styles = StyleSheet.create({
   // Card
   card: { backgroundColor: COLORS.surface, borderRadius: 12, padding: 16 },
   cardIcon: { alignSelf: 'center', marginBottom: 8 },
-  cardEmptyTitle: { fontSize: 16, fontWeight: '600', color: COLORS.textPrimary, textAlign: 'center', marginBottom: 6 },
-  cardEmptyDesc: { fontSize: 13, color: COLORS.textSecondary, textAlign: 'center', marginBottom: 16 },
+  cardEmptyTitle: { fontSize: 18, fontWeight: '600', color: COLORS.textPrimary, textAlign: 'center', marginBottom: 6 },
+  cardEmptyDesc: { fontSize: 15, color: COLORS.textSecondary, textAlign: 'center', marginBottom: 16 },
   primaryBtn: { backgroundColor: COLORS.primary, borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
-  primaryBtnText: { color: COLORS.textPrimary, fontWeight: '700', fontSize: 14 },
+  primaryBtnText: { color: COLORS.textPrimary, fontWeight: '700', fontSize: 16 },
 
   // Week progress badge
-  weekProgressBadge: { fontSize: 13, fontWeight: '600', color: COLORS.gold },
+  weekProgressBadge: { fontSize: 15, fontWeight: '600', color: COLORS.gold },
 
   // Advanced stats button
   statsAdvBtn: {
@@ -1413,15 +1427,14 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#2E2E2E',
-    backgroundColor: COLORS.surface,
+    borderColor: COLORS.border,
   },
-  statsAdvBtnText: { fontSize: 13, color: COLORS.gold, fontWeight: '600' },
+  statsAdvBtnText: { fontSize: 15, color: COLORS.gold, fontWeight: '600' },
 
   // Today training
-  microLabel: { fontSize: 10, fontWeight: '700', color: COLORS.primary, letterSpacing: 1, marginBottom: 8 },
-  todayName: { fontSize: 18, fontWeight: '700', color: COLORS.textPrimary },
-  doubleTag: { marginTop: 4, fontSize: 12, color: COLORS.gold },
+  microLabel: { fontSize: 12, fontWeight: '700', color: COLORS.primary, letterSpacing: 1, marginBottom: 8 },
+  todayName: { fontSize: 20, fontWeight: '700', color: COLORS.textPrimary },
+  doubleTag: { marginTop: 4, fontSize: 14, color: COLORS.gold },
   playBtn: {
     width: 48,
     height: 48,
@@ -1430,8 +1443,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  restTitle: { fontSize: 17, fontWeight: '600', color: COLORS.textPrimary, marginBottom: 6 },
-  nextText: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 20 },
+  restTitle: { fontSize: 19, fontWeight: '600', color: COLORS.textPrimary, marginBottom: 6 },
+  nextText: { fontSize: 15, color: COLORS.textSecondary, lineHeight: 20 },
 
   // Stats
   statsRow: { flexDirection: 'row', gap: 8 },
@@ -1442,24 +1455,24 @@ const styles = StyleSheet.create({
     padding: 14,
     alignItems: 'center',
   },
-  statValue: { fontSize: 20, fontWeight: '700', color: COLORS.textPrimary, marginVertical: 4 },
-  statLabel: { fontSize: 11, color: COLORS.textSecondary, textAlign: 'center' },
+  statValue: { fontSize: 22, fontWeight: '700', color: COLORS.textPrimary, marginVertical: 4 },
+  statLabel: { fontSize: 13, color: COLORS.textSecondary, textAlign: 'center' },
 
   // Planificación
-  planName: { fontSize: 16, fontWeight: '700', color: COLORS.textPrimary, flex: 1, marginRight: 8 },
+  planName: { fontSize: 18, fontWeight: '700', color: COLORS.textPrimary, flex: 1, marginRight: 8 },
   activeBadge: {
-    backgroundColor: '#1A0000',
+    backgroundColor: COLORS.primaryLight,
     borderWidth: 1,
     borderColor: COLORS.primary,
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
-  activeBadgeText: { fontSize: 10, fontWeight: '700', color: COLORS.primary, letterSpacing: 0.5 },
-  progressLabel: { fontSize: 13, color: COLORS.textSecondary, marginTop: 8, marginBottom: 8 },
+  activeBadgeText: { fontSize: 12, fontWeight: '700', color: COLORS.primary, letterSpacing: 0.5 },
+  progressLabel: { fontSize: 15, color: COLORS.textSecondary, marginTop: 8, marginBottom: 8 },
   progressBarBg: {
     height: 6,
-    backgroundColor: '#2A2A2A',
+    backgroundColor: COLORS.surfaceInner,
     borderRadius: 3,
     overflow: 'hidden',
   },
@@ -1470,7 +1483,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     marginTop: 12,
   },
-  linkBtnText: { fontSize: 13, color: COLORS.primary, marginRight: 2 },
+  linkBtnText: { fontSize: 15, color: COLORS.primary, marginRight: 2 },
 
   // Calendar modal
   modalContainer: { flex: 1, backgroundColor: COLORS.background },
@@ -1481,9 +1494,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#2E2E2E',
+    borderBottomColor: COLORS.border,
   },
-  modalTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary },
+  modalTitle: { fontSize: 19, fontWeight: '700', color: COLORS.textPrimary },
   monthNav: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1491,9 +1504,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 16,
   },
-  monthTitle: { fontSize: 18, fontWeight: '700', color: COLORS.textPrimary },
+  monthTitle: { fontSize: 20, fontWeight: '700', color: COLORS.textPrimary },
   calWeekRow: { flexDirection: 'row', paddingHorizontal: 10, marginBottom: 4 },
-  calWeekLabel: { flex: 1, textAlign: 'center', fontSize: 12, fontWeight: '600', color: COLORS.textSecondary },
+  calWeekLabel: { flex: 1, textAlign: 'center', fontSize: 14, fontWeight: '600', color: COLORS.textSecondary },
   calGrid: { paddingHorizontal: 10 },
   calRow: { flexDirection: 'row' },
   calCell: {
@@ -1504,17 +1517,17 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     margin: 2,
   },
-  calCellToday: { backgroundColor: '#1A0000', borderWidth: 1, borderColor: COLORS.primary },
+  calCellToday: { backgroundColor: COLORS.primaryLight, borderWidth: 1, borderColor: COLORS.primary },
   calCellSelected: { backgroundColor: COLORS.primary },
   calCellInner: { alignItems: 'center' },
-  calCellNum: { fontSize: 14, color: COLORS.textPrimary },
+  calCellNum: { fontSize: 16, color: COLORS.textPrimary },
   calCellTodayNum: { color: COLORS.primary, fontWeight: '700' },
   calCellSelectedNum: { color: COLORS.textPrimary, fontWeight: '700' },
   calCellOutOfPlan: { opacity: 0.2 },
-  calCellOutOfPlanNum: { color: '#555' },
+  calCellOutOfPlanNum: { color: COLORS.iconInactive },
 
   // Week range label under month title
-  calWeekRangeLabel: { fontSize: 11, color: COLORS.gold, marginTop: 2, fontWeight: '600', letterSpacing: 0.3 },
+  calWeekRangeLabel: { fontSize: 13, color: COLORS.gold, marginTop: 2, fontWeight: '600', letterSpacing: 0.3 },
 
   // Week number column
   calWeekNumCol: {
@@ -1522,7 +1535,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  calWeekNumText: { fontSize: 9, color: '#555', fontWeight: '600' },
+  calWeekNumText: { fontSize: 11, color: COLORS.iconInactive, fontWeight: '600' },
 
   calDot: {
     width: 4,
@@ -1542,12 +1555,12 @@ const styles = StyleSheet.create({
   dayPanel: {
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#2E2E2E',
+    borderTopColor: COLORS.border,
     marginTop: 4,
   },
-  dayPanelTitle: { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 12, textTransform: 'capitalize' },
+  dayPanelTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 12, textTransform: 'capitalize' },
   dayPanelSection: { marginBottom: 12 },
-  dayPanelSectionLabel: { fontSize: 10, fontWeight: '700', color: COLORS.primary, letterSpacing: 1, marginBottom: 6 },
+  dayPanelSectionLabel: { fontSize: 12, fontWeight: '700', color: COLORS.primary, letterSpacing: 1, marginBottom: 6 },
   dayPanelPlayBtn: {
     width: 28,
     height: 28,
@@ -1557,7 +1570,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginLeft: 8,
   },
-  noSessionsText: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', paddingVertical: 16 },
+  noSessionsText: { fontSize: 16, color: COLORS.textSecondary, textAlign: 'center', paddingVertical: 16 },
   sessionRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1566,8 +1579,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginBottom: 8,
   },
-  sessionRowName: { fontSize: 15, fontWeight: '600', color: COLORS.textPrimary },
-  sessionRowMeta: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
+  sessionRowName: { fontSize: 17, fontWeight: '600', color: COLORS.textPrimary },
+  sessionRowMeta: { fontSize: 14, color: COLORS.textSecondary, marginTop: 2 },
 
   // Day Sheet (bottom sheet)
   sheetOverlay: {
@@ -1590,84 +1603,28 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#444',
+    backgroundColor: COLORS.border,
     alignSelf: 'center',
     marginBottom: 12,
   },
   sheetTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
     color: COLORS.textPrimary,
     textTransform: 'capitalize',
     marginBottom: 16,
   },
   sheetSection: { marginBottom: 16 },
-  sheetSectionLabel: { fontSize: 10, fontWeight: '700', color: COLORS.primary, letterSpacing: 1, marginBottom: 8 },
-nLabel: { fontSize: 10, fontWeight: '700', color: COLORS.primary, letterSpacing: 1, marginBottom: 6 },
-  dayPanelPlayBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 8,
-  },
-  noSessionsText: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', paddingVertical: 16 },
-  sessionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    padding: 12,
-    borderRadius: 10,
-    marginBottom: 8,
-  },
-  sessionRowName: { fontSize: 15, fontWeight: '600', color: COLORS.textPrimary },
-  sessionRowMeta: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
-
-  // Day Sheet (bottom sheet)
-  sheetOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-  },
-  sheetContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    maxHeight: '65%',
-  },
-  sheetHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#444',
-    alignSelf: 'center',
-    marginBottom: 12,
-  },
-  sheetTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.textPrimary,
-    textTransform: 'capitalize',
-    marginBottom: 16,
-  },
-  sheetSection: { marginBottom: 16 },
-  sheetSectionLabel: { fontSize: 10, fontWeight: '700', color: COLORS.primary, letterSpacing: 1, marginBottom: 8 },
+  sheetSectionLabel: { fontSize: 12, fontWeight: '700', color: COLORS.primary, letterSpacing: 1, marginBottom: 8 },
   sheetTrainingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#2A2A2A',
+    backgroundColor: COLORS.surfaceInner,
     borderRadius: 10,
     padding: 12,
     marginBottom: 6,
   },
-  sheetTrainingName: { fontSize: 15, fontWeight: '600', color: COLORS.textPrimary },
+  sheetTrainingName: { fontSize: 17, fontWeight: '600', color: COLORS.textPrimary },
   sheetPlayBtn: {
     width: 36,
     height: 36,
@@ -1680,13 +1637,13 @@ nLabel: { fontSize: 10, fontWeight: '700', color: COLORS.primary, letterSpacing:
   sheetSessionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#2A2A2A',
+    backgroundColor: COLORS.surfaceInner,
     borderRadius: 10,
     padding: 12,
     marginBottom: 6,
   },
-  sheetSessionName: { fontSize: 15, fontWeight: '600', color: COLORS.textPrimary },
-  sheetSessionMeta: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
+  sheetSessionName: { fontSize: 17, fontWeight: '600', color: COLORS.textPrimary },
+  sheetSessionMeta: { fontSize: 14, color: COLORS.textSecondary, marginTop: 2 },
   editDateBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1698,7 +1655,7 @@ nLabel: { fontSize: 10, fontWeight: '700', color: COLORS.primary, letterSpacing:
     borderColor: COLORS.gold,
     marginLeft: 8,
   },
-  editDateBtnText: { fontSize: 11, color: COLORS.gold, fontWeight: '600' },
-  sheetRestText: { fontSize: 15, color: COLORS.textSecondary, textAlign: 'center', paddingVertical: 24 },
+  editDateBtnText: { fontSize: 13, color: COLORS.gold, fontWeight: '600' },
+  sheetRestText: { fontSize: 17, color: COLORS.textSecondary, textAlign: 'center', paddingVertical: 24 },
 });
 

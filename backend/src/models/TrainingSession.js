@@ -12,7 +12,8 @@ const trainingSessionSchema = new mongoose.Schema({
   trainingId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Training',
-    required: true,
+    required: false,
+    default: null,
     index: true,
   },
   // Fecha de la sesión (puede diferir de createdAt si el usuario la registra a posteriori)
@@ -29,7 +30,9 @@ const trainingSessionSchema = new mongoose.Schema({
         required: true,
       },
       order:   { type: Number, required: true },
-      repMode: { type: String, enum: ['reps', 'range', 'cardio', 'plyometric'], default: 'reps' },
+      repMode: { type: String, enum: ['reps', 'range', 'cardio', 'plyometric', 'time'], default: 'reps' },
+      phase:         { type: String, enum: ['warmup', 'main', 'cooldown'], default: 'main' },
+      supersetGroup: { type: String, default: null },
       sets: [
         {
           // Fuerza
@@ -50,6 +53,7 @@ const trainingSessionSchema = new mongoose.Schema({
       ],
     },
   ],
+  sessionName: { type: String, default: '' }, // nombre personalizado (sobreescribe trainingId.name)
   notes: { type: String, default: '' },
   duration:  { type: Number, default: 0 }, // segundos
   // Resultados de formatos funcionales/circuito

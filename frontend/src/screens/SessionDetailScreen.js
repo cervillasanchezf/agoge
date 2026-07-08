@@ -16,7 +16,33 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { sessionService } from '../services/api';
 import { MUSCLE_LABELS, getExerciseName } from '../config/translations';
+import { calcExerciseHI } from '../utils/hypertrophyMetrics';
 import { COLORS } from '../config/theme';
+import Svg, { Path } from 'react-native-svg';
+
+function hiColor(hi) {
+  if (hi >= 7) return COLORS.success;
+  if (hi >= 4) return COLORS.gold;
+  if (hi > 0)  return COLORS.warning;
+  return COLORS.iconInactive;
+}
+
+const MUSCLE_COLORS = [
+  '#C9A44C', '#4A90D9', '#27AE60', '#E07A2F',
+  '#9B59B6', '#E74C3C', '#1ABC9C', '#F39C12',
+];
+
+function polarToXY(cx, cy, r, deg) {
+  const rad = ((deg - 90) * Math.PI) / 180;
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+}
+
+function arcPath(cx, cy, r, startDeg, endDeg) {
+  const s = polarToXY(cx, cy, r, startDeg);
+  const e = polarToXY(cx, cy, r, endDeg);
+  const large = endDeg - startDeg > 180 ? 1 : 0;
+  return `M ${s.x.toFixed(2)} ${s.y.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${e.x.toFixed(2)} ${e.y.toFixed(2)}`;
+}
 
 function formatDate(dateStr) {
   const d = new Date(dateStr);
@@ -44,6 +70,7 @@ function formatTime(h, m, s) {
 function calcStats(session) {
   let totalVolume = 0;
   let completedSets = 0;
+  let totalSets = 0;
   const muscleVolume = {};
   const muscleSets   = {};
 
@@ -51,6 +78,7 @@ function calcStats(session) {
     const muscle = ex.exerciseId?.primaryMuscles?.[0];
 
     ex.sets.forEach((s) => {
+      totalSets++;
       if (s.completed) completedSets++;
 
       if (ex.repMode !== 'cardio') {
@@ -65,17 +93,25 @@ function calcStats(session) {
   });
 
   const sortedMuscles = Object.entries(muscleVolume).sort((a, b) => b[1] - a[1]);
-  return { totalVolume, completedSets, sortedMuscles, muscleSets };
+  return { totalVolume, completedSets, totalSets, sortedMuscles, muscleSets };
 }
 
 export default function SessionDetailScreen({ route, navigation }) {
   const [session, setSession] = useState(route.params.session);
-  const trainingName = session.trainingId?.name || 'Entrenamiento';
-  const { totalVolume, completedSets, sortedMuscles, muscleSets } = calcStats(session);
+  const trainingName = session.sessionName || session.trainingId?.name || 'Entrenamiento';
+  const { totalVolume, completedSets, totalSets, sortedMuscles, muscleSets } = calcStats(session);
+
+  const nonCardioExercises = session.exercises.filter(ex => ex.repMode !== 'cardio');
+  const sessionHI = nonCardioExercises.length > 0
+    ? nonCardioExercises.reduce((acc, ex) => acc + calcExerciseHI(ex), 0) / nonCardioExercises.length
+    : 0;
 
   // ── Edit modal state ──────────────────────────────────────────
   const [showEdit, setShowEdit] = useState(false);
-  const [editDate, setEditDate]       = useState('');
+  const [editName, setEditName]           = useState('');
+  const [editDay, setEditDay]         = useState(1);
+  const [editMonth, setEditMonth]     = useState(1);
+  const [editYear, setEditYear]       = useState(new Date().getFullYear());
   const [editH, setEditH]             = useState(0);
   const [editM, setEditM]             = useState(0);
   const [editS, setEditS]             = useState(0);
@@ -85,29 +121,31 @@ export default function SessionDetailScreen({ route, navigation }) {
   const openEdit = () => {
     const d = new Date(session.date);
     const pad = (n) => String(n).padStart(2, '0');
-    setEditDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
+    setEditDay(d.getDate());
+    setEditMonth(d.getMonth() + 1);
+    setEditYear(d.getFullYear());
     const secs = session.duration || 0;
     setEditH(Math.floor(secs / 3600));
     setEditM(Math.floor((secs % 3600) / 60));
     setEditS(secs % 60);
     setEditNotes(session.notes || '');
+    setEditName(session.sessionName || session.trainingId?.name || '');
     setShowEdit(true);
   };
 
   const handleSaveEdit = async () => {
-    if (!editDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      Alert.alert('Fecha inválida', 'Usa el formato AAAA-MM-DD');
-      return;
-    }
+    const pad = (n) => String(n).padStart(2, '0');
+    const dateStr = `${editYear}-${pad(editMonth)}-${pad(editDay)}`;
     setSaving(true);
     try {
       const duration = editH * 3600 + editM * 60 + Math.min(editS, 59);
       const result = await sessionService.updateSession(session._id, {
-        date:     new Date(editDate + 'T12:00:00').toISOString(),
+        date:        new Date(dateStr + 'T12:00:00').toISOString(),
         duration,
-        notes:    editNotes,
+        notes:       editNotes,
+        sessionName: editName.trim(),
       });
-      setSession(result.data || { ...session, date: editDate, duration, notes: editNotes });
+      setSession(result.data || { ...session, date: dateStr, duration, notes: editNotes, sessionName: editName.trim() });
       setShowEdit(false);
     } catch {
       Alert.alert('Error', 'No se pudo guardar los cambios');
@@ -141,37 +179,40 @@ export default function SessionDetailScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle} numberOfLines={1}>{trainingName}</Text>
+        <View style={styles.headerActions}>
+          <TouchableOpacity onPress={openEdit} style={styles.headerBtn}>
+            <Ionicons name="pencil-outline" size={20} color={COLORS.textMuted} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleDelete} style={styles.headerBtn}>
+            <Ionicons name="trash-outline" size={20} color={COLORS.danger} />
+          </TouchableOpacity>
+        </View>
+      </View>
       <ScrollView contentContainerStyle={styles.scroll}>
 
         {/* ── Resumen ─────────────────────────────── */}
         <View style={styles.summaryCard}>
-          <View style={styles.summaryHeader}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.trainingName}>{trainingName}</Text>
-              <Text style={styles.dateText}>{formatDate(session.date)}</Text>
-            </View>
-            <TouchableOpacity onPress={openEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="pencil-outline" size={20} color="#9A9A9A" />
-            </TouchableOpacity>
-          </View>
+          <Text style={styles.dateText}>{formatDate(session.date)}</Text>
 
           <View style={styles.statsGrid}>
             <View style={styles.statCell}>
-              <Ionicons name="time-outline" size={20} color="#B11226" />
+              <Ionicons name="time-outline" size={20} color={COLORS.primary} />
               <Text style={styles.statVal}>{formatDuration(session.duration)}</Text>
               <Text style={styles.statLbl}>Duración</Text>
             </View>
-            <View style={styles.statCell}>
-              <Ionicons name="checkmark-circle-outline" size={20} color="#22c55e" />
-              <Text style={styles.statVal}>{completedSets}</Text>
-              <Text style={styles.statLbl}>Series completas</Text>
+            <View style={[styles.statCell, styles.statCellMid]}>
+              <Ionicons name="checkmark-circle-outline" size={20} color={COLORS.success} />
+              <Text style={styles.statVal}>{completedSets}/{totalSets}</Text>
+              <Text style={styles.statLbl}>Series hechas</Text>
             </View>
             <View style={styles.statCell}>
-              <Ionicons name="barbell-outline" size={20} color="#C9A44C" />
-              <Text style={styles.statVal}>
-                {totalVolume > 0 ? `${totalVolume.toLocaleString('es-ES')} kg` : '—'}
+              <Ionicons name="trending-up-outline" size={20} color={hiColor(sessionHI)} />
+              <Text style={[styles.statVal, { color: hiColor(sessionHI) }]}>
+                {sessionHI > 0 ? sessionHI.toFixed(1) : '—'}
               </Text>
-              <Text style={styles.statLbl}>Volumen total</Text>
+              <Text style={styles.statLbl}>HI sesión</Text>
             </View>
           </View>
 
@@ -179,25 +220,63 @@ export default function SessionDetailScreen({ route, navigation }) {
           {sortedMuscles.length > 0 && (
             <View style={styles.muscleSection}>
               <Text style={styles.sectionTitle}>Volumen por músculo</Text>
-              {sortedMuscles.map(([muscle, vol]) => {
-                const pct = totalVolume > 0 ? vol / totalVolume : 0;
-                const sets = muscleSets[muscle] || 0;
-                return (
-                  <View key={muscle} style={styles.muscleRow}>
-                    <View style={styles.muscleNameWrap}>
-                      <Text style={styles.muscleName}>
-                        {MUSCLE_LABELS[muscle] ?? muscle}
-                      </Text>
-                      <Text style={styles.muscleSets}>{sets} series</Text>
-                    </View>
-                    <View style={styles.barTrack}>
-                      <View style={[styles.barFill, { flex: pct }]} />
-                      <View style={{ flex: 1 - pct }} />
-                    </View>
-                    <Text style={styles.muscleVol}>{vol.toLocaleString('es-ES')} kg</Text>
+              <View style={styles.ringRow}>
+                {/* Donut ring */}
+                <View style={styles.ringWrap}>
+                  <Svg width={140} height={140}>
+                    <Path
+                      d={arcPath(70, 70, 50, 0, 359.99)}
+                      stroke={COLORS.surfaceDeep}
+                      strokeWidth={14}
+                      fill="none"
+                    />
+                    {(() => {
+                      const GAP = 3;
+                      let angle = 0;
+                      return sortedMuscles.map(([muscle, vol], i) => {
+                        const pct = totalVolume > 0 ? vol / totalVolume : 0;
+                        const sweep = Math.max(pct * 360 - GAP, 0);
+                        const start = angle + GAP / 2;
+                        const end = start + sweep;
+                        angle += pct * 360;
+                        if (sweep < 0.5) return null;
+                        return (
+                          <Path
+                            key={muscle}
+                            d={arcPath(70, 70, 50, start, end)}
+                            stroke={MUSCLE_COLORS[i % MUSCLE_COLORS.length]}
+                            strokeWidth={14}
+                            fill="none"
+                            strokeLinecap="butt"
+                          />
+                        );
+                      });
+                    })()}
+                  </Svg>
+                  <View style={styles.ringCenter} pointerEvents="none">
+                    <Text style={styles.ringCenterVal}>
+                      {totalVolume > 0 ? totalVolume.toLocaleString('es-ES') : '—'}
+                    </Text>
+                    <Text style={styles.ringCenterLbl}>kg</Text>
                   </View>
-                );
-              })}
+                </View>
+                {/* Legend */}
+                <View style={styles.ringLegend}>
+                  {sortedMuscles.map(([muscle, vol], i) => {
+                    const pct = totalVolume > 0 ? vol / totalVolume : 0;
+                    const sets = muscleSets[muscle] || 0;
+                    return (
+                      <View key={muscle} style={styles.ringLegendRow}>
+                        <View style={[styles.ringDot, { backgroundColor: MUSCLE_COLORS[i % MUSCLE_COLORS.length] }]} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.ringMuscleName}>{MUSCLE_LABELS[muscle] ?? muscle}</Text>
+                          <Text style={styles.ringMuscleMeta}>{Math.round(pct * 100)}% · {sets} series</Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
             </View>
           )}
           {/* Notas de sesión */}
@@ -212,9 +291,21 @@ export default function SessionDetailScreen({ route, navigation }) {
         {/* ── Ejercicios ───────────────────────────── */}
         {session.exercises.map((ex, exIdx) => {
           const isCardio = ex.repMode === 'cardio';
+          const hi = isCardio ? null : calcExerciseHI(ex);
           return (
             <View key={exIdx} style={styles.exCard}>
-              <Text style={styles.exName}>{getExerciseName(ex.exerciseId)}</Text>
+              <View style={styles.exHeader}>
+                <View style={styles.exIndexBadge}>
+                  <Text style={styles.exIndexText}>{exIdx + 1}</Text>
+                </View>
+                <Text style={styles.exName}>{getExerciseName(ex.exerciseId)}</Text>
+                {hi !== null && hi > 0 && (
+                  <View style={[styles.hiBadge, { borderColor: hiColor(hi) + '55', backgroundColor: hiColor(hi) + '18' }]}>
+                    <Text style={[styles.hiLabel, { color: hiColor(hi) }]}>HI</Text>
+                    <Text style={[styles.hiValue, { color: hiColor(hi) }]}>{hi.toFixed(1)}</Text>
+                  </View>
+                )}
+              </View>
 
               {/* Cabecera tabla */}
               <View style={styles.tableHeader}>
@@ -236,11 +327,11 @@ export default function SessionDetailScreen({ route, navigation }) {
 
               {ex.sets.map((s, sIdx) => (
                 <View key={sIdx} style={[styles.setRow, s.completed && styles.setRowDone]}>
-                  <Text style={[styles.colSet, styles.setNum]}>{sIdx + 1}</Text>
+                  <Text style={[styles.colSet, styles.setNum, s.completed && { color: COLORS.success }]}>{sIdx + 1}</Text>
                   {isCardio ? (
                     <>
-                      <Text style={[styles.colKm, styles.cellText]}>{s.km > 0 ? s.km : '—'}</Text>
-                      <Text style={[{ flex: 1 }, styles.cellText]}>
+                      <Text style={[styles.colKm, s.completed ? styles.cellTextDone : styles.cellText]}>{s.km > 0 ? s.km : '—'}</Text>
+                      <Text style={[{ flex: 1 }, s.completed ? styles.cellTextDone : styles.cellText]}>
                         {(s.h === 0 && s.m === 0 && s.s === 0)
                           ? '—'
                           : formatTime(s.h, s.m, s.s)
@@ -249,9 +340,16 @@ export default function SessionDetailScreen({ route, navigation }) {
                     </>
                   ) : (
                     <>
-                      <Text style={[styles.colKg, styles.cellText]}>{s.weight > 0 ? s.weight : '—'}</Text>
-                      <Text style={[styles.colReps, styles.cellText]}>{s.reps > 0 ? s.reps : '—'}</Text>
-                      <Text style={[styles.colRpe, styles.cellText]}>{s.rpe > 0 ? s.rpe : '—'}</Text>
+                      <Text style={[styles.colKg, s.completed ? styles.cellTextDone : styles.cellText]}>{s.weight > 0 ? s.weight : '—'}</Text>
+                      <Text style={[styles.colReps, s.completed ? styles.cellTextDone : styles.cellText]}>{s.reps > 0 ? s.reps : '—'}</Text>
+                      <View style={[styles.colRpe, { alignItems: 'center' }]}>
+                        {s.rpe > 0
+                          ? <View style={[styles.rpeBadge, s.rpe >= 9 ? styles.rpeBadgeHigh : s.rpe >= 7 ? styles.rpeBadgeMid : styles.rpeBadgeLow]}>
+                              <Text style={styles.rpeBadgeText}>{s.rpe}</Text>
+                            </View>
+                          : <Text style={styles.cellText}>—</Text>
+                        }
+                      </View>
                     </>
                   )}
                   <View style={styles.colDone}>
@@ -265,12 +363,6 @@ export default function SessionDetailScreen({ route, navigation }) {
           );
         })}
 
-        {/* ── Eliminar ─────────────────────────────── */}
-        <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete}>
-          <Ionicons name="trash-outline" size={16} color="#FF3B3B" />
-          <Text style={styles.deleteBtnText}>Eliminar sesión</Text>
-        </TouchableOpacity>
-
       </ScrollView>
 
       {/* ── Modal de edición ─────────────────────── */}
@@ -281,32 +373,81 @@ export default function SessionDetailScreen({ route, navigation }) {
             <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>Editar sesión</Text>
 
-            {/* Fecha */}
-            <Text style={styles.fieldLabel}>Fecha (AAAA-MM-DD)</Text>
+            {/* Nombre */}
+            <Text style={styles.fieldLabel}>Nombre</Text>
             <TextInput
               style={styles.fieldInput}
-              value={editDate}
-              onChangeText={setEditDate}
-              placeholder="2026-04-22"
-              placeholderTextColor="#4A4A4A"
-              keyboardType="numeric"
+              value={editName}
+              onChangeText={setEditName}
+              placeholder="Nombre del entrenamiento"
+              placeholderTextColor={COLORS.iconInactive}
+              maxLength={80}
             />
+
+            {/* Fecha */}
+            <Text style={styles.fieldLabel}>Fecha</Text>
+            <View style={styles.durationRow}>
+              {[
+                { label: 'dd',   value: editDay,   set: setEditDay,   min: 1, max: 31 },
+                { label: 'mm',   value: editMonth, set: setEditMonth, min: 1, max: 12 },
+                { label: 'aaaa', value: editYear,  set: setEditYear,  min: 2020, max: new Date().getFullYear() },
+              ].map(({ label, value, set, min, max }) => {
+                const isYear = label === 'aaaa';
+                const displayVal = isYear ? String(value) : String(value).padStart(2, '0');
+                return (
+                  <View key={label} style={styles.durationUnit}>
+                    <TouchableOpacity onPress={() => set((v) => v < max ? v + 1 : min)} style={styles.durationBtn}>
+                      <Ionicons name="chevron-up" size={16} color={COLORS.textPrimary} />
+                    </TouchableOpacity>
+                    <TextInput
+                      style={styles.durationValue}
+                      value={displayVal}
+                      keyboardType="number-pad"
+                      maxLength={isYear ? 4 : 2}
+                      textAlign="center"
+                      selectTextOnFocus
+                      onChangeText={(txt) => {
+                        const n = parseInt(txt, 10);
+                        if (!isNaN(n)) set(Math.min(Math.max(n, min), max));
+                      }}
+                      onBlur={() => set((v) => Math.min(Math.max(v, min), max))}
+                    />
+                    <TouchableOpacity onPress={() => set((v) => v > min ? v - 1 : max)} style={styles.durationBtn}>
+                      <Ionicons name="chevron-down" size={16} color={COLORS.textPrimary} />
+                    </TouchableOpacity>
+                    <Text style={styles.durationLabel}>{label}</Text>
+                  </View>
+                );
+              })}
+            </View>
 
             {/* Duración */}
             <Text style={styles.fieldLabel}>Duración</Text>
             <View style={styles.durationRow}>
               {[
-                { label: 'h', value: editH, set: setEditH, max: 23 },
-                { label: 'm', value: editM, set: setEditM, max: 59 },
-                { label: 's', value: editS, set: setEditS, max: 59 },
-              ].map(({ label, value, set, max }) => (
+                { label: 'h', value: editH, set: setEditH, min: 0, max: 23 },
+                { label: 'm', value: editM, set: setEditM, min: 0, max: 59 },
+                { label: 's', value: editS, set: setEditS, min: 0, max: 59 },
+              ].map(({ label, value, set, min, max }) => (
                 <View key={label} style={styles.durationUnit}>
                   <TouchableOpacity onPress={() => set((v) => Math.min(v + 1, max))} style={styles.durationBtn}>
-                    <Ionicons name="chevron-up" size={16} color="#EAEAEA" />
+                    <Ionicons name="chevron-up" size={16} color={COLORS.textPrimary} />
                   </TouchableOpacity>
-                  <Text style={styles.durationValue}>{String(value).padStart(2, '0')}</Text>
+                  <TextInput
+                    style={styles.durationValue}
+                    value={String(value).padStart(2, '0')}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    textAlign="center"
+                    selectTextOnFocus
+                    onChangeText={(txt) => {
+                      const n = parseInt(txt, 10);
+                      if (!isNaN(n)) set(Math.min(Math.max(n, min), max));
+                    }}
+                    onBlur={() => set((v) => Math.min(Math.max(v, min), max))}
+                  />
                   <TouchableOpacity onPress={() => set((v) => Math.max(v - 1, 0))} style={styles.durationBtn}>
-                    <Ionicons name="chevron-down" size={16} color="#EAEAEA" />
+                    <Ionicons name="chevron-down" size={16} color={COLORS.textPrimary} />
                   </TouchableOpacity>
                   <Text style={styles.durationLabel}>{label}</Text>
                 </View>
@@ -320,7 +461,7 @@ export default function SessionDetailScreen({ route, navigation }) {
               value={editNotes}
               onChangeText={setEditNotes}
               placeholder="Añade notas sobre la sesión..."
-              placeholderTextColor="#4A4A4A"
+              placeholderTextColor={COLORS.iconInactive}
               multiline
               numberOfLines={4}
             />
@@ -328,7 +469,7 @@ export default function SessionDetailScreen({ route, navigation }) {
             {/* Guardar */}
             <TouchableOpacity style={styles.saveBtn} onPress={handleSaveEdit} disabled={saving}>
               {saving
-                ? <ActivityIndicator color="#EAEAEA" />
+                ? <ActivityIndicator color={COLORS.textPrimary} />
                 : <Text style={styles.saveBtnText}>Guardar cambios</Text>
               }
             </TouchableOpacity>
@@ -344,6 +485,20 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   scroll: { padding: 16, gap: 14, paddingBottom: 40 },
 
+  // Navigation header
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.surfaceDeep,
+    backgroundColor: COLORS.background,
+  },
+  headerBtn: { padding: 8 },
+  headerTitle: { flex: 1, fontSize: 18, fontWeight: '700', color: COLORS.textPrimary, marginHorizontal: 4 },
+  headerActions: { flexDirection: 'row', alignItems: 'center' },
+
   // Summary card
   summaryCard: {
     backgroundColor: COLORS.surface,
@@ -355,8 +510,8 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  trainingName: { fontSize: 18, fontWeight: '800', color: COLORS.textPrimary, marginBottom: 2 },
-  dateText: { fontSize: 13, color: COLORS.textMuted, marginBottom: 16, textTransform: 'capitalize' },
+  trainingName: { fontSize: 20, fontWeight: '800', color: COLORS.textPrimary, marginBottom: 2 },
+  dateText: { fontSize: 15, color: COLORS.textMuted, marginBottom: 16, textTransform: 'capitalize' },
   statsGrid: {
     flexDirection: 'row',
     backgroundColor: COLORS.surfaceAlt,
@@ -365,19 +520,23 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   statCell: { flex: 1, alignItems: 'center', gap: 4 },
-  statVal: { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary },
-  statLbl: { fontSize: 10, color: COLORS.textMuted, fontWeight: '600', textAlign: 'center' },
+  statVal: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary },
+  statLbl: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600', textAlign: 'center' },
+  statCellMid: { borderLeftWidth: 1, borderRightWidth: 1, borderColor: COLORS.surfaceDeep },
 
-  // Volume per muscle
-  muscleSection: { borderTopWidth: 1, borderTopColor: COLORS.surfaceDeep, paddingTop: 14, gap: 8 },
-  sectionTitle: { fontSize: 12, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.5, marginBottom: 4 },
-  muscleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  muscleName: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '600' },
-  muscleSets: { fontSize: 10, color: COLORS.textMuted, fontWeight: '500' },
-  muscleNameWrap: { width: 90, gap: 1 },
-  barTrack: { flex: 1, height: 6, borderRadius: 3, backgroundColor: COLORS.surfaceDeep, flexDirection: 'row', overflow: 'hidden' },
-  barFill: { backgroundColor: COLORS.primary, borderRadius: 3 },
-  muscleVol: { width: 70, fontSize: 11, color: COLORS.textSecondary, textAlign: 'right' },
+  // Volume per muscle — donut ring
+  muscleSection: { borderTopWidth: 1, borderTopColor: COLORS.surfaceDeep, paddingTop: 14 },
+  sectionTitle: { fontSize: 14, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.5, marginBottom: 12 },
+  ringRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  ringWrap: { width: 140, height: 140, alignItems: 'center', justifyContent: 'center' },
+  ringCenter: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
+  ringCenterVal: { fontSize: 17, fontWeight: '800', color: COLORS.textPrimary, textAlign: 'center' },
+  ringCenterLbl: { fontSize: 12, fontWeight: '600', color: COLORS.textMuted, textAlign: 'center' },
+  ringLegend: { flex: 1, gap: 10 },
+  ringLegendRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  ringDot: { width: 8, height: 8, borderRadius: 4, marginTop: 1 },
+  ringMuscleName: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary },
+  ringMuscleMeta: { fontSize: 12, color: COLORS.textMuted, fontWeight: '500' },
 
   // Exercise card
   exCard: {
@@ -390,7 +549,10 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 1,
   },
-  exName: { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 10 },
+  exName: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary, flex: 1 },
+  exHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  exIndexBadge: { width: 24, height: 24, borderRadius: 6, backgroundColor: COLORS.surfaceInner, alignItems: 'center', justifyContent: 'center' },
+  exIndexText: { fontSize: 13, fontWeight: '700', color: COLORS.textMuted },
   tableHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -399,12 +561,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.surfaceDeep,
   },
-  colLabel: { fontSize: 10, color: COLORS.textMuted, fontWeight: '700', textAlign: 'center' },
+  colLabel: { fontSize: 12, color: COLORS.textMuted, fontWeight: '700', textAlign: 'center' },
   colSet:  { width: 36, textAlign: 'center' },
-  colKg:   { width: 60, textAlign: 'center' },
-  colReps: { width: 60, textAlign: 'center' },
-  colRpe:  { width: 48, textAlign: 'center' },
-  colKm:   { width: 64, textAlign: 'center' },
+  colKg:   { flex: 1, textAlign: 'center' },
+  colReps: { flex: 1, textAlign: 'center' },
+  colRpe:  { flex: 1, textAlign: 'center' },
+  colKm:   { flex: 1, textAlign: 'center' },
   colDone: { width: 30, alignItems: 'center' },
   setRow: {
     flexDirection: 'row',
@@ -412,15 +574,38 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 6,
   },
-  setRowDone: { backgroundColor: '#0A1A0A' },
-  setNum: { fontSize: 13, fontWeight: '700', color: COLORS.primary, textAlign: 'center' },
-  cellText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary, textAlign: 'center' },
+  setRowDone: { backgroundColor: COLORS.successBg },
+  setNum: { fontSize: 17, fontWeight: '700', color: COLORS.textMuted, textAlign: 'center' },
+  cellText: { fontSize: 17, fontWeight: '600', color: COLORS.textSecondary, textAlign: 'center' },
+  cellTextDone: { fontSize: 17, fontWeight: '600', color: COLORS.textPrimary, textAlign: 'center' },
   checkCircle: {
     width: 22, height: 22, borderRadius: 11,
     borderWidth: 2, borderColor: COLORS.border,
     alignItems: 'center', justifyContent: 'center',
   },
   checkCircleDone: { borderColor: COLORS.success, backgroundColor: COLORS.success },
+
+  // RPE badges
+  rpeBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5, backgroundColor: COLORS.surfaceInner, alignItems: 'center' },
+  rpeBadgeHigh: { backgroundColor: '#3D1515' },
+  rpeBadgeMid: { backgroundColor: '#2A2010' },
+  rpeBadgeLow: { backgroundColor: COLORS.surfaceElevated },
+  rpeBadgeText: { fontSize: 13, fontWeight: '700', color: COLORS.textSecondary },
+
+  // HI badge
+  hiBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#1A1A2E',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#2A2A4A',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
+  hiLabel: { fontSize: 11, fontWeight: '700', color: '#7A8AC9', letterSpacing: 0.5 },
+  hiValue: { fontSize: 13, fontWeight: '700', color: '#A0B0E8' },
 
   // Summary header with edit button
   summaryHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 0 },
@@ -432,8 +617,8 @@ const styles = StyleSheet.create({
     borderTopColor: COLORS.surfaceDeep,
     paddingTop: 12,
   },
-  notesLabel: { fontSize: 11, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.5, marginBottom: 6 },
-  notesText:  { fontSize: 14, color: COLORS.textSecondary, lineHeight: 20 },
+  notesLabel: { fontSize: 13, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.5, marginBottom: 6 },
+  notesText:  { fontSize: 16, color: COLORS.textSecondary, lineHeight: 20 },
 
   // Edit modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
@@ -448,24 +633,32 @@ const styles = StyleSheet.create({
     width: 36, height: 4, borderRadius: 2,
     backgroundColor: COLORS.border, alignSelf: 'center', marginBottom: 16,
   },
-  modalTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 20 },
-  fieldLabel: { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 6, marginTop: 12 },
+  modalTitle: { fontSize: 19, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 20 },
+  fieldLabel: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 6, marginTop: 12 },
   fieldInput: {
-    backgroundColor: '#111111',
+    backgroundColor: COLORS.background,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#2E2E2E',
+    borderColor: COLORS.border,
     color: COLORS.textPrimary,
-    fontSize: 15,
+    fontSize: 17,
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
   fieldTextarea: { minHeight: 80, textAlignVertical: 'top', paddingTop: 10 },
   durationRow: { flexDirection: 'row', gap: 12, marginTop: 4 },
-  durationUnit: { flex: 1, alignItems: 'center', backgroundColor: '#111111', borderRadius: 10, borderWidth: 1, borderColor: '#2E2E2E', paddingVertical: 8 },
+  durationUnit: { flex: 1, alignItems: 'center', backgroundColor: COLORS.background, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, paddingVertical: 8 },
   durationBtn: { padding: 6 },
-  durationValue: { fontSize: 22, fontWeight: '700', color: COLORS.textPrimary, marginVertical: 4 },
-  durationLabel: { fontSize: 11, color: COLORS.textMuted, fontWeight: '600' },
+  durationValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+    marginVertical: 2,
+    paddingVertical: 2,
+    minWidth: 48,
+    textAlign: 'center',
+  },
+  durationLabel: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600' },
   saveBtn: {
     marginTop: 20,
     backgroundColor: COLORS.primaryDark,
@@ -473,7 +666,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: 'center',
   },
-  saveBtnText: { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary },
+  saveBtnText: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary },
 
   // Delete button
   deleteBtn: {
@@ -488,5 +681,5 @@ const styles = StyleSheet.create({
     borderColor: COLORS.dangerBorder,
     backgroundColor: COLORS.dangerBg,
   },
-  deleteBtnText: { fontSize: 14, fontWeight: '600', color: COLORS.danger },
+  deleteBtnText: { fontSize: 16, fontWeight: '600', color: COLORS.danger },
 });
